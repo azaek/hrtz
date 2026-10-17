@@ -99,6 +99,10 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     await wait(14_000);
   },
 };
+// Clicks "Check for updates", which dev builds don't do by themselves (with ?update=…).
+SCENARIOS.update = async () => {
+  [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Check for updates"))?.click();
+};
 window.addEventListener("load", async () => {
   await wait(1200);
   const play = params.get("play");

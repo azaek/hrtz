@@ -78,6 +78,9 @@ export function useUpdate() {
   };
 
   useEffect(() => {
+    // A dev build would download each release and offer to install it over itself: only a click
+    // checks there.
+    if (import.meta.env.DEV) return;
     const first = setTimeout(() => void run(false), FIRST_MS);
     const every = setInterval(() => void run(false), EVERY_MS);
     return () => {

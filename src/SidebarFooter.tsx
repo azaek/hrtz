@@ -21,6 +21,8 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground2,
     minWidth: 0,
   },
+  // In the text's colour: the accent only marks what's in use.
+  spin: { backgroundColor: tokens.colorNeutralStroke2, color: tokens.colorNeutralForeground2 },
   // The soft marker What's new uses for something not seen yet.
   dot: {
     width: "6px",
@@ -51,17 +53,17 @@ export function SidebarFooter() {
 
   const [label, icon, title] =
     state.status === "checking"
-      ? ["Checking…", <Spinner size="extra-tiny" />, undefined]
+      ? ["Checking…", <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
       : state.status === "current"
         ? ["Up to date", <Checkmark16Regular />, undefined]
         : state.status === "failed"
           ? ["Couldn't check", <Warning16Regular />, state.reason]
           : state.status === "downloading"
-            ? [`Downloading ${state.version}${state.total ? ` · ${Math.round((state.received / state.total) * 100)}%` : "…"}`, <Spinner size="extra-tiny" />, undefined]
+            ? [`Downloading ${state.version}${state.total ? ` · ${Math.round((state.received / state.total) * 100)}%` : "…"}`, <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
             : state.status === "ready"
               ? ["Restart to update", <ArrowClockwise16Regular />, `Installs ${state.version} and restarts hrtz`]
               : state.status === "installing"
-                ? ["Updating…", <Spinner size="extra-tiny" />, undefined]
+                ? ["Updating…", <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
                 : ["Check for updates", <ArrowSync16Regular />, undefined];
   const waiting = state.status === "checking" || state.status === "downloading" || state.status === "installing";
 

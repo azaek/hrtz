@@ -31,6 +31,9 @@ const prefsJson = data("prefs");
 
 export type Backup = BackupMeta & { settings: Settings };
 
+/** The stand-in update's state, from the page's `?update=` (see "plugin:updater|check"). */
+const UPDATE = new URLSearchParams(location.search).get("update");
+
 const clone = <T>(x: T): T => structuredClone(x);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -782,6 +785,25 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       return "C:\\Users\\you\\Documents\\mouse-backup.json";
     case "plugin:dialog|open":
       return "C:\\Users\\you\\Downloads\\mouse-backup.json";
+    // A newer version, for the sidebar's update states: ?update=downloading (slow) or ?update=ready
+    // (at once). Without the parameter there's none.
+    case "plugin:updater|check":
+      return UPDATE ? { rid: 1, currentVersion: "0.1.0", version: "0.2.0", body: "", rawJson: {} } : null;
+    case "plugin:updater|download": {
+      const send = (args.onEvent as { onmessage?: (e: unknown) => void } | undefined)?.onmessage;
+      const total = 9_800_000;
+      const steps = UPDATE === "ready" ? 1 : 40;
+      send?.({ event: "Started", data: { contentLength: total } });
+      for (let i = 0; i < steps; i++) {
+        await wait(UPDATE === "ready" ? 0 : 500);
+        send?.({ event: "Progress", data: { chunkLength: total / steps } });
+      }
+      send?.({ event: "Finished" });
+      return 2;
+    }
+    case "plugin:updater|install":
+    case "plugin:resources|close":
+      return null;
   }
   if (cmd.startsWith("plugin:window|") || cmd.startsWith("plugin:webview|") || cmd.startsWith("plugin:autostart|")) return false;
   console.warn("lab backend: no answer for", cmd, args);
