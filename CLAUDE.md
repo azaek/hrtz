@@ -9,6 +9,11 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 - `npx vite build`: production front-end build.
 - `cd src-tauri && cargo test --lib`: Rust tests.
 
+## Releases
+
+- `CHANGELOG.md` feeds the app's "What's new". Add each change under the next version, whose heading reads "Unreleased".
+- On release day, that heading takes the day's date (`## 0.2.0 — 2026-11-02`), and the version goes into `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` alike.
+
 ## Layout
 
 - `src-tauri/src/`: device protocol, the engine that talks to the mouse, the tray and the OSD.
