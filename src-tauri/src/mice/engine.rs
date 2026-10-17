@@ -5,6 +5,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -98,12 +99,13 @@ pub struct Board {
 }
 
 impl Board {
-    /// Change the state; its `rev` goes up.
+    /// Change the state; its `rev` goes up, across every engine, so a mouse that moves to another
+    /// connection (unplugged and plugged back in) doesn't look older than it was.
     pub fn set(&self, f: impl FnOnce(&mut DeviceState)) {
+        static REV: AtomicU64 = AtomicU64::new(0);
         let mut s = self.state.write();
-        let rev = s.rev;
         f(&mut s);
-        s.rev = rev + 1;
+        s.rev = REV.fetch_add(1, Ordering::Relaxed) + 1;
     }
 
     /// Tell the UI the state as it is now, and what just happened, if anything.
@@ -126,8 +128,9 @@ pub struct Engine {
 
 impl Engine {
     /// Start the thread, finding the mouse through `finder`. Each mouse's battery estimate and log
-    /// are kept in `data_dir` (`battery/`); until one is met, `last`'s are shown.
-    pub fn start(finder: Box<dyn Finder>, notify: Notify, data_dir: Option<PathBuf>, last: Option<String>) -> Self {
+    /// are kept in `data_dir` (`battery/`). The thread ends once every handle is dropped, telling
+    /// the UI its mouse went.
+    pub fn start(finder: Box<dyn Finder>, notify: Notify, data_dir: Option<PathBuf>) -> Self {
         let (tx, rx) = unbounded::<Job>();
         let state = Arc::new(RwLock::new(DeviceState::default()));
         let log = Arc::new(Mutex::new(BatteryLog::load(None)));
@@ -136,13 +139,15 @@ impl Engine {
             .name("hrtz-device".into())
             .spawn(move || {
                 let mut w = Worker::new(finder, shared, notify, data_dir, shared_log);
-                w.battery_of(last.as_deref());
                 let mut next_probe = Instant::now();
                 loop {
                     match rx.recv_timeout(Duration::from_millis(25)) {
                         Ok(job) => job(&mut w),
                         Err(RecvTimeoutError::Timeout) => w.drain_unsolicited(),
-                        Err(RecvTimeoutError::Disconnected) => break,
+                        Err(RecvTimeoutError::Disconnected) => {
+                            w.disconnect();
+                            break;
+                        }
                     }
                     if Instant::now() >= next_probe {
                         next_probe = Instant::now() + w.housekeeping();
@@ -209,33 +214,24 @@ impl Worker {
         }
     }
 
-    /// Use the battery estimate and log of mouse `key`: the one just met, or, before any, the last
-    /// one seen. The files from before several mice (one estimate, one log) become the first
-    /// Zaopin's, or are shown until a mouse is met when none is known yet.
-    pub(crate) fn battery_of(&mut self, key: Option<&str>) {
+    /// Use mouse `key`'s battery estimate and log. The files from before several mice (one
+    /// estimate, one log) become the first Zaopin's.
+    pub(crate) fn battery_of(&mut self, key: &str) {
         let Some(dir) = self.data_dir.clone() else { return };
-        if key.is_some() && key == self.battery_key.as_deref() {
+        if self.battery_key.as_deref() == Some(key) {
             return;
         }
-        let (estimate, log) = match key {
-            Some(key) => {
-                let (estimate, log) = battery_files(&dir, key);
-                if key.starts_with("compx/") && !estimate.exists() && !log.exists() {
-                    let _ = std::fs::create_dir_all(dir.join("battery"));
-                    let _ = std::fs::rename(dir.join("battery.json"), &estimate);
-                    let _ = std::fs::rename(dir.join("battery_log.jsonl"), &log);
-                }
-                (estimate, log)
-            }
-            None => (dir.join("battery.json"), dir.join("battery_log.jsonl")),
-        };
+        let (estimate, log) = battery_files(&dir, key);
+        if key.starts_with("compx/") && !estimate.exists() && !log.exists() {
+            let _ = std::fs::create_dir_all(dir.join("battery"));
+            let _ = std::fs::rename(dir.join("battery.json"), &estimate);
+            let _ = std::fs::rename(dir.join("battery_log.jsonl"), &log);
+        }
         let saved = std::fs::read(&estimate).ok().and_then(|b| serde_json::from_slice::<Saved>(&b).ok());
         self.battery = Estimator::new(saved);
-        // Before a mouse is met, the files are only read: nothing is written to a mouse's history
-        // that isn't connected.
-        self.battery_file = key.map(|_| estimate);
+        self.battery_file = Some(estimate);
         *self.log.lock() = BatteryLog::load(Some(log));
-        self.battery_key = key.map(str::to_string);
+        self.battery_key = Some(key.to_string());
     }
 
     /// Run `f` on the driver; if the connection was lost meanwhile, let go of it.
@@ -325,18 +321,24 @@ impl Worker {
         self.driver = Some(driver);
         self.loaded = false;
         let key = self.board.read().key.clone();
-        self.battery_of(key.as_deref());
+        if let Some(key) = key {
+            self.battery_of(&key);
+        }
         if self.drive(|d, _| d.online())? {
             self.load()?;
         }
         Ok(())
     }
 
+    /// Let go of the connection. The state keeps who the mouse was, so the UI knows which went.
     fn disconnect(&mut self) {
-        let was = self.board.read().connected;
+        let (was, key) = {
+            let s = self.board.read();
+            (s.connected, s.key.clone())
+        };
         self.driver = None;
         self.loaded = false;
-        self.board.set(|s| *s = DeviceState::default());
+        self.board.set(|s| *s = DeviceState { key, ..DeviceState::default() });
         if was {
             self.board.publish(None);
         }

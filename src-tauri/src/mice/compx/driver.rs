@@ -11,7 +11,7 @@ use super::image;
 use super::models;
 use super::protocol::{self as p, Packet, cmd, status};
 use crate::mice::model::Settings;
-use crate::mice::{Board, DeviceEvent, DeviceState, Driver, Finder, Follow, Link, Reading};
+use crate::mice::{Board, DeviceEvent, DeviceState, Driver, Family, Finder, Follow, Link, Reading};
 
 /// Everything below this address is read on connect: config, buttons and shortcut slots.
 pub(crate) const LOADED_REGION: usize = 0x300;
@@ -20,10 +20,23 @@ const RESET_TIMEOUT: Duration = Duration::from_millis(5000);
 /// How long the receiver is given to find a mouse to pair with, as in the vendor app.
 const PAIR_FOR: Duration = Duration::from_secs(30);
 
-/// Zaopin receivers, and mice on their cables, through hidapi.
-#[derive(Default)]
+/// Zaopin's family: its receivers, and its mice on their cables, each a connection of its own.
+pub struct Compx;
+
+impl Family for Compx {
+    fn connections(&self, devices: &[hidapi::DeviceInfo]) -> Vec<String> {
+        devices.iter().filter(|d| is_config_interface(d)).map(|d| d.path().to_string_lossy().into_owned()).collect()
+    }
+
+    fn finder(&self, id: &str) -> Box<dyn crate::mice::Finder> {
+        Box::new(HidFinder { api: None, path: id.to_string() })
+    }
+}
+
+/// One Zaopin receiver, or a mouse on its cable, through hidapi: the config collection at `path`.
 pub struct HidFinder {
     api: Option<HidApi>,
+    path: String,
 }
 
 impl HidFinder {
@@ -41,11 +54,12 @@ fn is_config_interface(d: &hidapi::DeviceInfo) -> bool {
 
 impl Finder for HidFinder {
     fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
+        let path = self.path.clone();
         let api = self.api()?;
         api.refresh_devices()?;
         let info = api
             .device_list()
-            .find(|d| is_config_interface(d))
+            .find(|d| is_config_interface(d) && d.path().to_string_lossy() == *path)
             .ok_or_else(|| anyhow!("no Zaopin receiver found"))?
             .clone();
         let dev = info.open_device(api).context("open HID device")?;
@@ -79,7 +93,7 @@ pub(crate) struct Opened {
 
 /// Meet the mouse: who it is and how it's connected, then ask it for status notifications.
 pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> {
-    let mut m = Compx {
+    let mut m = Connected {
         link: opened.link,
         gap: opened.gap,
         image: vec![0xFF; p::FLASH_SIZE],
@@ -110,7 +124,8 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
     Ok(Box::new(m))
 }
 
-struct Compx {
+/// A Zaopin mouse, met.
+struct Connected {
     link: Box<dyn Link>,
     gap: Duration,
     /// What's known of the mouse's memory: the first `LOADED_REGION` bytes once loaded, all of it
@@ -120,7 +135,7 @@ struct Compx {
     lost: bool,
 }
 
-impl Compx {
+impl Connected {
     fn refresh_settings(&mut self, board: &Board) {
         let decoded = image::decode(&self.image);
         board.set(|s| s.settings = Some(decoded));
@@ -255,7 +270,7 @@ impl Compx {
     }
 }
 
-impl Driver for Compx {
+impl Driver for Connected {
     fn lost(&self) -> bool {
         self.lost
     }

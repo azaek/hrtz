@@ -4,6 +4,7 @@
 
 pub mod compx;
 pub mod engine;
+pub mod hub;
 pub mod model;
 
 use std::time::Duration;
@@ -12,6 +13,7 @@ use anyhow::{Result, bail};
 use hidapi::HidDevice;
 
 pub use engine::{Battery, Board, DeviceEvent, DeviceState, Engine, Notify, Worker};
+pub use hub::Hub;
 use model::Settings;
 
 /// One open connection to a receiver, or to a mouse on its cable: reports out, reports in.
@@ -30,6 +32,15 @@ impl Link for HidDevice {
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> Result<usize> {
         Ok(self.read_timeout(buf, timeout.as_millis().max(1) as i32)?)
     }
+}
+
+/// A protocol family: which connections plugged in now are its, and a finder for each.
+pub trait Family: Send + Sync {
+    /// Its connections plugged in now, each by an id that stays the same while it's plugged in
+    /// (for HID, the path of the collection hrtz talks on).
+    fn connections(&self, devices: &[hidapi::DeviceInfo]) -> Vec<String>;
+    /// The finder for connection `id`, for the engine that runs it.
+    fn finder(&self, id: &str) -> Box<dyn Finder>;
 }
 
 /// Finds a mouse's connection, the receiver or the mouse on its cable, and opens it.

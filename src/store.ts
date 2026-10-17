@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { api, message, on, type AppStatus, type DeviceState, type KnownMouse, type MousePrefs, type Prefs, type Settings } from "./api";
+import { api, message, on, showMouse, type AppStatus, type DeviceState, type KnownMouse, type MousePrefs, type Prefs, type Settings } from "./api";
 
 interface Toast {
   id: number;
@@ -8,7 +8,10 @@ interface Toast {
 }
 
 interface Store {
+  /** The mouse the window shows (see `shown`). */
   device: DeviceState | null;
+  /** Every mouse's state, by key: connected, or until its connection went. */
+  devices: Record<string, DeviceState>;
   prefs: Prefs | null;
   /** The mice hrtz has met, each with what it keeps for it. */
   mice: KnownMouse[];
@@ -20,6 +23,7 @@ interface Store {
 
 let state: Store = {
   device: null,
+  devices: {},
   prefs: null,
   mice: [],
   status: { foregroundExe: null, vendorAppRunning: false, hudShowing: false },
@@ -51,9 +55,27 @@ export function toast(text: string, tone: Toast["tone"] = "info") {
   setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), tone === "error" ? 6000 : 3000);
 }
 
-/** Device state from a reply or an event, whichever is newer: they can arrive in either order. */
-function setDevice(device: DeviceState) {
-  if (!state.device || device.rev >= state.device.rev) set({ device });
+/** The mouse to show, as the app picks its primary one: awake, else connected, else any. (Picking
+ *  one yourself comes with the switcher.) */
+function shown(devices: Record<string, DeviceState>): DeviceState | null {
+  const all = Object.values(devices);
+  return all.find((d) => d.connected && d.online) ?? all.find((d) => d.connected) ?? all[0] ?? null;
+}
+
+/** Put a mouse's state in, and show the one to show; commands follow it. */
+function putDevice(d: DeviceState) {
+  const devices = { ...state.devices, [d.key!]: d };
+  const device = shown(devices);
+  showMouse(device?.key ?? null);
+  set({ devices, device });
+}
+
+/** Device state from a reply or an event, whichever is newer: they can arrive in either order. A
+ *  connection that hasn't met its mouse yet isn't shown. */
+function setDevice(d: DeviceState) {
+  if (!d.key) return;
+  const prev = state.devices[d.key];
+  if (!prev || d.rev >= prev.rev) putDevice(d);
 }
 
 export async function init() {
@@ -64,22 +86,24 @@ export async function init() {
     on.status((status) => set({ status })),
     on.progress((progress) => set({ progress: progress[0] >= progress[1] ? null : progress })),
   ]);
-  const [device, prefs, status, mice] = await Promise.all([api.state(), api.prefs(), api.appStatus(), api.mice()]);
-  setDevice(device);
+  const [states, prefs, status, mice] = await Promise.all([api.states(), api.prefs(), api.appStatus(), api.mice()]);
+  states.forEach(setDevice);
   set({ prefs, status, mice });
 }
 
 /** Optimistically apply `next`, roll back and explain on failure. */
 export async function commit(next: Settings) {
   const prev = state.device;
-  if (!prev?.settings) return;
-  set({ device: { ...prev, settings: next }, busy: true });
+  if (!prev?.settings || !prev.key) return;
+  putDevice({ ...prev, settings: next });
+  set({ busy: true });
   try {
     const applied = await api.applySettings(next);
-    if (state.device) set({ device: { ...state.device, settings: applied } });
+    const now = state.devices[prev.key];
+    if (now) putDevice({ ...now, settings: applied });
   } catch (e) {
     toast(message(e), "error");
-    set({ device: prev });
+    putDevice(prev);
   } finally {
     set({ busy: false });
   }

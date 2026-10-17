@@ -673,6 +673,8 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
   switch (cmd) {
     case "get_state":
       return fake.device;
+    case "get_states":
+      return [fake.device];
     case "get_mice":
       return clone(fake.mice);
     case "set_mouse_prefs": {

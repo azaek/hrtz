@@ -6,9 +6,9 @@ mod driver;
 pub mod image;
 pub mod models;
 pub mod protocol;
-#[cfg(test)]
+#[cfg(any(test, debug_assertions))]
 pub(crate) mod sim;
 #[cfg(test)]
 mod tests;
 
-pub use driver::HidFinder;
+pub use driver::{Compx, HidFinder};

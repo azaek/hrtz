@@ -380,7 +380,7 @@ fn goodbye_says_no_app_is_listening() {
 fn the_engine_finds_the_mouse_and_runs_calls_on_its_thread() {
     let mouse = Arc::new(Mutex::new(SimMouse::default()));
     let notify: Notify = Arc::new(|_, _| {});
-    let engine = Engine::start(Box::new(SimFinder(mouse.clone())), notify, None, None);
+    let engine = Engine::start(Box::new(SimFinder(mouse.clone())), notify, None);
     let start = Instant::now();
     while engine.snapshot().settings.is_none() {
         assert!(start.elapsed() < Duration::from_secs(5), "never connected");

@@ -13,7 +13,7 @@ use parking_lot::Mutex;
 use super::driver::{Opened, connect};
 use super::image::sample_image;
 use super::protocol::{self as p, Packet, checksum, cmd};
-use crate::mice::{Board, Driver, Finder, Link};
+use crate::mice::{Board, Driver, Family, Finder, Link};
 
 pub struct SimMouse {
     pub cid: u8,
@@ -78,6 +78,7 @@ impl SimMouse {
         &mut self.profiles[i]
     }
 
+    #[cfg(test)]
     /// A one-byte field and its check byte, as the vendor app writes them.
     pub fn put_pair(&mut self, addr: usize, v: u8) {
         let f = self.image_mut();
@@ -90,11 +91,13 @@ impl SimMouse {
         self.out.push_back(p::packet(cmd::STATUS_CHANGED, 0, &[bits], None));
     }
 
+    #[cfg(test)]
     /// The commands received since `from`, in order.
     pub fn commands_since(&self, from: usize) -> Vec<u8> {
         self.requests[from..].iter().map(|r| r[1]).collect()
     }
 
+    #[cfg(test)]
     /// The `(address, length)` of every flash read since `from`.
     pub fn reads_since(&self, from: usize) -> Vec<(usize, usize)> {
         self.requests[from..]
@@ -104,6 +107,7 @@ impl SimMouse {
             .collect()
     }
 
+    #[cfg(test)]
     /// The address of every flash write since `from`.
     pub fn writes_since(&self, from: usize) -> Vec<usize> {
         self.requests[from..].iter().filter(|r| r[1] == cmd::WRITE_FLASH).map(|r| p::packet_addr(r) as usize).collect()
@@ -233,5 +237,62 @@ impl Finder for SimFinder {
 
     fn count(&mut self) -> usize {
         self.0.lock().receivers
+    }
+}
+
+/// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, or both,
+/// comma-separated), to try several mice with one. Their keys start `sim/`, so they never take over
+/// what a real Zaopin keeps.
+pub struct SimFamily {
+    pub(crate) mice: Vec<(String, Arc<Mutex<SimMouse>>)>,
+}
+
+impl SimFamily {
+    /// These mice, by connection id.
+    #[cfg(test)]
+    pub fn of(mice: Vec<(&str, SimMouse)>) -> Self {
+        Self { mice: mice.into_iter().map(|(id, m)| (id.to_string(), Arc::new(Mutex::new(m)))).collect() }
+    }
+
+    pub fn from_env() -> Option<Self> {
+        let names = std::env::var("HRTZ_SIM").ok()?;
+        let mice: Vec<_> = names
+            .split(',')
+            .filter_map(|n| {
+                let m = match n.trim() {
+                    "z2mini" => SimMouse { mid: 3, device_type: 1, battery: (64, false, 3850), ..Default::default() },
+                    "z1promax" => SimMouse::default(),
+                    _ => return None,
+                };
+                Some((format!("sim:{}", n.trim()), Arc::new(Mutex::new(m))))
+            })
+            .collect();
+        (!mice.is_empty()).then_some(Self { mice })
+    }
+}
+
+impl Family for SimFamily {
+    fn connections(&self, _devices: &[hidapi::DeviceInfo]) -> Vec<String> {
+        self.mice.iter().filter(|(_, m)| !m.lock().unplugged).map(|(id, _)| id.clone()).collect()
+    }
+
+    fn finder(&self, id: &str) -> Box<dyn Finder> {
+        let mouse = self.mice.iter().find(|(i, _)| i == id).map(|(_, m)| m.clone()).expect("a simulated mouse");
+        Box::new(DevSimFinder(SimFinder(mouse)))
+    }
+}
+
+/// The simulated mouse under a `sim/` key.
+struct DevSimFinder(SimFinder);
+
+impl Finder for DevSimFinder {
+    fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
+        let d = self.0.find(board)?;
+        board.set(|s| s.key = s.key.as_ref().map(|k| k.replacen("compx/", "sim/", 1)));
+        Ok(d)
+    }
+
+    fn count(&mut self) -> usize {
+        self.0.count()
     }
 }

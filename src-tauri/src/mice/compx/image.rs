@@ -429,7 +429,7 @@ pub fn diff(old: &[u8], new: &[u8], max: usize) -> Vec<(usize, Vec<u8>)> {
 
 /// A made-up Z1 PRO MAX image for the tests: the real layout with invented values, and blank
 /// shortcuts and macros. Not read from any mouse.
-#[cfg(test)]
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn sample_image() -> Vec<u8> {
     let mut f = vec![0xFF; FLASH_SIZE];
     put_pair(&mut f, addr::POLLING, 0x20); // 4,000 Hz

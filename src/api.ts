@@ -552,22 +552,31 @@ export interface RunningApp {
 let lastSeq = 0;
 const seq = () => (lastSeq = Math.max(lastSeq + 1, Date.now() * 1000));
 
+/** The mouse the window shows, by key: commands about a mouse go to it. Set by the store; null
+ *  leaves the choice to the app (its primary mouse). */
+let mouse: string | null = null;
+export const showMouse = (key: string | null) => {
+  mouse = key;
+};
+
 export const api = {
   state: () => invoke<DeviceState>("get_state"),
-  applySettings: (settings: Settings) => invoke<Settings>("apply_settings", { settings }),
-  setProfile: (index: number) => invoke<void>("set_profile", { index }),
-  setLongRange: (on: boolean) => invoke<void>("set_long_range", { on }),
-  factoryReset: () => invoke<void>("factory_reset"),
+  /** Every connection's state. */
+  states: () => invoke<DeviceState[]>("get_states"),
+  applySettings: (settings: Settings) => invoke<Settings>("apply_settings", { mouse, settings }),
+  setProfile: (index: number) => invoke<void>("set_profile", { mouse, index }),
+  setLongRange: (on: boolean) => invoke<void>("set_long_range", { mouse, on }),
+  factoryReset: () => invoke<void>("factory_reset", { mouse }),
   prefs: () => invoke<Prefs>("get_prefs"),
   setPrefs: (prefs: Prefs) => invoke<void>("set_prefs", { prefs }),
   mice: () => invoke<KnownMouse[]>("get_mice"),
   setMousePrefs: (key: string, prefs: MousePrefs) => invoke<void>("set_mouse_prefs", { key, prefs }),
   listBackups: () => invoke<BackupMeta[]>("list_backups"),
-  createBackup: (note: string) => invoke<BackupMeta>("create_backup", { note }),
+  createBackup: (note: string) => invoke<BackupMeta>("create_backup", { mouse, note }),
   /** Saves the mouse as it is first (an automatic backup), unless it already matches. */
-  restoreBackup: (id: string) => invoke<Restored>("restore_backup", { id }),
+  restoreBackup: (id: string) => invoke<Restored>("restore_backup", { mouse, id }),
   /** Puts back what a restore replaced, from the backup it saved, and drops that backup. */
-  undoRestore: (id: string) => invoke<number>("undo_restore", { id }),
+  undoRestore: (id: string) => invoke<number>("undo_restore", { mouse, id }),
   /** A named automatic backup becomes yours. */
   renameBackup: (id: string, note: string) => invoke<BackupMeta>("rename_backup", { id, note }),
   deleteBackup: (id: string) => invoke<void>("delete_backup", { id }),
@@ -605,17 +614,17 @@ export const api = {
   padState: (app?: string | null) => invoke<PadView | null>("pad_state", { app: app ?? null }),
   /** Put the receiver into pairing for up to 30 s (`on.pairing` counts down). True when a mouse
    *  paired; it then connects again by itself. */
-  pairReceiver: () => invoke<boolean>("pair_receiver"),
+  pairReceiver: () => invoke<boolean>("pair_receiver", { mouse }),
   /** Double clicks counted over the last 30 days, oldest first. */
   clickHistory: () => invoke<ClickDay[]>("click_history"),
   gameSensitivity: (exe: string) => invoke<GameSensitivity | null>("game_sensitivity", { exe }),
-  batterySummary: () => invoke<BatterySummary>("battery_summary"),
+  batterySummary: () => invoke<BatterySummary>("battery_summary", { mouse }),
   pointerSettings: () => invoke<PointerSettings | null>("pointer_settings"),
   /** Show one of the app's pop-ups as it really appears, for checking how it looks. */
   testPopup: (kind: "dpi" | "polling" | "profile" | "low-battery" | "battery-saver") => invoke<void>("test_popup", { kind }),
   /** Turn off Windows' pointer acceleration and/or set the pointer speed to 6 of 11. */
   fixPointer: (acceleration: boolean, speed: boolean) => invoke<PointerSettings | null>("fix_pointer", { acceleration, speed }),
-  batteryHistory: (days: number) => invoke<BatteryEntry[]>("battery_history", { days }),
+  batteryHistory: (days: number) => invoke<BatteryEntry[]>("battery_history", { mouse, days }),
   padCalibrate: (calibration: PadCalibration) => invoke<void>("pad_calibrate", { calibration }),
   padClear: () => invoke<void>("pad_clear"),
   /** The HUD page's preview: the real HUD on screen, every chosen tab showing (sample values with

@@ -72,7 +72,8 @@ struct Shared {
     showing: AtomicBool,
     /// Exes of games installed through Steam, Epic and Riot, in lower case.
     installed: RwLock<HashSet<String>>,
-    log: Arc<Mutex<BatteryLog>>,
+    /// The battery log of the mouse it shows (`Hud::log`).
+    log: Mutex<Arc<Mutex<BatteryLog>>>,
     /// When the battery log was last read, and the hours a charge lasts at each rate it knows.
     life: Mutex<(Option<Instant>, Vec<RateHours>)>,
 }
@@ -87,7 +88,8 @@ impl Shared {
         let mut life = self.life.lock();
         if life.0.is_none_or(|t| t.elapsed() > LIFE_EVERY) {
             let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-            let summary = battery_log::summary(self.log.lock().entries(), now);
+            let log = self.log.lock().clone();
+            let summary = battery_log::summary(log.lock().entries(), now);
             *life = (Some(Instant::now()), summary.life.iter().map(|l| (l.hz, l.hours)).collect());
         }
         life.1.iter().find(|(h, _)| *h == hz).map(|(_, hours)| *hours)
@@ -109,7 +111,7 @@ pub struct Hud {
 
 impl Hud {
     /// The handle, ready to queue input. Nothing runs until `start`.
-    pub fn new(prefs: &Prefs, log: Arc<Mutex<BatteryLog>>) -> Self {
+    pub fn new(prefs: &Prefs) -> Self {
         let (tx, rx) = unbounded();
         let (kick, kicked) = unbounded();
         let (done_tx, done) = crossbeam_channel::bounded(1);
@@ -120,7 +122,7 @@ impl Hud {
             enabled: AtomicBool::new(prefs.hud.show != HudShow::Off),
             showing: AtomicBool::new(false),
             installed: RwLock::new(HashSet::new()),
-            log,
+            log: Mutex::new(Arc::new(Mutex::new(BatteryLog::load(None)))),
             life: Mutex::new((None, Vec::new())),
         });
         Self { tx, kick, shared, parts: Mutex::new(Some((rx, kicked, done_tx, prefs.clone()))), done }
@@ -172,6 +174,15 @@ impl Hud {
     /// profile rule, on any mouse: those count as games.
     pub fn mouse(&self, prefs: &MousePrefs, rule_exes: Vec<String>) {
         self.send(Input::Mouse(Box::new(prefs.clone()), rule_exes));
+    }
+
+    /// The battery log of the mouse the HUD shows, for its time left.
+    pub fn log(&self, log: Arc<Mutex<BatteryLog>>) {
+        let mut current = self.shared.log.lock();
+        if !Arc::ptr_eq(&current, &log) {
+            *current = log;
+            *self.shared.life.lock() = (None, Vec::new());
+        }
     }
 
     pub fn foreground(&self, path: Option<String>) {

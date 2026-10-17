@@ -35,7 +35,7 @@ use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 
 use mice::model::Settings;
-use mice::{DeviceEvent, DeviceState, Engine};
+use mice::{DeviceEvent, DeviceState, Engine, Hub};
 use store::{AutoReason, BackupDevice, BackupMeta, Backups, KnownMice, KnownMouse, MousePrefs, Prefs, ProfileSnapshot};
 use tray::{TrayLevel, TrayStyle};
 
@@ -52,13 +52,17 @@ struct AppStatus {
 }
 
 struct Ctx {
-    engine: Engine,
+    /// Every mouse connection, each on its own thread.
+    hub: Arc<Hub>,
+    /// Where each mouse's battery files are, for one that isn't connected.
+    data_dir: PathBuf,
     prefs: RwLock<Prefs>,
     prefs_path: PathBuf,
     backups: Backups,
     status: RwLock<AppStatus>,
     osd_gen: AtomicU64,
-    low_alerted: AtomicBool,
+    /// Mice the low battery alert has told about, until they charge.
+    low_alerted: Mutex<HashSet<String>>,
     /// The battery saver is changing the polling rate.
     saver_busy: AtomicBool,
     tray: Mutex<Option<(TrayIcon, Vec<CheckMenuItem<tauri::Wry>>)>>,
@@ -66,8 +70,8 @@ struct Ctx {
     tray_menu: Mutex<Option<Menu<tauri::Wry>>>,
     /// The update already announced this run, so the notification comes once.
     update_ready: Mutex<Option<String>>,
-    /// Profile switches to make, for `profile_switcher`: the newest one wins.
-    profiles: std::sync::mpsc::Sender<u8>,
+    /// Profile switches to make, for `profile_switcher`: per mouse, the newest one wins.
+    profiles: std::sync::mpsc::Sender<(String, u8)>,
     /// When the pop-up last said a profile, so the DPI and polling rate that came with it don't
     /// pop up after it.
     profile_osd_at: Mutex<Option<Instant>>,
@@ -78,8 +82,8 @@ struct Ctx {
     met: Mutex<HashSet<u8>>,
     /// The mice hrtz has met, with what it keeps for each (`mice.json`).
     known: RwLock<KnownMice>,
-    /// The mouse connected now, so when it goes it's noted as last seen then.
-    connected_key: Mutex<Option<String>>,
+    /// The mice connected now, so when one goes it's noted as last seen then.
+    connected: Mutex<HashSet<String>>,
 }
 
 /// The app's status with the HUD's part filled in.
@@ -107,7 +111,7 @@ fn mouse_prefs(ctx: &Ctx, s: &DeviceState) -> MousePrefs {
 
 /// Save the known mice after a change, and tell the window, the HUD and the tray.
 fn commit_mice(app: &AppHandle, ctx: &Ctx) {
-    let s = ctx.engine.snapshot();
+    let s = ctx.hub.primary_state();
     {
         let known = ctx.known.read();
         let _ = known.save();
@@ -125,21 +129,22 @@ fn commit_mouse_prefs(app: &AppHandle, ctx: &Ctx, key: &str, prefs: MousePrefs) 
     }
 }
 
-/// Note the mouse connected now, and when the one that was went.
+/// Note a mouse that connected, or the time one went.
 fn meet(app: &AppHandle, ctx: &Ctx, s: &DeviceState) {
-    let key = s.key.clone().filter(|_| s.connected);
-    let mut was = ctx.connected_key.lock();
-    if *was == key {
-        return;
-    }
+    let Some(key) = &s.key else { return };
     let now = unix_now();
-    if let Some(old) = was.take() {
-        ctx.known.write().seen(&old, now);
-    }
-    was.clone_from(&key);
-    drop(was);
-    if let Some(key) = key {
-        ctx.known.write().meet(&key, s.model.as_deref().unwrap_or_default(), now);
+    {
+        let mut connected = ctx.connected.lock();
+        if s.connected == connected.contains(key) {
+            return;
+        }
+        if s.connected {
+            connected.insert(key.clone());
+            ctx.known.write().meet(key, s.model.as_deref().unwrap_or_default(), now);
+        } else {
+            connected.remove(key);
+            ctx.known.write().seen(key, now);
+        }
     }
     commit_mice(app, ctx);
 }
@@ -148,19 +153,38 @@ fn err(e: anyhow::Error) -> String {
     format!("{e:#}")
 }
 
+/// The engine running `mouse` (its key), or the primary mouse's when that's left out.
+fn engine_of(ctx: &Ctx, mouse: Option<&str>) -> CmdResult<Engine> {
+    match mouse {
+        Some(key) => {
+            ctx.hub.engine(key).ok_or_else(|| "That mouse isn't connected. Plug in its receiver or cable.".into())
+        }
+        None => ctx.hub.primary().ok_or_else(|| "No mouse connected. Plug in its receiver or cable.".into()),
+    }
+}
+
+/// Run `f` on `mouse`'s thread (the primary mouse's when left out), off the command's own.
 async fn on_device<T: Send + 'static>(
     ctx: &Ctx,
+    mouse: Option<&str>,
     f: impl FnOnce(&mut mice::Worker) -> anyhow::Result<T> + Send + 'static,
 ) -> CmdResult<T> {
-    let engine = ctx.engine.clone();
+    let engine = engine_of(ctx, mouse)?;
     tauri::async_runtime::spawn_blocking(move || engine.call(f)).await.map_err(|e| e.to_string())?.map_err(err)
 }
 
 // ---- commands -------------------------------------------------------------------------------
 
+/// The primary mouse's state.
 #[tauri::command]
 fn get_state(ctx: State<'_, Arc<Ctx>>) -> DeviceState {
-    ctx.engine.snapshot()
+    ctx.hub.primary_state()
+}
+
+/// Every connection's state.
+#[tauri::command]
+fn get_states(ctx: State<'_, Arc<Ctx>>) -> Vec<DeviceState> {
+    ctx.hub.states()
 }
 
 /// Windows' name and version, for a problem report.
@@ -210,32 +234,32 @@ fn prepare_update() {
 }
 
 #[tauri::command]
-async fn apply_settings(ctx: State<'_, Arc<Ctx>>, settings: Settings) -> CmdResult<Settings> {
-    on_device(&ctx, move |w| w.apply_settings(&settings)).await
+async fn apply_settings(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, settings: Settings) -> CmdResult<Settings> {
+    on_device(&ctx, mouse.as_deref(), move |w| w.apply_settings(&settings)).await
 }
 
 #[tauri::command]
-async fn set_profile(ctx: State<'_, Arc<Ctx>>, index: u8) -> CmdResult<()> {
-    on_device(&ctx, move |w| w.set_profile(index)).await
+async fn set_profile(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, index: u8) -> CmdResult<()> {
+    on_device(&ctx, mouse.as_deref(), move |w| w.set_profile(index)).await
 }
 
 #[tauri::command]
-async fn set_long_range(ctx: State<'_, Arc<Ctx>>, on: bool) -> CmdResult<()> {
-    on_device(&ctx, move |w| w.set_long_range(on)).await
+async fn set_long_range(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, on: bool) -> CmdResult<()> {
+    on_device(&ctx, mouse.as_deref(), move |w| w.set_long_range(on)).await
 }
 
 /// Pair a mouse with the receiver: up to 30 s, with `pairing` events counting down. True when one
 /// paired.
 #[tauri::command]
-async fn pair_receiver(ctx: State<'_, Arc<Ctx>>) -> CmdResult<bool> {
-    on_device(&ctx, |w| w.pair()).await
+async fn pair_receiver(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>) -> CmdResult<bool> {
+    on_device(&ctx, mouse.as_deref(), |w| w.pair()).await
 }
 
 /// Factory settings, after saving the mouse as it is, so the setup can be got back from Backups.
 #[tauri::command]
-async fn factory_reset(app: AppHandle, ctx: State<'_, Arc<Ctx>>) -> CmdResult<()> {
+async fn factory_reset(app: AppHandle, ctx: State<'_, Arc<Ctx>>, mouse: Option<String>) -> CmdResult<()> {
     let backups = ctx.backups.clone();
-    on_device(&ctx, move |w| {
+    on_device(&ctx, mouse.as_deref(), move |w| {
         let current = w.read_full_image()?;
         backups.create_auto(&current, backup_device(&w.snapshot()), AutoReason::Factory)?;
         w.factory_reset()
@@ -278,7 +302,7 @@ fn set_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, prefs: Prefs) -> CmdResul
         let _ = app.run_on_main_thread(move || meter::set_clicks(on));
     }
     *ctx.prefs.write() = prefs.clone();
-    refresh_tray(&ctx, &ctx.engine.snapshot());
+    refresh_tray(&ctx, &ctx.hub.primary_state());
     ctx.hud.prefs(&prefs);
     let _ = app.emit("prefs", prefs);
     Ok(())
@@ -301,8 +325,8 @@ fn backup_device(s: &DeviceState) -> BackupDevice {
 }
 
 #[tauri::command]
-async fn create_backup(ctx: State<'_, Arc<Ctx>>, note: String) -> CmdResult<BackupMeta> {
-    let (image, s) = on_device(&ctx, |w| {
+async fn create_backup(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, note: String) -> CmdResult<BackupMeta> {
+    let (image, s) = on_device(&ctx, mouse.as_deref(), |w| {
         let image = w.read_full_image()?;
         Ok((image, w.snapshot()))
     })
@@ -319,9 +343,9 @@ struct Restored {
 }
 
 #[tauri::command]
-async fn restore_backup(ctx: State<'_, Arc<Ctx>>, id: String) -> CmdResult<Restored> {
+async fn restore_backup(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, id: String) -> CmdResult<Restored> {
     let (file, image) = ctx.backups.load(&id).map_err(err)?;
-    let current = ctx.engine.snapshot();
+    let current = engine_of(&ctx, mouse.as_deref())?.snapshot();
     if current.connected && current.mid != file.device.mid {
         return Err(format!(
             "This backup is for a {}, but a {} is connected.",
@@ -333,7 +357,7 @@ async fn restore_backup(ctx: State<'_, Arc<Ctx>>, id: String) -> CmdResult<Resto
     // only the chunks that differ are written.
     let backups = ctx.backups.clone();
     let reason = AutoReason::Restore { note: file.note.clone(), created: file.created.clone() };
-    on_device(&ctx, move |w| {
+    on_device(&ctx, mouse.as_deref(), move |w| {
         let current = w.read_full_image()?;
         if current == image {
             return Ok(Restored { written: 0, saved: None });
@@ -348,9 +372,9 @@ async fn restore_backup(ctx: State<'_, Arc<Ctx>>, id: String) -> CmdResult<Resto
 /// Puts back the mouse as it was before a restore, from the backup the restore saved, and drops
 /// that backup: it has done its job.
 #[tauri::command]
-async fn undo_restore(ctx: State<'_, Arc<Ctx>>, id: String) -> CmdResult<usize> {
+async fn undo_restore(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, id: String) -> CmdResult<usize> {
     let (file, image) = ctx.backups.load(&id).map_err(err)?;
-    let written = on_device(&ctx, move |w| w.restore_image(&image)).await?;
+    let written = on_device(&ctx, mouse.as_deref(), move |w| w.restore_image(&image)).await?;
     // Only while it's still hrtz's own: one given a name since is yours, and stays.
     if file.auto.is_some() {
         ctx.backups.delete(&id).map_err(err)?;
@@ -440,7 +464,7 @@ fn app_icon(path: String) -> Option<String> {
 fn tray_previews(ctx: State<'_, Arc<Ctx>>) -> std::collections::HashMap<&'static str, String> {
     use base64::Engine as _;
     let prefs = ctx.prefs.read().clone();
-    let mut level = tray_level(&ctx.engine.snapshot(), &prefs);
+    let mut level = tray_level(&ctx.hub.primary_state(), &prefs);
     if level == TrayLevel::Disconnected {
         level = TrayLevel::Battery { level: 70, charging: false, low_at: prefs.low_battery_percent };
     }
@@ -610,19 +634,34 @@ fn unix_now() -> u64 {
 
 /// What the battery log says about battery life and health.
 #[tauri::command]
-fn battery_summary(ctx: State<'_, Arc<Ctx>>) -> battery_log::Summary {
-    battery_log::summary(ctx.engine.log.lock().entries(), unix_now())
+fn battery_summary(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>) -> battery_log::Summary {
+    battery_log::summary(battery_log_of(&ctx, mouse.as_deref()).lock().entries(), unix_now())
 }
 
 /// Battery log rows from the last `days`, thinned for a chart.
 #[tauri::command]
-fn battery_history(ctx: State<'_, Arc<Ctx>>, days: u32) -> Vec<battery_log::Entry> {
-    ctx.engine.log.lock().history(unix_now().saturating_sub(days as u64 * 86_400), 720)
+fn battery_history(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, days: u32) -> Vec<battery_log::Entry> {
+    battery_log_of(&ctx, mouse.as_deref()).lock().history(unix_now().saturating_sub(days as u64 * 86_400), 720)
 }
 
 /// Lower the polling rate while the battery is low, and put back the rate you chose once it's
 /// charging (or the saver is turned off). Each change is written to the mouse's memory, so this
 /// switches about twice a charge, never back and forth.
+/// `mouse`'s battery log (the primary mouse's when left out, else the last one seen): live while
+/// it's connected, read from its file when it isn't.
+fn battery_log_of(ctx: &Ctx, mouse: Option<&str>) -> Arc<Mutex<battery_log::BatteryLog>> {
+    let engine = match mouse {
+        Some(key) => ctx.hub.engine(key),
+        None => ctx.hub.primary().filter(|e| e.snapshot().key.is_some()),
+    };
+    if let Some(e) = engine {
+        return e.log.clone();
+    }
+    let key = mouse.map(str::to_string).or_else(|| ctx.known.read().last_seen().map(|m| m.key.clone()));
+    let path = key.map(|k| mice::engine::battery_files(&ctx.data_dir, &k).1);
+    Arc::new(Mutex::new(battery_log::BatteryLog::load(path)))
+}
+
 fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &MousePrefs) {
     let (Some(key), Some(b), Some(hz), Some(caps)) =
         (&s.key, &s.battery, s.settings.as_ref().and_then(|x| x.polling_hz), &s.capabilities)
@@ -642,7 +681,10 @@ fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &Mouse
             Some(hz) => {
                 // Only the rate: the rest stays as the mouse has it.
                 let next = Settings { polling_hz: Some(hz), ..Default::default() };
-                ctx.engine.call(move |w| w.apply_settings(&next)).map(|_| ())
+                match ctx.hub.engine(&key) {
+                    Some(e) => e.call(move |w| w.apply_settings(&next)).map(|_| ()),
+                    None => Ok(()),
+                }
             }
             None => Ok(()),
         };
@@ -684,7 +726,7 @@ fn notify_saver(app: &AppHandle, level: u8, to: u32, from: u32, model: &str) {
 #[tauri::command]
 fn test_popup(app: AppHandle, ctx: State<'_, Arc<Ctx>>, kind: String) -> CmdResult<()> {
     let prefs = ctx.prefs.read().clone();
-    let s = ctx.engine.snapshot();
+    let s = ctx.hub.primary_state();
     let st = s.settings.as_ref();
     let model = s.model.clone().unwrap_or_else(|| "mouse".into());
     let level = s.battery.as_ref().map_or(15, |b| b.level);
@@ -837,19 +879,23 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
     let Some(ctx) = app.try_state::<Arc<Ctx>>() else { return };
     let prefs = ctx.prefs.read().clone();
 
-    // Pad tracking turns sensor counts into centimetres at the DPI in use, and reads pauses
-    // differently when the sensor keeps tracking as the mouse rises.
-    #[cfg(windows)]
-    if let Some(st) = &s.settings {
-        meter::set_dpi(st.dpi().unwrap_or(0));
-        if let Some(lod) = st.lod {
-            meter::set_lift_off(lod != mice::model::Lod::Low);
-        }
-    }
-
     meet(app, &ctx, s);
-    refresh_tray(&ctx, s);
-    ctx.hud.device(s);
+    // The tray, the HUD and pad tracking follow the primary mouse.
+    if let Some(primary) = ctx.hub.primary() {
+        let p = primary.snapshot();
+        // Pad tracking turns sensor counts into centimetres at the DPI in use, and reads pauses
+        // differently when the sensor keeps tracking as the mouse rises.
+        #[cfg(windows)]
+        if let Some(st) = &p.settings {
+            meter::set_dpi(st.dpi().unwrap_or(0));
+            if let Some(lod) = st.lod {
+                meter::set_lift_off(lod != mice::model::Lod::Low);
+            }
+        }
+        refresh_tray(&ctx, &p);
+        ctx.hud.device(&p);
+        ctx.hud.log(primary.log.clone());
+    }
     first_meeting(app, &ctx, s);
     let mouse = mouse_prefs(&ctx, s);
 
@@ -866,13 +912,13 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
         }
     }
 
-    if let Some(b) = &s.battery {
+    if let (Some(b), Some(key)) = (&s.battery, &s.key) {
         let low = b.level <= prefs.low_battery_percent && !b.charging;
-        if low && prefs.battery_alerts && !ctx.low_alerted.swap(true, Ordering::SeqCst) {
+        if low && prefs.battery_alerts && ctx.low_alerted.lock().insert(key.clone()) {
             notify_low_battery(app, b.level, &s.model.clone().unwrap_or_default());
         }
         if b.charging || b.level > prefs.low_battery_percent + 5 {
-            ctx.low_alerted.store(false, Ordering::SeqCst);
+            ctx.low_alerted.lock().remove(key);
         }
     }
     battery_saver(app, &ctx, s, &mouse);
@@ -900,10 +946,10 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
     if ctx.backups.list().iter().any(|b| b.model == model) {
         return;
     }
-    let (app, ctx, mid) = (app.clone(), ctx.clone(), s.mid);
+    let (app, ctx, mid, key) = (app.clone(), ctx.clone(), s.mid, s.key.clone());
     tauri::async_runtime::spawn(async move {
         let backups = ctx.backups.clone();
-        let saved = on_device(&ctx, move |w| {
+        let saved = on_device(&ctx, key.as_deref(), move |w| {
             let image = w.read_full_image_quietly()?;
             backups.create_auto(&image, backup_device(&w.snapshot()), AutoReason::First)
         })
@@ -1012,7 +1058,7 @@ fn watch_foreground(app: AppHandle) {
                 let Some(ctx) = app.try_state::<Arc<Ctx>>() else { continue };
                 ticks += 1;
                 if ticks.is_multiple_of(12) {
-                    refresh_tray(&ctx, &ctx.engine.snapshot());
+                    refresh_tray(&ctx, &ctx.hub.primary_state());
                 }
                 if ticks.is_multiple_of(8)
                     && let Some(h) = app.get_webview_window("main").and_then(|w| w.hwnd().ok())
@@ -1081,11 +1127,14 @@ fn watch_foreground(app: AppHandle) {
                 // Only an app that stays in front switches the profile, and only once: alt-tabbing
                 // through windows switches nothing.
                 let Some(settled) = focus.see(exe.as_deref(), Instant::now()) else { continue };
-                let mouse = mouse_prefs(&ctx, &ctx.engine.snapshot());
-                if mouse.rules_enabled
-                    && let Some(want) = mouse.profile_for(&settled)
-                {
-                    let _ = ctx.profiles.send(want);
+                // Each connected mouse switches by its own rules.
+                for s in ctx.hub.states() {
+                    let mouse = mouse_prefs(&ctx, &s);
+                    if let (true, Some(key), true) = (s.connected, &s.key, mouse.rules_enabled)
+                        && let Some(want) = mouse.profile_for(&settled)
+                    {
+                        let _ = ctx.profiles.send((key.clone(), want));
+                    }
                 }
             }
         })
@@ -1126,21 +1175,27 @@ impl FocusSettle {
 
 /// Makes profile switches one at a time. A switch holds the mouse for about a second while the new
 /// profile's settings load, so asks that arrive meanwhile replace each other: only the newest runs.
-fn profile_switcher(app: AppHandle, asks: std::sync::mpsc::Receiver<u8>) {
+fn profile_switcher(app: AppHandle, asks: std::sync::mpsc::Receiver<(String, u8)>) {
     thread::Builder::new()
         .name("hrtz-profiles".into())
         .spawn(move || {
-            while let Ok(mut want) = asks.recv() {
+            while let Ok(first) = asks.recv() {
+                // The newest ask for each mouse.
+                let mut wants = vec![first];
                 while let Ok(newer) = asks.try_recv() {
-                    want = newer;
+                    wants.retain(|(k, _)| *k != newer.0);
+                    wants.push(newer);
                 }
                 let Some(ctx) = app.try_state::<Arc<Ctx>>() else { continue };
-                let s = ctx.engine.snapshot();
-                if !s.online || s.profile.is_none() || s.profile == Some(want) {
-                    continue;
-                }
-                if let Err(e) = ctx.engine.call(move |w| w.set_profile(want)) {
-                    eprintln!("profile switch failed: {e:#}");
+                for (key, want) in wants {
+                    let Some(engine) = ctx.hub.engine(&key) else { continue };
+                    let s = engine.snapshot();
+                    if !s.online || s.profile.is_none() || s.profile == Some(want) {
+                        continue;
+                    }
+                    if let Err(e) = engine.call(move |w| w.set_profile(want)) {
+                        eprintln!("profile switch failed: {e:#}");
+                    }
                 }
             }
         })
@@ -1187,8 +1242,9 @@ fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
             id => {
                 if let Some(i) = id.strip_prefix("profile-").and_then(|n| n.parse::<u8>().ok())
                     && let Some(ctx) = app.try_state::<Arc<Ctx>>()
+                    && let Some(key) = ctx.hub.primary_state().key
                 {
-                    let _ = ctx.profiles.send(i);
+                    let _ = ctx.profiles.send((key, i));
                 }
             }
         })
@@ -1212,10 +1268,12 @@ fn quit(app: &AppHandle) {
             meter::save_pad();
             meter::save_clicks();
         }
-        let _ = ctx.engine.call(|w| {
-            w.goodbye();
-            Ok(())
-        });
+        for e in ctx.hub.engines() {
+            let _ = e.call(|w| {
+                w.goodbye();
+                Ok(())
+            });
+        }
     }
     app.exit(0);
 }
@@ -1256,23 +1314,18 @@ pub fn run() {
                 }
                 prefs.save(&prefs_path)?;
             }
-            let last = known.last_seen().map(|m| m.key.clone());
-            let engine = Engine::start(
-                Box::new(mice::compx::HidFinder::default()),
-                Arc::new(move |s, e| on_device_change(&notify_handle, s, e)),
-                Some(data_dir.clone()),
-                last,
-            );
-            let hud = hud::Hud::new(&prefs, engine.log.clone());
+            let hub = Hub::new();
+            let hud = hud::Hud::new(&prefs);
             let (profiles, profile_asks) = std::sync::mpsc::channel();
             let ctx = Arc::new(Ctx {
-                engine,
+                hub: hub.clone(),
+                data_dir: data_dir.clone(),
                 prefs: RwLock::new(prefs),
                 prefs_path,
                 backups: Backups::new(data_dir.join("backups")),
                 status: RwLock::new(AppStatus::default()),
                 osd_gen: AtomicU64::new(0),
-                low_alerted: AtomicBool::new(false),
+                low_alerted: Mutex::new(HashSet::new()),
                 saver_busy: AtomicBool::new(false),
                 tray: Mutex::new(None),
                 tray_menu: Mutex::new(None),
@@ -1283,7 +1336,7 @@ pub fn run() {
                 hud,
                 met: Mutex::new(HashSet::new()),
                 known: RwLock::new(known),
-                connected_key: Mutex::new(None),
+                connected: Mutex::new(HashSet::new()),
             });
             build_tray(&handle, &ctx)?;
             app.manage(ctx.clone());
@@ -1291,12 +1344,21 @@ pub fn run() {
             // Its reports need the state managed above.
             let hud_handle = handle.clone();
             ctx.hud.start(move |r| on_hud_report(&hud_handle, r));
-            ctx.hud.device(&ctx.engine.snapshot());
+            ctx.hud.device(&ctx.hub.primary_state());
             {
                 let known = ctx.known.read();
                 let last = known.last_seen().map(|m| m.prefs.clone()).unwrap_or_default();
                 ctx.hud.mouse(&last, known.rule_exes());
             }
+
+            // Mice are looked for once everything that hears about them is ready.
+            #[allow(unused_mut)]
+            let mut families: Vec<Box<dyn mice::Family>> = vec![Box::new(mice::compx::Compx)];
+            #[cfg(debug_assertions)]
+            if let Some(sim) = mice::compx::sim::SimFamily::from_env() {
+                families.push(Box::new(sim));
+            }
+            hub.run(families, Arc::new(move |s, e| on_device_change(&notify_handle, s, e)), Some(data_dir.clone()));
 
             WebviewWindowBuilder::new(app, "osd", WebviewUrl::App("index.html".into()))
                 .title("hrtz OSD")
@@ -1362,6 +1424,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
+            get_states,
             windows_version,
             update_ready,
             prepare_update,
