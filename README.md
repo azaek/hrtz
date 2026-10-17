@@ -1,3 +1,5 @@
+<img width="1280" height="640" alt="og_banner" src="https://github.com/user-attachments/assets/dd6d2e28-adbe-43df-886b-d1e87f282abb" />
+
 # hrtz
 
 A free, open-source app for gaming mice on Windows, made for each mouse it supports. It starts with
