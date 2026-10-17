@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { Switch } from "@fluentui/react-components";
 import { ArrowBidirectionalUpDown20Regular, ArrowStepOver20Regular, CursorClick20Regular, DataLine20Regular, Map20Regular, Ruler20Regular, TopSpeed20Regular } from "@fluentui/react-icons";
-import { api, currentDpi, type PadCalibration } from "@/api";
+import { type Capabilities, api, currentDpi, type PadCalibration } from "@/api";
 import { savePrefs, useStore } from "@/store";
 import { ClickCheck } from "./ClickCheck";
 import { ConnectionCheck } from "./ConnectionCheck";
@@ -28,6 +28,8 @@ export type Test = {
   description: string;
   /** Said under the open test. */
   hint: string;
+  /** What the mouse needs for this test; without it the test isn't listed. */
+  needs?: (caps: Capabilities) => boolean;
 };
 
 export const TESTS: Test[] = [
@@ -62,6 +64,8 @@ export const TESTS: Test[] = [
     icon: <ArrowStepOver20Regular />,
     description: "Finds the lowest lift-off distance that tracks reliably on your pad.",
     hint: "Runs full screen. Changes lift-off, then restores yours.",
+    // It steps through the mouse's own settings.
+    needs: (c) => !!c.lod?.length,
   },
   {
     id: "clicks",
@@ -89,7 +93,8 @@ export const TESTS: Test[] = [
   },
 ];
 
-export const testOf = (id: TestId) => TESTS.find((t) => t.id === id) ?? TESTS[0];
+/** The tests this mouse can run (all of them with no mouse, waiting for one). */
+export const testsFor = (caps: Capabilities | null | undefined) => TESTS.filter((t) => !caps || !t.needs || t.needs(caps));
 
 export type Kept = { result: TestResult; at: number };
 const KEY = "hrtz.testResults";

@@ -9,8 +9,6 @@ import { useReport, type TestProps, type TestResult } from "./result";
 const NAMES = ["Left", "Right", "Middle", "Back", "Forward"];
 /** A release followed by a press sooner than this is the switch bouncing, not a finger. */
 const DOUBLE_MS = 30;
-/** The mouse's longest click debounce. */
-const MAX_DEBOUNCE = 20;
 
 type Stat = { presses: number; doubles: number; worst: number; lastUp: number | null };
 const fresh = (): Stat[] => NAMES.map(() => ({ presses: 0, doubles: 0, worst: 0, lastUp: null }));
@@ -55,6 +53,8 @@ export function ClickCheck({ onResult }: TestProps) {
   const s = useStyles();
   const settings = useStore((x) => x.device?.settings);
   const online = useStore((x) => !!x.device?.online);
+  // The mouse's longest click debounce, where it has one.
+  const maxDebounce = useStore((x) => x.device?.capabilities?.debounceMs?.max ?? null);
   const stats = useRef(fresh());
   const [view, setView] = useState(fresh);
   const week = useClickWeek();
@@ -105,13 +105,15 @@ export function ClickCheck({ onResult }: TestProps) {
   else {
     const who = bad.map((b) => `${b.name} ${b.doubles}×`).join(", ");
     verdict =
-      suggest > MAX_DEBOUNCE
+      maxDebounce === null
+        ? `Double clicks: ${who}, up to ${Math.round(worst)} ms apart. This mouse has no debounce setting to filter them.`
+        : suggest > maxDebounce
         ? `Double clicks: ${who}, up to ${Math.round(worst)} ms apart. Too far apart for debounce to filter, so the switch is likely worn.`
         : suggest <= current
           ? `Double clicks: ${who}, up to ${Math.round(worst)} ms apart, even with debounce at ${current} ms.`
           : `Double clicks: ${who}, up to ${Math.round(worst)} ms apart. Click debounce at ${suggest} ms should filter them.`;
   }
-  const canFix = !!settings && online && bad.length + weekBad.length > 0 && suggest > current && suggest <= MAX_DEBOUNCE;
+  const canFix = !!settings && online && maxDebounce !== null && bad.length + weekBad.length > 0 && suggest > current && suggest <= maxDebounce;
   const doubles = bad.reduce((a, b) => a + b.doubles, 0);
   const result: TestResult | null = !presses
     ? null

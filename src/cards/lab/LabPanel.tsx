@@ -3,7 +3,7 @@ import { Body1, Caption1 } from "@fluentui/react-components";
 import { CardNote, Pane, PaneFooter, PaneHeader } from "@/kit";
 import { useStore } from "@/store";
 import { useClickWeek, weekResult } from "./clicks";
-import { ClickSwitch, PadSwitch, TestBody, TESTS, testOf, usePadStatus, useResults, whenText, type TestId } from "./tests";
+import { ClickSwitch, PadSwitch, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
 import { WindowsCheck } from "./WindowsCheck";
 
 const muted = { color: "var(--colorNeutralForeground3)" };
@@ -21,13 +21,17 @@ const OPEN_KEY = "hrtz.labOpen";
  * lab (DECISIONS.md, "Lab page").
  */
 export function LabPanel() {
-  const [sel, setSel] = useState<TestId>(() => testOf(localStorage.getItem(OPEN_KEY) as TestId).id);
+  const caps = useStore((x) => x.device?.capabilities);
+  const tests = testsFor(caps);
+  const [want, setSel] = useState(() => localStorage.getItem(OPEN_KEY) as TestId | null);
+  // The one opened last, while this mouse can run it.
+  const t = tests.find((x) => x.id === want) ?? tests[0];
+  const sel = t.id;
   const { kept, keep } = useResults();
   const pad = usePadStatus();
   const week = useClickWeek();
   const counting = useStore((x) => x.prefs?.clickHistory ?? true);
   const clicks = counting && week ? weekResult(week) : null;
-  const t = testOf(sel);
   const pick = (id: TestId) => {
     setSel(id);
     localStorage.setItem(OPEN_KEY, id);
@@ -42,7 +46,7 @@ export function LabPanel() {
           <Pane sticky>
             <PaneHeader title="Tests" description="Each test runs while it's open." />
             <div role="list" aria-label="Tests" className="flex flex-col gap-0.5 px-1 pb-1">
-              {TESTS.map((x) => {
+              {tests.map((x) => {
                 const r = x.id === "pad" ? pad : x.id === "clicks" ? (clicks ?? kept.clicks?.result) : kept[x.id]?.result;
                 return (
                   <button
