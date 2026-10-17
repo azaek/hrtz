@@ -1,0 +1,61 @@
+name: Report how your mouse works
+description: hrtz with your Zaopin mouse, especially a model that isn't tested yet.
+labels: ["mouse report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        hrtz is tested on the **Z1 PRO MAX**. The Z1 PRO, Z2, Z2 mini, Z2 MAX and Z2 mini MAX use the same protocol and should work, but nobody has tried them yet. A report from any of them tells us what to fix before calling it supported.
+
+        hrtz backs your mouse up the first time it connects (Settings → Backups), so you can put everything back.
+  - type: input
+    id: mouse
+    attributes:
+      label: Mouse
+      placeholder: Z2 mini
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      description: Shown in Settings, under Mouse.
+      placeholder: "2.17"
+  - type: input
+    id: connection
+    attributes:
+      label: Connection
+      placeholder: 4K receiver
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What works
+      description: Tick what behaves as it should.
+      options:
+        - label: The mouse is recognised, with the right name and picture
+        - label: Battery level and charging
+        - label: DPI stages, and the DPI button cycles them
+        - label: Polling rate
+        - label: Lift-off distance, sensor mode, motion sync, angle snapping, ripple control
+        - label: Click debounce and the peak performance timeout
+        - label: Buttons
+        - label: Profiles
+        - label: Sleep after
+        - label: The in-game HUD
+  - type: textarea
+    id: issues
+    attributes:
+      label: What doesn't work, or looks wrong
+      description: Anything unticked above, with what happened instead.
+  - type: input
+    id: version
+    attributes:
+      label: hrtz version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: Windows 11 24H2 (26100)

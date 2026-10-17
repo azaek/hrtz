@@ -111,6 +111,12 @@ fn get_state(ctx: State<'_, Arc<Ctx>>) -> DeviceState {
     ctx.engine.snapshot()
 }
 
+/// Windows' name and version, for a problem report.
+#[tauri::command]
+fn windows_version() -> String {
+    win::windows_version()
+}
+
 /// A downloaded update waits for a restart. Say so once, in a notification and at the top of the
 /// tray menu, so it reaches someone who keeps hrtz in the tray and never opens the window.
 #[tauri::command]
@@ -1201,6 +1207,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
+            windows_version,
             update_ready,
             prepare_update,
             apply_settings,

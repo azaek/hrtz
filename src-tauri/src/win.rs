@@ -432,23 +432,49 @@ fn raw_accel_installed() -> bool {
             .any(|f| f.eq_ignore_ascii_case("rawaccel"))
 }
 
+/// A string value from the registry.
+fn reg_string(
+    root: windows::Win32::System::Registry::HKEY,
+    key: windows::core::PCWSTR,
+    value: windows::core::PCWSTR,
+) -> Option<String> {
+    use windows::Win32::System::Registry::{RRF_RT_REG_SZ, RegGetValueW};
+    let mut buf = vec![0u16; 1024];
+    let mut size = (buf.len() * 2) as u32;
+    unsafe { RegGetValueW(root, key, value, RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr().cast()), Some(&mut size)) }
+        .ok()
+        .ok()?;
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    Some(String::from_utf16_lossy(&buf[..len]))
+}
+
 /// Steam's folder, from the registry (per-user first, then the machine-wide install key).
 pub fn steam_path() -> Option<std::path::PathBuf> {
-    use windows::Win32::System::Registry::{HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
-    use windows::core::{PCWSTR, w};
-    let read = |root: HKEY, key: PCWSTR, value: PCWSTR| -> Option<String> {
-        let mut buf = vec![0u16; 1024];
-        let mut size = (buf.len() * 2) as u32;
-        unsafe { RegGetValueW(root, key, value, RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr().cast()), Some(&mut size)) }
-            .ok()
-            .ok()?;
-        let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-        Some(String::from_utf16_lossy(&buf[..len]))
-    };
-    read(HKEY_CURRENT_USER, w!(r"Software\Valve\Steam"), w!("SteamPath"))
-        .or_else(|| read(HKEY_LOCAL_MACHINE, w!(r"SOFTWARE\WOW6432Node\Valve\Steam"), w!("InstallPath")))
+    use windows::Win32::System::Registry::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+    use windows::core::w;
+    reg_string(HKEY_CURRENT_USER, w!(r"Software\Valve\Steam"), w!("SteamPath"))
+        .or_else(|| reg_string(HKEY_LOCAL_MACHINE, w!(r"SOFTWARE\WOW6432Node\Valve\Steam"), w!("InstallPath")))
         .map(|p| std::path::PathBuf::from(p.replace('/', "\\")))
         .filter(|p| p.is_dir())
+}
+
+/// Windows as a problem report names it: "Windows 11 24H2 (26100)". The registry's ProductName
+/// still says Windows 10 on 11, so the build number decides (11 starts at 22000).
+pub fn windows_version() -> String {
+    use windows::Win32::System::Registry::HKEY_LOCAL_MACHINE;
+    use windows::core::w;
+    let key = w!(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+    let build = reg_string(HKEY_LOCAL_MACHINE, key, w!("CurrentBuild")).unwrap_or_default();
+    let release = reg_string(HKEY_LOCAL_MACHINE, key, w!("DisplayVersion")).unwrap_or_default();
+    let name = if build.parse::<u32>().is_ok_and(|b| b >= 22000) { "Windows 11" } else { "Windows 10" };
+    let mut out = String::from(name);
+    if !release.is_empty() {
+        out += &format!(" {release}");
+    }
+    if !build.is_empty() {
+        out += &format!(" ({build})");
+    }
+    out
 }
 
 /// Whether the taskbar uses the light theme (Settings > Personalisation > Colours > Windows mode).

@@ -508,6 +508,8 @@ export const api = {
   importBackup: (path: string) => invoke<BackupMeta>("import_backup", { path }),
   backupSettings: (id: string) => invoke<Settings>("backup_settings", { id }),
   openBackupsFolder: () => invoke<void>("open_backups_folder"),
+  /** Windows' name and version, for a problem report: "Windows 11 24H2 (26100)". */
+  windowsVersion: () => invoke<string>("windows_version"),
   /** A downloaded update: a notification, and "Restart to update" in the tray menu. */
   updateReady: (version: string) => invoke<void>("update_ready", { version }),
   /** Saves what Quit would, before the updater exits hrtz. */

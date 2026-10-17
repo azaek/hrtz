@@ -1,0 +1,50 @@
+name: Report a problem
+description: A crash, a setting that doesn't stick, or anything that looks wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing hrtz. **Settings → Report a problem** in the app opens this form with the details below filled in.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      description: Steps, if you know them. Screenshots help too.
+  - type: input
+    id: version
+    attributes:
+      label: hrtz version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: mouse
+    attributes:
+      label: Mouse
+      placeholder: Z1 PRO MAX
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      description: Shown in Settings, under Mouse.
+      placeholder: "2.17"
+  - type: input
+    id: connection
+    attributes:
+      label: Connection
+      placeholder: 8K receiver
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: Windows 11 24H2 (26100)

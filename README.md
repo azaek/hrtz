@@ -12,6 +12,16 @@ Zaopin's mice, in place of their own "Mouse Drive Beta" app.
 
 More mice come one family at a time, each tried before the next.
 
+## Help test it
+
+hrtz is in beta. If you have one of the mice above, these help most:
+
+- **A model that isn't tested yet:** Settings shows "Your Z2 isn't tested yet". **Send a report** opens a
+  short form on what works. A few of those and a model moves to Tested.
+- **Something wrong:** Settings → **Report a problem** opens an issue with your hrtz version, mouse,
+  firmware and Windows filled in.
+- **Questions and ideas:** [Discussions](https://github.com/azaek/hrtz/discussions).
+
 ## What it does
 
 - **Sensor:** DPI stages from 50 to 30,000 with a colour each, polling rate up to 8,000 Hz, lift-off
@@ -49,7 +59,14 @@ Settings are stored on the mouse, so they keep working on PCs without hrtz.
 
 ## Install
 
-There's no release yet. Build it from source:
+Download `hrtz_<version>_x64-setup.exe` from the [latest release](https://github.com/azaek/hrtz/releases/latest)
+and run it. The installer isn't code-signed yet, so Windows SmartScreen may warn about it: choose
+**More info**, then **Run anyway**. After that, hrtz updates itself: a new version downloads in the
+background, and **Restart to update** in the sidebar or the tray menu installs it.
+
+Quit Zaopin's own app first (see Safety).
+
+### Build from source
 
 1. Install [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 20 or later, and
    [pnpm](https://pnpm.io). Windows 11 has the WebView2 runtime the window needs built in.

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/azaek/hrtz/discussions
+    about: Ask something, suggest a feature, or say how hrtz works for you.

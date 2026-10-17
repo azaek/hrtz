@@ -1,10 +1,23 @@
 import { useEffect, useState } from "react";
 import { Body1, Button, Caption1, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Switch } from "@fluentui/react-components";
-import { Alert20Regular, ArrowRotateClockwise20Regular, DataUsage20Regular, Desktop20Regular, Info20Regular, PlugConnected20Regular, Power20Regular, Wifi120Regular } from "@fluentui/react-icons";
+import {
+  Alert20Regular,
+  ArrowRotateClockwise20Regular,
+  Bug20Regular,
+  DataUsage20Regular,
+  Desktop20Regular,
+  Info20Regular,
+  PersonFeedback20Regular,
+  PlugConnected20Regular,
+  Power20Regular,
+  Wifi120Regular,
+} from "@fluentui/react-icons";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { api, message, on, type Prefs } from "@/api";
 import { Choice, Group, SettingCard } from "@/components";
 import { LINK_NAME } from "@/links";
+import { reportUrl, TESTED_MIDS, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { run, savePrefs, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
@@ -13,8 +26,8 @@ import { AppCard } from "./AppCard";
 const muted = { color: "var(--colorNeutralForeground3)" };
 
 /**
- * Settings: hrtz's own card on top, then App, Mouse, Backups and Privacy (hidden until sharing is
- * ready), one line of text per setting.
+ * Settings: hrtz's own card on top, then App, Mouse, Backups, Privacy (hidden until sharing is
+ * ready) and Help, one line of text per setting.
  * The tray style is a choice with its two real icons; the mouse's facts are its row's
  * description; the not-affiliated note is the page's small print. Decided in the Settings lab
  * (DECISIONS.md, "Settings page").
@@ -49,6 +62,9 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   }, []);
 
   const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
+  const report = (form: ReportForm) => void reportUrl(form, device).then(openUrl).catch((e) => toast(message(e), "error"));
+  // A mouse hrtz recognises but hasn't been tried on: its owner's report is what makes it supported.
+  const untested = device?.connected && !TESTED_MIDS.has(device.mid) ? device.model : null;
   const wired = !!device?.capabilities?.wired;
   const noLongRange = !device?.connected || device.longRange === null || wired;
   const facts = device?.connected
@@ -182,6 +198,21 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
           </SettingCard>
         </Group>
       )}
+
+      <Group title="Help">
+        <SettingCard icon={<Bug20Regular />} title="Report a problem" description="Opens a GitHub issue with your hrtz version, mouse and Windows filled in.">
+          <Button onClick={() => report("bug_report")}>Report</Button>
+        </SettingCard>
+        {untested && (
+          <SettingCard
+            icon={<PersonFeedback20Regular />}
+            title={`Your ${untested} isn't tested yet`}
+            description="A short report on what works helps make it supported."
+          >
+            <Button onClick={() => report("mouse_report")}>Send a report</Button>
+          </SettingCard>
+        )}
+      </Group>
 
       <Caption1 style={{ ...muted, padding: "8px 2px 0" }}>
         hrtz isn't affiliated with Zaopin or any other mouse maker. Mouse images and model names belong to their makers and are shown only to identify your mouse.
