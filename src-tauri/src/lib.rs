@@ -70,6 +70,9 @@ struct Ctx {
     update_ready: Mutex<Option<String>>,
     /// Profile switches to make, for `profile_switcher`: the newest one wins.
     profiles: std::sync::mpsc::Sender<u8>,
+    /// When the pop-up last said a profile, so the DPI and polling rate that came with it don't
+    /// pop up after it.
+    profile_osd_at: Mutex<Option<Instant>>,
     /// Last rendered (level, style, light taskbar), so the icon is only redrawn when it changes.
     tray_level: Mutex<Option<(TrayLevel, TrayStyle, bool)>>,
     hud: hud::Hud,
@@ -850,6 +853,17 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
 }
 
 fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs) {
+    // A profile switch brings its own DPI and polling rate: the pop-up says the profile, not all
+    // three in a row.
+    match e {
+        DeviceEvent::Profile { .. } => *ctx.profile_osd_at.lock() = Some(Instant::now()),
+        DeviceEvent::Dpi { .. } | DeviceEvent::Polling { .. }
+            if ctx.profile_osd_at.lock().is_some_and(|t| t.elapsed() < Duration::from_millis(1500)) =>
+        {
+            return;
+        }
+        _ => {}
+    }
     // In a game, the HUD says it instead when it will (its mode shows changes and that tab is
     // on), so the two never show together and a change is never left unshown.
     if ctx.hud.suppresses_osd() && hud_shows(&prefs.hud, e) {
@@ -1018,7 +1032,7 @@ fn watch_foreground(app: AppHandle) {
 }
 
 /// How long an app has to stay in front before its profile applies.
-const SETTLE: Duration = Duration::from_millis(450);
+const SETTLE: Duration = Duration::from_millis(200);
 
 /// Which app's profile to apply as focus moves. An app counts once it has been in front for
 /// `SETTLE`, so alt-tabbing through windows (or past the Alt+Tab switcher) switches nothing, and
@@ -1186,6 +1200,7 @@ pub fn run() {
                 tray_menu: Mutex::new(None),
                 update_ready: Mutex::new(None),
                 profiles,
+                profile_osd_at: Mutex::new(None),
                 tray_level: Mutex::new(None),
                 hud,
                 met: Mutex::new(HashSet::new()),

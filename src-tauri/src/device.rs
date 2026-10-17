@@ -498,14 +498,15 @@ impl Worker {
         // The mouse reports every profile switch, hrtz's own too, which `set_profile` has loaded
         // already: only a switch made on the mouse needs its profile loaded (and a second load
         // would hold the mouse a second more, and show the pop-up twice).
+        // The DPI and polling bits that come with a switch are the new profile's, loaded with it.
         if bits & status::PROFILE != 0 {
             let r = self.transact_simple(cmd::GET_PROFILE)?;
             if (r[5] > 0).then_some(r[6]) != self.state.read().profile {
                 self.load()?;
                 let index = self.state.read().profile.unwrap_or(0);
                 self.publish(Some(DeviceEvent::Profile { index }));
-                return Ok(());
             }
+            return Ok(());
         }
         if bits & status::DPI != 0 {
             let r = self.read_flash(0x02, 4)?;
@@ -553,8 +554,18 @@ impl Worker {
         self.transact(&p::packet(cmd::SET_PROFILE, 0, &[index], None), REPLY_TIMEOUT)?;
         thread::sleep(Duration::from_millis(150));
         self.pending_status.clear();
-        self.load()?;
+        // The new profile's settings first (a fifth of a second), so the pop-up and the HUD say it
+        // at once; then its key-combination slots, in the same job, so nothing writes to the
+        // mouse in between. The firmware, long-range mode and battery don't change with a profile.
+        let config = self.read_flash(0, p::CONFIG_REGION)?;
+        self.image[..p::CONFIG_REGION].copy_from_slice(&config);
+        self.set(|s| s.profile = Some(index));
+        self.refresh_settings();
         self.publish(Some(DeviceEvent::Profile { index }));
+        let slots = self.read_flash(p::CONFIG_REGION, LOADED_REGION - p::CONFIG_REGION)?;
+        self.image[p::CONFIG_REGION..LOADED_REGION].copy_from_slice(&slots);
+        self.refresh_settings();
+        self.publish(None);
         Ok(())
     }
 

@@ -7,7 +7,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ## Unreleased
 
 ### Fixed
-- Switching profiles by app no longer lags or piles up when you alt-tab quickly. A profile now switches once an app has been in front for half a second, and only once.
+- Switching profiles by app no longer lags or piles up when you alt-tab quickly, and the pop-up shows once per switch. A profile switches once an app has been in front for a moment, and only once.
 
 ## 0.2.1 — 2026-10-17
 
