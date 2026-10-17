@@ -5,6 +5,7 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 ## Commands
 
 - `pnpm tauri dev`: run the app (Vite on port 1420; the window reloads on save).
+- `pnpm dev:sim`: the same, with a simulated Z2 mini beside the real mice (`pnpm dev:sim z2mini,z1promax` for more), to try several mice with one.
 - `npx tsc --noEmit -p .`: type-check the front end.
 - `npx vite build`: production front-end build.
 - `cd src-tauri && cargo test --lib`: Rust tests.
