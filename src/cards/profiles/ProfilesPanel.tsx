@@ -16,7 +16,7 @@ const muted = { color: "var(--colorNeutralForeground3)" };
 const truncate = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 
 /**
- * The Profiles page: "Switch profiles by app" on top, then the four profiles listed on the left
+ * The Profiles page: "Switch profiles by app" on top, then the mouse's profiles listed on the left
  * and the one you picked open on the right, with what it holds, the apps that switch to it, and
  * whether it catches every other app. "Use this profile" is the one primary button. Decided in the
  * Profiles lab (DECISIONS.md, "Profiles page").
@@ -39,7 +39,9 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
     );
   }
 
-  const names = m.profileNames;
+  // As many as the mouse has (a Zaopin 4, a Superlight 5), named as saved or by number.
+  const count = device.capabilities?.profiles ?? m.profileNames.length;
+  const names = Array.from({ length: count }, (_, i) => m.profileNames[i] ?? `Profile ${i + 1}`);
   const name = names[sel];
   const set = (patch: Partial<MousePrefs>) => saveMousePrefs(mouse.key, { ...m, ...patch });
   const rename = (v: string) => set({ profileNames: names.map((n, j) => (j === sel ? v : n)) });

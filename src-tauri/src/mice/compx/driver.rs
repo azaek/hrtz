@@ -300,7 +300,12 @@ impl Driver for Connected {
     fn battery(&mut self) -> Result<Reading> {
         let r = self.transact_simple(cmd::BATTERY)?;
         let d = p::payload(&r);
-        Ok(Reading { level: d[0].min(100), charging: d[1] != 0, millivolts: u16::from_be_bytes([d[2], d[3]]) })
+        Ok(Reading {
+            level: d[0].min(100),
+            charging: d[1] != 0,
+            millivolts: u16::from_be_bytes([d[2], d[3]]),
+            by_voltage: true,
+        })
     }
 
     fn changes(&mut self, board: &Board, loaded: bool) -> Result<Follow> {

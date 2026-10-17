@@ -21,7 +21,7 @@ import { topRate, type DeviceState, type KnownMouse } from "./api";
 import { BatteryIcon } from "./BatteryIcon";
 import { MousePicture } from "./DrawnMouse";
 import { seenAt } from "./format";
-import { LINK_NAME } from "./links";
+import { linkName } from "./links";
 import { artOf } from "./models";
 import { pickMouse, startFlow, useMouse, useStore } from "./store";
 
@@ -84,7 +84,7 @@ function linkText(d: DeviceState | null, lastSeen: number | undefined): [string,
   if (!d) return ["Plug in a receiver or cable", "off"];
   if (!d.connected) return [lastSeen ? `Not connected · ${seenAt(lastSeen)}` : "Not connected", "off"];
   if (!d.online) return ["Asleep · move to wake", "warn"];
-  return [`Connected · ${LINK_NAME[d.deviceType] ?? "receiver"}`, "ok"];
+  return [`Connected · ${linkName(d)}`, "ok"];
 }
 
 /** 8000 → "8K", 500 → "500 Hz": how the rate reads on a badge. */
@@ -158,8 +158,9 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
               aria-label="Battery level"
             />
             <Caption1 className={s.muted}>
-              {b.charging ? "Charging · " : ""}
-              {(b.millivolts / 1000).toFixed(2)} V{d.firmware ? ` · firmware ${d.firmware}` : ""}
+              {[b.charging ? "Charging" : null, b.millivolts > 0 ? `${(b.millivolts / 1000).toFixed(2)} V` : null, d.firmware ? `firmware ${d.firmware}` : null]
+                .filter(Boolean)
+                .join(" · ")}
             </Caption1>
           </div>
         )}
@@ -172,7 +173,7 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
 function brief(m: KnownMouse, live: DeviceState | undefined, inUse: boolean): string {
   if (!live?.connected) return `Not connected · ${seenAt(m.lastSeen)}`;
   if (!live.online) return "Asleep";
-  const parts = [live.battery ? `${live.battery.level}%` : null, LINK_NAME[live.deviceType] ?? "receiver", inUse ? "in use" : null];
+  const parts = [live.battery ? `${live.battery.level}%` : null, linkName(live), inUse ? "in use" : null];
   return parts.filter(Boolean).join(" · ");
 }
 

@@ -149,6 +149,20 @@ impl MousePrefs {
         self.profile_names.get(index as usize).cloned().unwrap_or_else(|| format!("Profile {}", index + 1))
     }
 
+    /// Make room for `count` profiles (the Zaopins have 4, the Superlights 5): a name and a snapshot
+    /// slot each. Returns whether anything was added; nothing is taken away.
+    pub fn fit_profiles(&mut self, count: u8) -> bool {
+        let n = count as usize;
+        let grow = self.profile_names.len() < n || self.profile_snapshots.len() < n;
+        while self.profile_names.len() < n {
+            self.profile_names.push(format!("Profile {}", self.profile_names.len() + 1));
+        }
+        if self.profile_snapshots.len() < n {
+            self.profile_snapshots.resize(n, None);
+        }
+        grow
+    }
+
     /// Remember what profile `index` holds while it's in use. Returns whether that changed.
     pub fn note_profile(&mut self, index: u8, snap: ProfileSnapshot) -> bool {
         let Some(slot) = self.profile_snapshots.get_mut(index as usize) else { return false };
@@ -1023,6 +1037,16 @@ mod tests {
         assert_eq!((legacy.default_profile, legacy.rules.len()), (Some(1), 1));
         assert_eq!(legacy.profile_names, ["A", "B", "C", "D"]);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_mouse_with_more_profiles_gets_a_name_and_a_snapshot_for_each() {
+        let mut p = MousePrefs { profile_names: vec!["Aim".into()], ..MousePrefs::default() };
+        assert!(p.fit_profiles(5));
+        assert_eq!(p.profile_names, ["Aim", "Profile 2", "Profile 3", "Profile 4", "Profile 5"]);
+        assert_eq!(p.profile_snapshots.len(), 5);
+        assert!(!p.fit_profiles(5) && !p.fit_profiles(4), "nothing is taken away");
+        assert_eq!(p.profile_names.len(), 5);
     }
 
     #[test]

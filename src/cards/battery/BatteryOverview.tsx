@@ -33,7 +33,7 @@ export function BatteryOverview() {
           <StatTile
             label="Battery"
             value={b ? `${b.level}%` : unknown}
-            detail={!b ? (device?.connected ? "Move the mouse to wake it" : "Connect the receiver") : asleep ? "Asleep, last reading" : b.charging ? "Charging" : `${(b.millivolts / 1000).toFixed(2)} V`}
+            detail={!b ? (device?.connected ? "Move the mouse to wake it" : "Connect the receiver") : asleep ? "Asleep, last reading" : b.charging ? "Charging" : b.millivolts > 0 ? `${(b.millivolts / 1000).toFixed(2)} V` : "On battery"}
           >
             {b && <LevelBar level={b.level} charging={b.charging} low={prefs?.batteryAlerts ? prefs.lowBatteryPercent : undefined} className="my-1" />}
           </StatTile>

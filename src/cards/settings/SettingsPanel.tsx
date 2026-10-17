@@ -16,7 +16,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { api, message, on, type Prefs } from "@/api";
 import { Choice, Group, SettingCard } from "@/components";
-import { LINK_NAME } from "@/links";
+import { linkName } from "@/links";
+import { familyOf, ofModel } from "@/models";
 import { reportUrl, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { run, savePrefs, toast, useStore } from "@/store";
@@ -67,14 +68,20 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const report = (form: ReportForm) => void reportUrl(form, device).then(openUrl).catch((e) => toast(message(e), "error"));
   // A mouse hrtz recognises but hasn't been tried on: its owner's report is what makes it supported.
   const supported = useStore((x) => x.supported);
-  const untested = device?.connected && supported.some((m) => m.key === device.key && !m.tested) ? device.model : null;
+  const untested = device?.connected && supported.some((m) => ofModel(device.key, m.key) && !m.tested) ? device.model : null;
   const caps = device?.capabilities;
   const wired = !!caps?.wired;
   // A row this mouse can't use is left out; with no mouse they all show, waiting for one.
   const can = (feature: "longRange" | "pairing" | "factoryReset" | "backups") => !caps || caps[feature];
   const noLongRange = !device?.connected || device.longRange === null || wired;
   const facts = device?.connected
-    ? [`Firmware ${device.firmware ?? "unknown until it wakes"}`, LINK_NAME[device.deviceType] ?? `Type ${device.deviceType}`, `CID ${device.cid} · MID ${device.mid}`].join(" · ")
+    ? [
+        `Firmware ${device.firmware ?? "unknown until it wakes"}`,
+        linkName(device),
+        familyOf(device.key) === "compx" ? `CID ${device.cid} · MID ${device.mid}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
     : null;
   // The icon as the taskbar draws it. A light taskbar's dark icon gets its light backing, or it
   // would vanish on the dark choice.

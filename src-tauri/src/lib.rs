@@ -292,7 +292,9 @@ fn get_mice(ctx: State<'_, Arc<Ctx>>) -> Vec<KnownMouse> {
 /// Every mouse hrtz can run, by family, and whether each was tried on the real one.
 #[tauri::command]
 fn supported_mice() -> Vec<mice::model::Supported> {
-    mice::compx::models::supported()
+    let mut all = mice::compx::models::supported();
+    all.extend(mice::hidpp::models::supported());
+    all
 }
 
 #[tauri::command]
@@ -860,19 +862,52 @@ fn taskbar_light() -> bool {
 fn refresh_tray(ctx: &Ctx, s: &DeviceState) {
     let prefs = ctx.prefs.read().clone();
     let key = (tray_level(s, &prefs), prefs.tray_style, taskbar_light());
-    if let Some((tray, items)) = ctx.tray.lock().as_ref() {
+    if let Some((tray, items)) = ctx.tray.lock().as_mut() {
         let mut last = ctx.tray_level.lock();
         if *last != Some(key) {
             let _ = tray.set_icon(Some(tray_image(key.0, key.1)));
             *last = Some(key);
         }
         let _ = tray.set_tooltip(Some(tooltip(s)));
+        if let Some(n) = s.capabilities.as_ref().and_then(|c| c.profiles) {
+            fit_tray_profiles(ctx, tray, items, (n as usize).clamp(1, 8));
+        }
         let mouse = mouse_prefs(ctx, s);
         for (i, item) in items.iter().enumerate() {
             let _ = item.set_text(mouse.profile_name(i as u8));
             let _ = item.set_checked(s.profile == Some(i as u8));
             let _ = item.set_enabled(s.online);
         }
+    }
+}
+
+/// The tray lists as many profiles as the mouse shown has: items past them go, new ones go after
+/// the last.
+fn fit_tray_profiles(ctx: &Ctx, tray: &TrayIcon, items: &mut Vec<CheckMenuItem<tauri::Wry>>, n: usize) {
+    let Some(menu) = ctx.tray_menu.lock().clone() else { return };
+    while items.len() > n {
+        if let Some(item) = items.pop() {
+            let _ = menu.remove(&item);
+        }
+    }
+    while items.len() < n {
+        let i = items.len();
+        let Ok(item) = CheckMenuItem::with_id(
+            tray.app_handle(),
+            format!("profile-{i}"),
+            format!("Profile {}", i + 1),
+            false,
+            false,
+            None::<&str>,
+        ) else {
+            return;
+        };
+        let after = items.last().map(|l| l.id().clone());
+        let at = after.and_then(|id| menu.items().ok()?.iter().position(|x| *x.id() == id)).map_or(2, |p| p + 1);
+        if menu.insert(&item, at).is_err() {
+            return;
+        }
+        items.push(item);
     }
 }
 
@@ -901,7 +936,15 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
     }
     follow_primary(app, &ctx);
     first_meeting(app, &ctx, s);
-    let mouse = mouse_prefs(&ctx, s);
+    let mut mouse = mouse_prefs(&ctx, s);
+    // A name and a snapshot for each of its profiles.
+    if let (Some(key), Some(n)) = (&s.key, s.capabilities.as_ref().and_then(|c| c.profiles)) {
+        let mut next = mouse.clone();
+        if next.fit_profiles(n) {
+            commit_mouse_prefs(app, &ctx, key, next.clone());
+            mouse = next;
+        }
+    }
 
     // Remember what the profile in use holds: the mouse reports only that one, and the Profiles
     // page shows the rest from these.
@@ -978,7 +1021,13 @@ fn follow_primary(app: &AppHandle, ctx: &Ctx) {
 /// before anything here changes it. Checked once per model per run, while it's awake and the
 /// vendor app isn't talking to it too. The read is quiet: nothing the user started.
 fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
-    if !s.online || s.settings.is_none() || ctx.status.read().vendor_app_running || !ctx.met.lock().insert(s.mid) {
+    let backups = s.capabilities.as_ref().is_some_and(|c| c.backups);
+    if !backups
+        || !s.online
+        || s.settings.is_none()
+        || ctx.status.read().vendor_app_running
+        || !ctx.met.lock().insert(s.mid)
+    {
         return;
     }
     let model = mice::compx::models::model_name(s.mid);
@@ -1394,10 +1443,16 @@ pub fn run() {
 
             // Mice are looked for once everything that hears about them is ready.
             #[allow(unused_mut)]
-            let mut families: Vec<Box<dyn mice::Family>> = vec![Box::new(mice::compx::Compx)];
+            let mut families: Vec<Box<dyn mice::Family>> =
+                vec![Box::new(mice::compx::Compx), Box::new(mice::hidpp::Logitech)];
             #[cfg(debug_assertions)]
-            if let Some(sim) = mice::compx::sim::SimFamily::from_env() {
-                families.push(Box::new(sim));
+            {
+                if let Some(sim) = mice::compx::sim::SimFamily::from_env() {
+                    families.push(Box::new(sim));
+                }
+                if let Some(sim) = mice::hidpp::sim::SimFamily::from_env() {
+                    families.push(Box::new(sim));
+                }
             }
             hub.run(families, Arc::new(move |s, e| on_device_change(&notify_handle, s, e)), Some(data_dir.clone()));
             // The mouse moved last is the one in use: the tray, the HUD and the pop-ups go to it.

@@ -1,6 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type DeviceState } from "./api";
-import { LINK_NAME } from "./links";
+import { linkName } from "./links";
 import { REPO_URL } from "./update";
 
 
@@ -18,7 +18,7 @@ export async function reportUrl(form: ReportForm, device: DeviceState | null): P
     ["version", version],
     ["mouse", device?.connected ? device.model : null],
     ["firmware", device?.connected ? device.firmware : null],
-    ["connection", device?.connected ? LINK_NAME[device.deviceType] : null],
+    ["connection", device?.connected ? linkName(device) : null],
     ["windows", windows],
   ];
   const query = fields

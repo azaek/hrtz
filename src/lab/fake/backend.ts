@@ -43,7 +43,43 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *  own replies put `kind` first, and the app compares actions by their JSON, so put it back. A dump
  *  from before "Sleep after" (2026-10-17) gets the 10 s the mouse comes with. */
 const kindFirst = (s: Settings): Settings => ({ ...s, sleepS: s.sleepS ?? 10, buttons: s.buttons?.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) });
-const device = deviceJson as unknown as DeviceState;
+/** `?mouse=superlight`: a PRO X SUPERLIGHT on its receiver instead of this PC's mouse, as the
+ *  Logitech driver reads the simulated one (src-tauri/src/mice/hidpp/sim.rs). */
+const SUPERLIGHT: DeviceState = {
+  rev: 1,
+  key: "hidpp/c094/1a2b3c4d",
+  connected: true,
+  online: true,
+  model: "PRO X SUPERLIGHT",
+  cid: 0,
+  mid: 0,
+  deviceType: 0,
+  firmware: "MPM 25.01",
+  battery: { level: 80, rawLevel: 80, charging: false, millivolts: 3989 },
+  profile: 0,
+  longRange: null,
+  settings: {
+    pollingHz: 1000,
+    dpiStageCount: 1,
+    dpiStage: 0,
+    stages: [800, 1200, 1600, 2400, 3200].map((dpi) => ({ dpi, color: "#FFFFFF" })),
+  },
+  capabilities: {
+    wired: false,
+    dpi: { min: 100, max: 25600, step: 50, maxStages: 5, colors: false },
+    polling: { rates: [125, 250, 500, 1000] },
+    motionSync: false,
+    angleSnapping: false,
+    rippleControl: false,
+    profiles: 5,
+    battery: true,
+    longRange: false,
+    pairing: false,
+    factoryReset: false,
+    backups: false,
+  },
+} as unknown as DeviceState;
+const device = (new URLSearchParams(location.search).get("mouse") === "superlight" ? SUPERLIGHT : deviceJson) as unknown as DeviceState;
 
 export const real = {
   // The receiver's port on this PC, as Windows names it (the dump leaves it to the stand-in).
@@ -69,6 +105,7 @@ export const real = {
         prefs: prefsJson as unknown as KnownMouse["prefs"],
       },
     ];
+    if (device === SUPERLIGHT) mice.push({ key: SUPERLIGHT.key!, model: SUPERLIGHT.model!, firstSeen: 0, lastSeen: 0, prefs: { ...mice[0].prefs, profileNames: [], profileSnapshots: [], rules: [] } } as KnownMouse);
     return mice.map((m) => ({
       ...m,
       // What the stand-in's mouse held, for its pages while it's "unplugged" (?away).
@@ -684,7 +721,15 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
         model: ["", "ZI PRO", "Z2", "Z2 mini", "Z1 PRO MAX", "Z2 MAX", "Z2 mini MAX"][mid],
         key: `compx/7-${mid}`,
         tested: mid === 4,
-      }));
+      })).concat(
+        ["PRO X SUPERLIGHT", "PRO X SUPERLIGHT 2", "PRO X SUPERLIGHT 2 DEX"].map((model, i) => ({
+          family: "hidpp",
+          brand: "Logitech",
+          model,
+          key: `hidpp/${["c094", "c09b", "c0a0"][i]}`,
+          tested: false,
+        })),
+      );
     case "get_mice":
       return clone(fake.mice);
     case "set_mouse_prefs": {

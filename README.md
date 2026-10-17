@@ -92,6 +92,7 @@ Quit Zaopin's own app first (see Safety).
 |---|---|
 | `src-tauri/src/mice/` | The mice: `engine.rs` runs a mouse's connection (sleep and wake, plugging in and out, the battery), `model.rs` is what the UI reads and writes |
 | `src-tauri/src/mice/compx/` | Zaopin's protocol: the packets, the memory as typed settings written field by field, the models, and a simulated mouse for the tests |
+| `src-tauri/src/mice/hidpp/` | Logitech's HID++ 2.0, ported from OpenMouse (see `PORTED.md`): finding the mouse on its receiver, its features, battery, and the onboard profiles it keeps its settings in, with a simulated Superlight for the tests |
 | `src-tauri/src/meter.rs`, `diag.rs`, `capture.rs` | Raw input from the mouse, the connection and stroke analysis, and the Lab's game screen |
 | `src-tauri/src/pad/`, `clicks.rs` | The mousepad map, and double clicks counted over days |
 | `src-tauri/src/hud/` | The in-game HUD, drawn natively |

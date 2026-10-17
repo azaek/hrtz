@@ -354,9 +354,13 @@ impl Worker {
     }
 
     fn refresh_battery(&mut self) -> Result<()> {
+        if self.board.read().capabilities.as_ref().is_some_and(|c| !c.battery) {
+            return Ok(());
+        }
         let r = self.drive(|d, _| d.battery())?;
         let before = self.battery.saved().map(|s| s.level);
-        let level = self.battery.update(r.level, r.charging, r.millivolts, SystemTime::now());
+        let mv = if r.by_voltage { r.millivolts } else { 0 };
+        let level = self.battery.update(r.level, r.charging, mv, SystemTime::now());
         if before != Some(level)
             && let (Some(f), Some(saved)) = (&self.battery_file, self.battery.saved())
         {

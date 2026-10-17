@@ -7,8 +7,8 @@ import { api, message, on, type BackupMeta, type DeviceState } from "./api";
 import { Emblem } from "./brand";
 import { Notice } from "./components";
 import { DrawnMouse, MousePicture } from "./DrawnMouse";
-import { LINK_NAME } from "./links";
-import { artOf } from "./models";
+import { linkName } from "./links";
+import { artOf, familyOf, ofModel } from "./models";
 import { endFlow, goStep, pickMouse, savePrefs, toast, useStore, type Step } from "./store";
 import { TitleBar } from "./TitleBar";
 import { REPO_URL } from "./update";
@@ -126,7 +126,7 @@ function WorksWith() {
 
 /** "8K receiver · 27% battery · firmware 2.17". */
 const details = (d: DeviceState) =>
-  [LINK_NAME[d.deviceType] ?? "receiver", d.battery ? `${d.battery.level}% battery` : null, d.firmware ? `firmware ${d.firmware}` : null].filter(Boolean).join(" · ");
+  [linkName(d), d.battery ? `${d.battery.level}% battery` : null, d.firmware ? `firmware ${d.firmware}` : null].filter(Boolean).join(" · ");
 
 type Shown = { hero: ReactNode; title: string; body: ReactNode; primary: { label: string; onClick: () => void; disabled?: boolean } | null; back: ReactNode };
 
@@ -245,9 +245,13 @@ export function Onboarding() {
       break;
     case "found": {
       const one = found.length === 1 ? found[0] : null;
-      const untested = found.filter((d) => supported.some((m) => m.key === d.key && !m.tested));
-      const backedUp = (d: DeviceState) => !!backups?.some((b) => b.model === d.model);
+      const untested = found.filter((d) => supported.some((m) => ofModel(d.key, m.key) && !m.tested));
+      // Only a mouse whose memory can be backed up waits for its first backup.
+      const backedUp = (d: DeviceState) => !d.capabilities?.backups || !!backups?.some((b) => b.model === d.model);
       const waiting = found.some((d) => !backedUp(d));
+      const backing = found.some((d) => d.capabilities?.backups);
+      // Zaopin's app is the one that fights hrtz for a Zaopin.
+      const zaopinApp = vendorApp && found.some((d) => familyOf(d.key) === "compx");
       shown = {
         hero: (
           <div className={s.heroRow}>
@@ -274,7 +278,7 @@ export function Onboarding() {
                 report from Settings.
               </Caption1>
             )}
-            {vendorApp ? (
+            {zaopinApp ? (
               <div className={s.stretch}>
                 <Notice tone="warning" icon={<Warning16Filled />} title="Quit Zaopin's app">
                   It uses the same channel as hrtz and overwrites its changes. Quit it from its tray icon.
@@ -285,12 +289,12 @@ export function Onboarding() {
                 <Spinner size="extra-tiny" />
                 <Caption1>Backing up its current settings</Caption1>
               </div>
-            ) : (
+            ) : backing ? (
               <div className={s.status}>
                 <Checkmark16Regular className={s.done} />
                 <Caption1>Current settings backed up. Restore them anytime from Settings.</Caption1>
               </div>
-            )}
+            ) : null}
           </>
         ),
         primary: first ? { label: "Continue", onClick: () => goStep("prefs") } : { label: "Done", onClick: done },

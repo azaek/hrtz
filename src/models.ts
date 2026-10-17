@@ -21,6 +21,17 @@ export const midOf = (key: string | null | undefined): number | undefined => {
   return m ? Number(m[1]) : undefined;
 };
 
+/** A key's family: `compx/7-4` is a Zaopin, `hidpp/c094/1a2b3c4d` a Logitech (`sim/` for either,
+ *  simulated, keeps the rest of its shape). */
+export const familyOf = (key: string | null | undefined): "compx" | "hidpp" | undefined => {
+  if (midOf(key) !== undefined) return "compx";
+  return key && /^(?:hidpp|sim)\/[0-9a-f]{4}\//.test(key) ? "hidpp" : undefined;
+};
+
+/** Whether a connected mouse's key is of the model `model` names: the same key, or (Logitech's,
+ *  which add the mouse's own unit ID) that key and more. */
+export const ofModel = (key: string | null | undefined, model: string): boolean => !!key && (key === model || key.startsWith(`${model}/`));
+
 /** A mouse's picture, from its key. */
 export const artOf = (key: string | null | undefined): ModelArt | undefined => {
   const mid = midOf(key);

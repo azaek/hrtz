@@ -5,7 +5,7 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 ## Commands
 
 - `pnpm tauri dev`: run the app (Vite on port 1420; the window reloads on save).
-- `pnpm dev:sim`: the same, with a simulated Z2 mini beside the real mice (`pnpm dev:sim z2mini,z1promax` for more), to try several mice with one.
+- `pnpm dev:sim`: the same, with a simulated Z2 mini beside the real mice (`pnpm dev:sim z2mini,z1promax,superlight,superlight2` for more), to try several mice with one.
 - `npx tsc --noEmit -p .`: type-check the front end.
 - `npx vite build`: production front-end build.
 - `cd src-tauri && cargo test --lib`: Rust tests.
@@ -26,8 +26,9 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 - `src-tauri/src/`: the tray, the OSD, the HUD, raw input and the stores.
   - `mice/`: what talks to the mice. `engine.rs` runs a mouse's connection on its own thread;
     `model.rs` is what the UI reads and writes. Each protocol family is a folder (`compx/` for
-    Zaopin) with its driver behind the `Driver` trait in `mice/mod.rs`, and a simulated mouse the
-    tests run against (`compx/sim.rs`). The plan for several mice is the notes' `PLAN-mice.md`.
+    Zaopin, `hidpp/` for Logitech) with its driver behind the `Driver` trait in `mice/mod.rs`, and a
+    simulated mouse the tests run against (`sim.rs` in each). The plan for several mice is the
+    notes' `PLAN-mice.md`. Code ported from OpenMouse carries its notice and a row in `PORTED.md`.
 - `src/pages/`: one file per sidebar page.
 - `src/components.tsx`: the Fluent building blocks (`SettingCard`, `Group`, `Choice`, `NavRow`, …).
 - `src/kit/`: the shared controls below. **Use these before writing new ones.**

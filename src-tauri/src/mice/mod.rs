@@ -1,9 +1,11 @@
-//! The mice hrtz talks to. A family is one protocol (`compx`: Zaopin's); its driver runs one
-//! connected mouse on the engine's thread (`engine`), and `model` is what the UI reads and writes.
-//! PLAN-mice.md in the notes has where this is going: several mice, of several families.
+//! The mice hrtz talks to. A family is one protocol (`compx`: Zaopin's; `hidpp`: Logitech's); its
+//! driver runs one connected mouse on the engine's thread (`engine`), and `model` is what the UI
+//! reads and writes. PLAN-mice.md in the notes has where this is going: several mice, of several
+//! families.
 
 pub mod compx;
 pub mod engine;
+pub mod hidpp;
 pub mod hub;
 pub mod model;
 
@@ -56,7 +58,11 @@ pub trait Finder: Send {
 pub struct Reading {
     pub level: u8,
     pub charging: bool,
+    /// 0 when the mouse doesn't say.
     pub millivolts: u16,
+    /// The level is to come from the millivolts, by the vendor curve the estimate knows (Zaopin's);
+    /// otherwise `level` is the mouse's own, or its driver's.
+    pub by_voltage: bool,
 }
 
 /// What the engine does after a driver took in what the mouse reported by itself.
