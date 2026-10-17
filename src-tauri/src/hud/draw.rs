@@ -565,8 +565,8 @@ pub(crate) fn fill_polygons(polys: &[Vec<(f32, f32)>], w: i32, h: i32) -> Vec<f3
                 }
             }
             xs.sort_by(f32::total_cmp);
-            for span in xs.chunks_exact(2) {
-                let (x0, x1) = (span[0].max(0.0), span[1].min(w as f32));
+            for [a, b] in xs.as_chunks::<2>().0 {
+                let (x0, x1) = (a.max(0.0), b.min(w as f32));
                 let mut px = x0.floor() as i32;
                 while x1 > x0 && (px as f32) < x1 {
                     row[px as usize] += (x1.min(px as f32 + 1.0) - x0.max(px as f32)) / ROWS as f32;
