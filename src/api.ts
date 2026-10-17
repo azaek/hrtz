@@ -508,6 +508,10 @@ export const api = {
   importBackup: (path: string) => invoke<BackupMeta>("import_backup", { path }),
   backupSettings: (id: string) => invoke<Settings>("backup_settings", { id }),
   openBackupsFolder: () => invoke<void>("open_backups_folder"),
+  /** A downloaded update: a notification, and "Restart to update" in the tray menu. */
+  updateReady: (version: string) => invoke<void>("update_ready", { version }),
+  /** Saves what Quit would, before the updater exits hrtz. */
+  prepareUpdate: () => invoke<void>("prepare_update"),
   runningApps: () => invoke<RunningApp[]>("running_apps"),
   appIcon: (path: string) => invoke<string | null>("app_icon", { path }),
   /** Games installed through Steam, Epic and Riot. */
@@ -562,6 +566,8 @@ export const on = {
   meter: (f: (s: MeterSample) => void) => listen<MeterSample>("meter", (e) => f(e.payload)),
   /** hrtz saved a backup by itself (meeting a mouse, factory settings). */
   backups: (f: () => void) => listen("backups", () => f()),
+  /** The tray's "Restart to update". */
+  updateInstall: (f: () => void) => listen("update-install", () => f()),
   /** Game mode's screen closed. */
   captureClosed: (f: (why: CaptureClosed) => void) => listen<CaptureClosed>("capture-closed", (e) => f(e.payload)),
 };

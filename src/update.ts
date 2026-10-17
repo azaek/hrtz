@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
+import { api, on } from "./api";
+import { toast } from "./store";
 
 /** Where hrtz lives. */
 export const REPO_URL = "https://github.com/azaek/hrtz";
@@ -62,6 +64,8 @@ export function useUpdate() {
         setState({ status: "downloading", version: found.version, received, total });
       });
       setState({ status: "ready", version: found.version });
+      // For someone who keeps hrtz in the tray: a notification, and the item in the tray menu.
+      void api.updateReady(found.version).catch(() => {});
     } catch (e) {
       update.current = null;
       if (asked) say({ status: "failed", reason: reasonOf(e) });
@@ -96,6 +100,8 @@ export function useUpdate() {
     if (!found) return;
     setState({ status: "installing", version: found.version });
     try {
+      // On Windows the installer exits hrtz, past Quit's saving.
+      await api.prepareUpdate().catch(() => {});
       await found.install();
       await relaunch();
     } catch (e) {
@@ -104,6 +110,12 @@ export function useUpdate() {
       throw new Error(`Couldn't install ${found.version}: ${reasonOf(e)}`);
     }
   };
+
+  // The tray's "Restart to update" lands here, as the sidebar's button does.
+  useEffect(() => {
+    const off = on.updateInstall(() => void install().catch((e: Error) => toast(e.message, "error")));
+    return () => void off.then((f) => f());
+  }, []);
 
   return { state, check: () => run(true), install };
 }

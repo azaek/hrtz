@@ -64,6 +64,10 @@ struct Ctx {
     /// The battery saver is changing the polling rate.
     saver_busy: AtomicBool,
     tray: Mutex<Option<(TrayIcon, Vec<CheckMenuItem<tauri::Wry>>)>>,
+    /// The tray's menu, for the "Restart to update" item a downloaded update adds.
+    tray_menu: Mutex<Option<Menu<tauri::Wry>>>,
+    /// The update already announced this run, so the notification comes once.
+    update_ready: Mutex<Option<String>>,
     /// Last rendered (level, style, light taskbar), so the icon is only redrawn when it changes.
     tray_level: Mutex<Option<(TrayLevel, TrayStyle, bool)>>,
     hud: hud::Hud,
@@ -105,6 +109,46 @@ async fn on_device<T: Send + 'static>(
 #[tauri::command]
 fn get_state(ctx: State<'_, Arc<Ctx>>) -> DeviceState {
     ctx.engine.snapshot()
+}
+
+/// A downloaded update waits for a restart. Say so once, in a notification and at the top of the
+/// tray menu, so it reaches someone who keeps hrtz in the tray and never opens the window.
+#[tauri::command]
+fn update_ready(app: AppHandle, ctx: State<'_, Arc<Ctx>>, version: String) {
+    let first = {
+        let mut ready = ctx.update_ready.lock();
+        if ready.as_deref() == Some(version.as_str()) {
+            return;
+        }
+        ready.replace(version.clone()).is_none()
+    };
+    let _ = app
+        .notification()
+        .builder()
+        .title(format!("hrtz {version} is ready"))
+        .body("Choose Restart to update in the tray menu or the sidebar.")
+        .show();
+    if first
+        && let Some(menu) = ctx.tray_menu.lock().as_ref()
+        && let (Ok(item), Ok(sep)) = (
+            MenuItem::with_id(&app, "update", "Restart to update", true, None::<&str>),
+            PredefinedMenuItem::separator(&app),
+        )
+    {
+        let _ = menu.insert(&item, 0);
+        let _ = menu.insert(&sep, 1);
+    }
+}
+
+/// Before the updater exits hrtz to install a new version: save what Quit would save. The rest of
+/// Quit (the HUD, the goodbye to the mouse) ends with the process.
+#[tauri::command]
+fn prepare_update() {
+    #[cfg(windows)]
+    {
+        meter::save_pad();
+        meter::save_clicks();
+    }
 }
 
 #[tauri::command]
@@ -997,6 +1041,10 @@ fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
         .on_menu_event(|app, e| match e.id.as_ref() {
             "open" => show_main(app),
             "quit" => quit(app),
+            // The window holds the downloaded update (src/update.ts), and installs it.
+            "update" => {
+                let _ = app.emit_to("main", "update-install", ());
+            }
             id => {
                 if let Some(i) = id.strip_prefix("profile-").and_then(|n| n.parse::<u8>().ok()) {
                     let app = app.clone();
@@ -1017,6 +1065,7 @@ fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
         })
         .build(app)?;
     *ctx.tray.lock() = Some((tray, profiles));
+    *ctx.tray_menu.lock() = Some(menu);
     Ok(())
 }
 
@@ -1075,6 +1124,8 @@ pub fn run() {
                 low_alerted: AtomicBool::new(false),
                 saver_busy: AtomicBool::new(false),
                 tray: Mutex::new(None),
+                tray_menu: Mutex::new(None),
+                update_ready: Mutex::new(None),
                 tray_level: Mutex::new(None),
                 hud,
                 met: Mutex::new(HashSet::new()),
@@ -1150,6 +1201,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
+            update_ready,
+            prepare_update,
             apply_settings,
             set_profile,
             set_long_range,

@@ -42,7 +42,15 @@ function Inline({ text }: { text: string }) {
 /** A version hasn't been looked at yet: the What's new button shows a dot. */
 export const whatsNewUnseen = () => !!LATEST && localStorage.getItem(SEEN_KEY) !== LATEST;
 
-/** The What's new window: what changed in each version, newest first. Opened by OPEN_WHATS_NEW. */
+/** "0.2.0" is newer than "0.1.3". */
+const newer = (a: string, b: string) => {
+  const [x, y] = [a, b].map((v) => v.split(".").map((n) => Number.parseInt(n, 10) || 0));
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+};
+
+/** The What's new window: what changed in each version, newest first. Opened by OPEN_WHATS_NEW,
+ *  and by itself once after an update. */
 export function WhatsNew() {
   const s = useStyles();
   const [open, setOpen] = useState(false);
@@ -56,6 +64,17 @@ export function WhatsNew() {
     const open = () => show();
     window.addEventListener(OPEN_WHATS_NEW, open);
     return () => window.removeEventListener(OPEN_WHATS_NEW, open);
+  }, []);
+
+  // After an update, its notes open once by themselves. A fresh install starts from its own
+  // version, quietly: its first window is the welcome, and nothing has changed for it yet.
+  useEffect(() => {
+    const seen = localStorage.getItem(SEEN_KEY);
+    if (!seen) {
+      if (LATEST) localStorage.setItem(SEEN_KEY, LATEST);
+    } else if (!import.meta.env.DEV && LATEST && newer(LATEST, seen)) {
+      show();
+    }
   }, []);
 
   if (!RELEASES.length) return null;

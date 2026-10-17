@@ -803,6 +803,8 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
     }
     case "plugin:updater|install":
     case "plugin:resources|close":
+    case "update_ready":
+    case "prepare_update":
       return null;
   }
   if (cmd.startsWith("plugin:window|") || cmd.startsWith("plugin:webview|") || cmd.startsWith("plugin:autostart|")) return false;

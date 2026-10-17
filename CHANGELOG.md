@@ -19,4 +19,4 @@ A version's heading reads "Unreleased" while it's being made. On the day it's re
 - Pair a mouse with its receiver from Settings.
 - Tray icon with the battery level, low battery alerts and profile switching.
 - A pop-up when DPI or the profile changes.
-- Updates download in the background and install when you restart from the sidebar, which also links to hrtz on GitHub.
+- Updates download in the background and install when you choose Restart to update, in the sidebar or the tray menu.
