@@ -16,6 +16,7 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 - The tag runs `.github/workflows/release.yml`: the type-check, `cargo fmt --check`, clippy with warnings as errors, and the Rust tests, then a signed NSIS installer in a **draft** GitHub release. Publish the draft to ship: installed copies read `latest.json` from the latest release and update themselves.
 - The updater's signing key is `~/.tauri/hrtz-updater.key` (no password), set on the repo as `TAURI_SIGNING_PRIVATE_KEY`. Its public half is the `pubkey` in `tauri.conf.json`. Only the release build signs (`tauri.release.conf.json` turns on `createUpdaterArtifacts`), so `pnpm tauri build` works without the key. Lose the key and installed copies can't take updates, so keep a backup.
 - Run the checks before pushing, as the release does: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` in `src-tauri`, with `rustfmt.toml`'s width of 120.
+- The release builds with the newest stable Rust, whose clippy can have lints an older one lacks (1.99 added `chunks_exact_to_as_chunks`). Keep the local toolchain current with `rustup update stable`, or run the workflow by hand to check main.
 
 ## Layout
 
