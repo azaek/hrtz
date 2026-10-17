@@ -7,6 +7,8 @@ pub(crate) mod driver;
 pub(crate) mod fixtures;
 pub mod models;
 pub mod onboard;
+#[cfg(test)]
+mod probe;
 pub mod protocol;
 #[cfg(any(test, debug_assertions))]
 pub(crate) mod sim;

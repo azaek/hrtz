@@ -49,7 +49,7 @@ impl Family for Logitech {
     }
 }
 
-fn is_hidpp(d: &hidapi::DeviceInfo, usage: u16) -> bool {
+pub(super) fn is_hidpp(d: &hidapi::DeviceInfo, usage: u16) -> bool {
     d.vendor_id() == p::VENDOR_ID
         && models::claims(d.product_id())
         && d.usage_page() == p::USAGE_PAGE
@@ -163,9 +163,9 @@ impl std::error::Error for NotAMouse {}
 
 /// One HID++ interface, as Windows opens it: its short-report collection and its long one.
 /// Requests go out on their report's collection; answers can come on either.
-struct HidppLink {
-    short: Option<HidDevice>,
-    long: HidDevice,
+pub(super) struct HidppLink {
+    pub short: Option<HidDevice>,
+    pub long: HidDevice,
 }
 
 impl Link for HidppLink {
