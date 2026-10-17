@@ -1,0 +1,129 @@
+name: Release
+
+# Tag-driven, after HEAD's release.yml, for Windows and one (stable) channel.
+#
+# `pnpm release X.Y.Z` dates the changelog, sets the version everywhere, commits and pushes the tag
+# vX.Y.Z (scripts/release.mjs). The tag runs:
+#   1. gate: the type-check, rustfmt, clippy and the Rust tests. A red tree never builds.
+#   2. build: the tag must match the app's version, the notes come from CHANGELOG.md (which must
+#      have dated that version), and tauri-action builds the NSIS installer, signs the updater
+#      artifacts and puts them, with latest.json, in a DRAFT GitHub release.
+# Publishing the draft makes it the latest release, whose latest.json installed copies read
+# (plugins.updater.endpoints in tauri.conf.json). A draft lets a human look before it ships.
+#
+# Run by hand (Actions, Release, Run workflow), it runs the gate alone.
+#
+# Security, as in HEAD's: the tag's version is checked against a strict X.Y.Z pattern first, then
+# reaches later steps only as an environment variable, never templated into a run: block, so a
+# crafted tag can't run shell with the signing key in scope.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the GitHub release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: tsc
+        run: pnpm exec tsc --noEmit -p .
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --check
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --lib
+
+  build:
+    needs: gate
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Check the version
+        id: meta
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"     # a default env var, not a workflow expression
+          version="${tag#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$tag' is not a release version (expected vX.Y.Z)"
+            exit 1
+          fi
+          # pnpm release sets the version before it tags, so the two always agree.
+          app="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "$app" != "$version" ]; then
+            echo "::error::The tag says $version but tauri.conf.json says $app. Cut releases with pnpm release."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - run: pnpm install --frozen-lockfile
+
+      # The release's text is the version's changelog entry: the notes What's new shows.
+      - name: Release notes from the changelog
+        id: notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          {
+            echo 'body<<CHANGELOG_EOF'
+            node scripts/release-notes.mjs "$VERSION"
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The minisign key that signs the updater artifacts (its public half is the pubkey in
+          # tauri.conf.json); no password.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          tauriScript: pnpm tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: "hrtz ${{ github.ref_name }}"
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: true
+          prerelease: false
+          # The signed updater artifacts are made only here, so a clone builds without the key.
+          args: --config src-tauri/tauri.release.conf.json

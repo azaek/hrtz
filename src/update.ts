@@ -1,66 +1,85 @@
 import { useEffect, useRef, useState } from "react";
-import { getVersion } from "@tauri-apps/api/app";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 
 /** Where hrtz lives. */
 export const REPO_URL = "https://github.com/azaek/hrtz";
-const LATEST_RELEASE = "https://api.github.com/repos/azaek/hrtz/releases/latest";
-
-export type Release = { version: string; url: string };
-
-/** "v0.2.0" → [0, 2, 0]. */
-const parts = (v: string) =>
-  v
-    .replace(/^v/i, "")
-    .split(/[.+-]/)
-    .slice(0, 3)
-    .map((x) => Number.parseInt(x, 10) || 0);
-
-/** Whether version `a` is newer than `b`. */
-export function newer(a: string, b: string) {
-  const [x, y] = [parts(a), parts(b)];
-  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return (x[i] ?? 0) > (y[i] ?? 0);
-  return false;
-}
-
-/**
- * The latest release on GitHub when it's newer than this copy, else null. No release yet (or the
- * repository still private) answers 404, which is up to date. Throws when GitHub can't be reached.
- * Until releases are signed for Tauri's updater, an update opens its release page.
- */
-export async function checkForUpdate(): Promise<Release | null> {
-  const current = await getVersion();
-  if (!current) throw new Error("This copy doesn't know its version.");
-  const res = await fetch(LATEST_RELEASE, { headers: { Accept: "application/vnd.github+json" } });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GitHub answered ${res.status}.`);
-  const r = (await res.json()) as { tag_name: string; html_url: string };
-  return newer(r.tag_name, current) ? { version: r.tag_name.replace(/^v/i, ""), url: r.html_url } : null;
-}
 
 export type UpdateState =
   | { status: "idle" | "checking" | "current" }
   | { status: "failed"; reason: string }
-  | { status: "available"; release: Release };
+  /** A newer version downloading in the background; `total` is null until the size is known. */
+  | { status: "downloading"; version: string; received: number; total: number | null }
+  /** Downloaded, waiting for the restart that installs it. */
+  | { status: "ready"; version: string }
+  | { status: "installing"; version: string };
 
-/** Checked quietly a little after launch and every 6 hours after; only a newer release shows. */
+/** One download event from the updater plugin, typed here so a rename there can't break the build. */
+type DownloadEvent =
+  | { event: "Started"; data: { contentLength?: number } }
+  | { event: "Progress"; data: { chunkLength: number } }
+  | { event: "Finished" };
+
+/** Checked quietly a little after launch and every 6 hours after; a newer version downloads by itself. */
 const FIRST_MS = 5_000;
 const EVERY_MS = 6 * 60 * 60_000;
 /** How long "Up to date" or "Couldn't check" stays after a check you asked for. */
 const SAY_MS = 4_000;
 
-/** The update check: quiet on its own, and saying how it went when you ask. */
+const reasonOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * The self-update, as HEAD does it: Tauri's updater reads the signed `latest.json` on the newest
+ * GitHub release (in Rust, so the page needs no network access), downloads a newer version in the
+ * background, then waits for a click to install it and restart. A check you didn't ask for stays
+ * quiet when it fails; one you asked for says so.
+ */
 export function useUpdate() {
   const [state, setState] = useState<UpdateState>({ status: "idle" });
+  const update = useRef<Update | null>(null);
+  const busy = useRef(false);
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const run = async (asked: boolean) => {
+    // One check at a time, and none once a version is downloading or downloaded.
+    if (busy.current || update.current) return;
+    busy.current = true;
+    clearTimeout(settle.current);
+    if (asked) setState({ status: "checking" });
+    try {
+      const found = await check();
+      if (!found) {
+        if (asked) say({ status: "current" });
+        return;
+      }
+      update.current = found;
+      let received = 0;
+      let total: number | null = null;
+      setState({ status: "downloading", version: found.version, received, total });
+      await found.download((e: DownloadEvent) => {
+        if (e.event === "Started") total = e.data.contentLength ?? null;
+        if (e.event === "Progress") received += e.data.chunkLength;
+        setState({ status: "downloading", version: found.version, received, total });
+      });
+      setState({ status: "ready", version: found.version });
+    } catch (e) {
+      update.current = null;
+      if (asked) say({ status: "failed", reason: reasonOf(e) });
+      else setState({ status: "idle" });
+    } finally {
+      busy.current = false;
+    }
+  };
+
+  /** Shows a result for a few seconds, then the button goes back to "Check for updates". */
+  const say = (s: UpdateState) => {
+    setState(s);
+    settle.current = setTimeout(() => setState({ status: "idle" }), SAY_MS);
+  };
+
   useEffect(() => {
-    const quiet = () =>
-      checkForUpdate().then(
-        (release) => release && setState({ status: "available", release }),
-        () => {},
-      );
-    const first = setTimeout(quiet, FIRST_MS);
-    const every = setInterval(quiet, EVERY_MS);
+    const first = setTimeout(() => void run(false), FIRST_MS);
+    const every = setInterval(() => void run(false), EVERY_MS);
     return () => {
       clearTimeout(first);
       clearInterval(every);
@@ -68,18 +87,20 @@ export function useUpdate() {
     };
   }, []);
 
-  const check = async () => {
-    clearTimeout(settle.current);
-    setState({ status: "checking" });
+  /** Installs the downloaded version and restarts into it. */
+  const install = async () => {
+    const found = update.current;
+    if (!found) return;
+    setState({ status: "installing", version: found.version });
     try {
-      const release = await checkForUpdate();
-      if (release) return setState({ status: "available", release });
-      setState({ status: "current" });
+      await found.install();
+      await relaunch();
     } catch (e) {
-      setState({ status: "failed", reason: e instanceof Error ? e.message : String(e) });
+      // A click deserves an answer: say it failed, and keep the download for another try.
+      setState({ status: "ready", version: found.version });
+      throw new Error(`Couldn't install ${found.version}: ${reasonOf(e)}`);
     }
-    settle.current = setTimeout(() => setState({ status: "idle" }), SAY_MS);
   };
 
-  return { state, check };
+  return { state, check: () => run(true), install };
 }

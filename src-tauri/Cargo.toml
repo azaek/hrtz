@@ -31,6 +31,8 @@ base64 = "0.22"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 png = "0.17"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [

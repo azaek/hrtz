@@ -1,7 +1,8 @@
 import { Button, makeStyles, Spinner, tokens } from "@fluentui/react-components";
-import { ArrowDownload16Regular, ArrowSync16Regular, Checkmark16Regular, Warning16Regular } from "@fluentui/react-icons";
+import { ArrowClockwise16Regular, ArrowSync16Regular, Checkmark16Regular, Warning16Regular } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { IconButton } from "@/kit";
+import { toast } from "@/store";
 import { REPO_URL, useUpdate } from "./update";
 
 const useStyles = makeStyles({
@@ -40,12 +41,12 @@ function GitHubMark() {
 }
 
 /**
- * The bottom of the sidebar: the update check, and hrtz on GitHub. The check runs quietly too, so
- * the button turns into "Update to …" by itself when a release is out.
+ * The bottom of the sidebar: updates, and hrtz on GitHub. A newer version downloads quietly, then
+ * the button turns into "Restart to update", which installs it and restarts hrtz.
  */
 export function SidebarFooter() {
   const s = useStyles();
-  const { state, check } = useUpdate();
+  const { state, check, install } = useUpdate();
   const open = (url: string) => void openUrl(url).catch(() => {});
 
   const [label, icon, title] =
@@ -55,9 +56,14 @@ export function SidebarFooter() {
         ? ["Up to date", <Checkmark16Regular />, undefined]
         : state.status === "failed"
           ? ["Couldn't check", <Warning16Regular />, state.reason]
-          : state.status === "available"
-            ? [`Update to ${state.release.version}`, <ArrowDownload16Regular />, "Opens the release on GitHub"]
-            : ["Check for updates", <ArrowSync16Regular />, undefined];
+          : state.status === "downloading"
+            ? [`Downloading ${state.version}${state.total ? ` · ${Math.round((state.received / state.total) * 100)}%` : "…"}`, <Spinner size="extra-tiny" />, undefined]
+            : state.status === "ready"
+              ? ["Restart to update", <ArrowClockwise16Regular />, `Installs ${state.version} and restarts hrtz`]
+              : state.status === "installing"
+                ? ["Updating…", <Spinner size="extra-tiny" />, undefined]
+                : ["Check for updates", <ArrowSync16Regular />, undefined];
+  const waiting = state.status === "checking" || state.status === "downloading" || state.status === "installing";
 
   return (
     <div className={s.row}>
@@ -66,11 +72,11 @@ export function SidebarFooter() {
         className={s.update}
         icon={icon}
         title={title}
-        disabled={state.status === "checking"}
-        onClick={() => (state.status === "available" ? open(state.release.url) : void check())}
+        disabled={waiting}
+        onClick={() => (state.status === "ready" ? void install().catch((e: Error) => toast(e.message, "error")) : void check())}
       >
         {label}
-        {state.status === "available" && <span aria-hidden className={s.dot} />}
+        {state.status === "ready" && <span aria-hidden className={s.dot} />}
       </Button>
       <IconButton appearance="subtle" icon={<GitHubMark />} label="hrtz on GitHub" onClick={() => open(REPO_URL)} />
     </div>

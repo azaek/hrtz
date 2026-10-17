@@ -11,8 +11,11 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 
 ## Releases
 
-- `CHANGELOG.md` feeds the app's "What's new". Add each change under the next version, whose heading reads "Unreleased".
-- On release day, that heading takes the day's date (`## 0.2.0 — 2026-11-02`), and the version goes into `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` alike.
+- `CHANGELOG.md` feeds the app's "What's new" and each GitHub release's text. Add a user-facing change under the next version, whose heading reads "Unreleased" (`## 0.2.0 — Unreleased`, or `## Unreleased` before the number is known).
+- `pnpm release 0.2.0` cuts a release (`scripts/release.mjs`): the heading takes the day's date (`## 0.2.0 — 2026-11-02`), the version goes into `package.json`, `src-tauri/Cargo.toml`, `Cargo.lock` and `tauri.conf.json`, and a commit "Release 0.2.0" and the tag `v0.2.0` are pushed. Run it from a clean `main`.
+- The tag runs `.github/workflows/release.yml`: the type-check, `cargo fmt --check`, clippy with warnings as errors, and the Rust tests, then a signed NSIS installer in a **draft** GitHub release. Publish the draft to ship: installed copies read `latest.json` from the latest release and update themselves.
+- The updater's signing key is `~/.tauri/hrtz-updater.key` (no password), set on the repo as `TAURI_SIGNING_PRIVATE_KEY`. Its public half is the `pubkey` in `tauri.conf.json`. Only the release build signs (`tauri.release.conf.json` turns on `createUpdaterArtifacts`), so `pnpm tauri build` works without the key. Lose the key and installed copies can't take updates, so keep a backup.
+- Run the checks before pushing, as the release does: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` in `src-tauri`, with `rustfmt.toml`'s width of 120.
 
 ## Layout
 

@@ -25,6 +25,8 @@
           "url": "https://github.com/azaek/hrtz*"
         }
       ]
-    }
+    },
+    "updater:default",
+    "process:allow-restart"
   ]
 }
