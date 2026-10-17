@@ -18,7 +18,8 @@ pub const DOUBLE_MS: f64 = 30.0;
 /// Days kept.
 const KEEP_DAYS: usize = 30;
 /// RI_MOUSE_* down and up flags for left, right, middle, back, forward.
-const FLAGS: [(u16, u16); 5] = [(0x0001, 0x0002), (0x0004, 0x0008), (0x0010, 0x0020), (0x0040, 0x0080), (0x0100, 0x0200)];
+const FLAGS: [(u16, u16); 5] =
+    [(0x0001, 0x0002), (0x0004, 0x0008), (0x0010, 0x0020), (0x0040, 0x0080), (0x0100, 0x0200)];
 /// Any of them: reports without these carry nothing for the log.
 pub const BUTTON_BITS: u16 = 0x03FF;
 
@@ -50,7 +51,8 @@ pub struct ClickLog {
 
 impl ClickLog {
     pub fn load(path: &Path) -> Self {
-        let days: Vec<Day> = std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let days: Vec<Day> =
+            std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
         Self { days: days.into(), ..Self::default() }
     }
 

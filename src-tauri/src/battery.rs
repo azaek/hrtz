@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 /// Voltage (mV) at 0, 5, 10 … 100 %: the curve the vendor app uses for all six models.
 const CURVE: [u16; 21] = [
-    3050, 3420, 3480, 3540, 3600, 3660, 3720, 3760, 3800, 3840, 3880, 3920, 3940, 3960, 3980, 4000, 4020, 4040,
-    4060, 4080, 4110,
+    3050, 3420, 3480, 3540, 3600, 3660, 3720, 3760, 3800, 3840, 3880, 3920, 3940, 3960, 3980, 4000, 4020, 4040, 4060,
+    4080, 4110,
 ];
 /// The vendor app's pace: 1 % per 10 s, or per 5 min above 85 % while charging.
 const STEP: Duration = Duration::from_secs(10);

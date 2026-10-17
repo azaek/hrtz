@@ -126,7 +126,7 @@ impl Filter {
         if !pushed {
             return None;
         }
-        if !(new.2 > 1e-200) {
+        if new.2.is_nan() || new.2 <= 1e-200 {
             // Every guess ran into an edge: the calibration or scale is off. Keep the clamped
             // positions and start the weights over rather than lose the estimate.
             let w = 1.0 / self.p.len() as f64;
@@ -262,7 +262,10 @@ impl Filter {
 
     /// Where the swipe in `slot` started, and the summed variance of that (cm²).
     pub fn start(&self, slot: usize) -> ((f64, f64), f64) {
-        let (mx, my) = self.p.iter().fold((0.0, 0.0), |(x, y), p| (x + p.w * p.starts[slot].0 as f64, y + p.w * p.starts[slot].1 as f64));
+        let (mx, my) = self
+            .p
+            .iter()
+            .fold((0.0, 0.0), |(x, y), p| (x + p.w * p.starts[slot].0 as f64, y + p.w * p.starts[slot].1 as f64));
         let var = self
             .p
             .iter()
@@ -294,7 +297,14 @@ impl Filter {
     /// Chance that the swipe in `slot`, with extents `bbox` (min x, max x, min y, max y relative
     /// to its start), came within `near` cm of each edge: top, bottom, left, right. `reached`
     /// says whether the swipe moved toward that side at all.
-    pub fn edge_chances(&self, slot: usize, bbox: [f64; 4], reached: [bool; 4], near: f64, cal: &Calibration) -> [f64; 4] {
+    pub fn edge_chances(
+        &self,
+        slot: usize,
+        bbox: [f64; 4],
+        reached: [bool; 4],
+        near: f64,
+        cal: &Calibration,
+    ) -> [f64; 4] {
         let mut out = [0.0; 4];
         for p in &self.p {
             let (sx, sy) = (p.starts[slot].0 as f64, p.starts[slot].1 as f64);

@@ -29,7 +29,15 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Self { dpi: 1600, rate: 8000.0, grip: 7f64.to_radians(), blips: false, dropouts: true, flicks: 0.0, lifts: true }
+        Self {
+            dpi: 1600,
+            rate: 8000.0,
+            grip: 7f64.to_radians(),
+            blips: false,
+            dropouts: true,
+            flicks: 0.0,
+            lifts: true,
+        }
     }
 }
 
@@ -88,7 +96,16 @@ impl Out<'_> {
 
     /// `travel`, stopped early at `cut` of the way through its timing.
     #[allow(clippy::too_many_arguments)]
-    fn travel_until(&mut self, pos: &mut (f64, f64), dx: f64, dy: f64, secs: f64, reported: bool, profile: Profile, cut: f64) {
+    fn travel_until(
+        &mut self,
+        pos: &mut (f64, f64),
+        dx: f64,
+        dy: f64,
+        secs: f64,
+        reported: bool,
+        profile: Profile,
+        cut: f64,
+    ) {
         let n = ((secs * self.o.rate).ceil() as usize).max(1);
         let counts_per_cm = self.o.dpi as f64 / 2.54;
         let (c, s) = (self.o.grip.cos(), self.o.grip.sin());
@@ -141,7 +158,13 @@ pub fn play(seconds: f64, seed: u64, o: &Options) -> Session {
     let mut rng = Rng::new(seed);
     let mut out = Out {
         o,
-        s: Session { cal: Calibration { angle: o.grip, ..CAL }, blips: o.blips, reports: Vec::new(), truth: Vec::new(), pauses: Vec::new() },
+        s: Session {
+            cal: Calibration { angle: o.grip, ..CAL },
+            blips: o.blips,
+            reports: Vec::new(),
+            truth: Vec::new(),
+            pauses: Vec::new(),
+        },
         t: 0.0,
         carry: (0.0, 0.0),
         last_truth: 0.0,
@@ -374,7 +397,10 @@ pub fn naive(s: &Session) -> Vec<(f64, f64)> {
             ti += 1;
         }
         let (sx, sy) = (dx as f64 * k, dy as f64 * k);
-        pos = ((pos.0 + sx * c - sy * sn).clamp(-CAL.left, CAL.right), (pos.1 + sx * sn + sy * c).clamp(-CAL.top, CAL.bottom));
+        pos = (
+            (pos.0 + sx * c - sy * sn).clamp(-CAL.left, CAL.right),
+            (pos.1 + sx * sn + sy * c).clamp(-CAL.top, CAL.bottom),
+        );
     }
     while est.len() < s.truth.len() {
         est.push(pos);

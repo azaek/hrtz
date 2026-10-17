@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -306,7 +306,9 @@ impl Default for Prefs {
 
 impl Prefs {
     pub fn load(path: &Path) -> Self {
-        let Some(mut v) = fs::read_to_string(path).ok().and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok()) else {
+        let Some(mut v) =
+            fs::read_to_string(path).ok().and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        else {
             return Self::default();
         };
         if let Ok(p) = serde_json::from_value(v.clone()) {
@@ -347,7 +349,9 @@ impl Prefs {
     /// Fill in the name and path of a rule typed in by hand, the first time its app is seen, so it
     /// gets its icon and real name. Returns whether a rule changed.
     pub fn fill_rule(&mut self, exe: &str, name: String, path: &str) -> bool {
-        let Some(r) = self.rules.iter_mut().find(|r| r.exe.eq_ignore_ascii_case(exe) && r.path.is_none()) else { return false };
+        let Some(r) = self.rules.iter_mut().find(|r| r.exe.eq_ignore_ascii_case(exe) && r.path.is_none()) else {
+            return false;
+        };
         r.path = Some(path.to_string());
         r.name.get_or_insert(name);
         true
@@ -372,7 +376,11 @@ impl Prefs {
             Some(_) if hz != self.battery_saver_hz => (None, None),
             Some(old) if charging || !self.battery_saver => (Some(old), None),
             Some(old) => (None, Some(old)),
-            None if self.battery_saver && !charging && level <= self.battery_saver_below && hz > self.battery_saver_hz => {
+            None if self.battery_saver
+                && !charging
+                && level <= self.battery_saver_below
+                && hz > self.battery_saver_hz =>
+            {
                 (Some(self.battery_saver_hz), Some(hz))
             }
             None => (None, None),
@@ -386,7 +394,10 @@ impl Prefs {
         let game = crate::games::find(exe).map(|g| g.name);
         self.rules
             .iter()
-            .find(|r| r.exe.eq_ignore_ascii_case(exe) || (game.is_some() && crate::games::find(&r.exe).map(|g| g.name) == game))
+            .find(|r| {
+                r.exe.eq_ignore_ascii_case(exe)
+                    || (game.is_some() && crate::games::find(&r.exe).map(|g| g.name) == game)
+            })
             .map(|r| r.profile)
             .or(self.default_profile)
     }
@@ -496,7 +507,13 @@ impl Backups {
         Ok(m)
     }
 
-    fn write_new(&self, image: &[u8], device: BackupDevice, note: &str, auto: Option<AutoReason>) -> Result<BackupMeta> {
+    fn write_new(
+        &self,
+        image: &[u8],
+        device: BackupDevice,
+        note: &str,
+        auto: Option<AutoReason>,
+    ) -> Result<BackupMeta> {
         fs::create_dir_all(&self.dir)?;
         let now = chrono::Local::now();
         let file = BackupFile {
@@ -655,7 +672,10 @@ mod tests {
 
     #[test]
     fn a_rule_for_a_known_game_covers_its_other_exes() {
-        let p = Prefs { rules: vec![AppRule { exe: "r5apex.exe".into(), profile: 3, name: None, path: None }], ..Prefs::default() };
+        let p = Prefs {
+            rules: vec![AppRule { exe: "r5apex.exe".into(), profile: 3, name: None, path: None }],
+            ..Prefs::default()
+        };
         assert_eq!(p.profile_for("R5Apex_DX12.exe"), Some(3));
         assert_eq!(p.profile_for("cs2.exe"), None);
     }
@@ -723,8 +743,12 @@ mod tests {
         // Older prefs files have no HUD settings at all, or only some.
         let old: Prefs = serde_json::from_str(r#"{"osd": false}"#).unwrap();
         assert_eq!(old.hud, HudPrefs::default());
-        let some: HudPrefs = serde_json::from_str(r#"{"show": "always", "plate": 37.5, "anchor": "bottom-left"}"#).unwrap();
-        assert_eq!((some.show, some.plate, some.anchor, some.size), (HudShow::Always, 38, HudAnchor::BottomLeft, HudSize::Medium));
+        let some: HudPrefs =
+            serde_json::from_str(r#"{"show": "always", "plate": 37.5, "anchor": "bottom-left"}"#).unwrap();
+        assert_eq!(
+            (some.show, some.plate, some.anchor, some.size),
+            (HudShow::Always, 38, HudAnchor::BottomLeft, HudSize::Medium)
+        );
         assert_eq!(some.fields, HudFields::default());
         // The mark is always shown; a file from when it could be turned off still loads.
         let with_mark: HudFields = serde_json::from_str(r#"{"mark": false, "battery": false}"#).unwrap();
@@ -741,7 +765,10 @@ mod tests {
         assert!(hud.hidden("CS2.exe"));
         assert!(hud.block("VALORANT-Win64-Shipping.exe", "VALORANT".into(), "exclusive"));
         assert!(!hud.block("valorant-win64-shipping.exe", "VALORANT".into(), "exclusive"), "once");
-        assert_eq!(serde_json::to_value(&hud.blocked).unwrap(), serde_json::json!([{ "exe": "VALORANT-Win64-Shipping.exe", "name": "VALORANT", "reason": "exclusive" }]));
+        assert_eq!(
+            serde_json::to_value(&hud.blocked).unwrap(),
+            serde_json::json!([{ "exe": "VALORANT-Win64-Shipping.exe", "name": "VALORANT", "reason": "exclusive" }])
+        );
     }
 
     /// The HUD's settings as the page writes them, defaults included. `src/api.ts` has the same
@@ -813,14 +840,25 @@ mod tests {
         .unwrap();
         let want = HudPrefs {
             show: HudShow::Always,
-            fields: HudFields { battery: false, time_left: false, polling: true, dpi: false, profile: true, labels: false },
+            fields: HudFields {
+                battery: false,
+                time_left: false,
+                polling: true,
+                dpi: false,
+                profile: true,
+                labels: false,
+            },
             anchor: HudAnchor::BottomLeft,
             size: HudSize::Large,
             plate: 20,
             value_color: HudValueColor::White,
             oled_care: false,
             hidden_games: vec!["cs2.exe".into()],
-            blocked: vec![HudBlocked { exe: "VALORANT-Win64-Shipping.exe".into(), name: "VALORANT".into(), reason: "exclusive".into() }],
+            blocked: vec![HudBlocked {
+                exe: "VALORANT-Win64-Shipping.exe".into(),
+                name: "VALORANT".into(),
+                reason: "exclusive".into(),
+            }],
         };
         assert_eq!(p.hud, want);
         assert!(!p.osd);
@@ -869,7 +907,12 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let want = HudPrefs { anchor: HudAnchor::BottomLeft, plate: 60, hidden_games: vec!["cs2.exe".into()], ..HudPrefs::default() };
+        let want = HudPrefs {
+            anchor: HudAnchor::BottomLeft,
+            plate: 60,
+            hidden_games: vec!["cs2.exe".into()],
+            ..HudPrefs::default()
+        };
         assert_eq!((p.low_battery_percent, &p.hud), (20, &want));
         assert_eq!(p.hud.show, HudShow::Change);
         // A cleared hotkey loads too.
@@ -879,7 +922,8 @@ mod tests {
         assert!(serde_json::to_value(&p.hud).unwrap().get("hotkey").is_none());
         // Through `Prefs::load` too, which would drop the whole HUD object if it couldn't read it.
         let path = std::env::temp_dir().join(format!("hrtz-hud-hotkey-{}.json", std::process::id()));
-        fs::write(&path, r#"{"hud": {"show": "hotkey", "plate": 60, "hotkey": {"ctrl": true, "key": "KeyH"}}}"#).unwrap();
+        fs::write(&path, r#"{"hud": {"show": "hotkey", "plate": 60, "hotkey": {"ctrl": true, "key": "KeyH"}}}"#)
+            .unwrap();
         let loaded = Prefs::load(&path);
         let _ = fs::remove_file(&path);
         assert_eq!((loaded.hud.show, loaded.hud.plate), (HudShow::Change, 60));

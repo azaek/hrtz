@@ -2,12 +2,12 @@
 //! same, so the connection test can tell when the receiver moved, and a hub in between shows.
 
 use serde::Serialize;
-use windows::core::PCWSTR;
 use windows::Win32::Devices::DeviceAndDriverInstallation::{
-    CM_Get_DevNode_PropertyW, CM_Get_Device_Interface_PropertyW, CM_Get_Parent, CM_Locate_DevNodeW, CM_LOCATE_DEVNODE_NORMAL, CONFIGRET,
-    CR_SUCCESS,
+    CM_Get_DevNode_PropertyW, CM_Get_Device_Interface_PropertyW, CM_Get_Parent, CM_LOCATE_DEVNODE_NORMAL,
+    CM_Locate_DevNodeW, CONFIGRET, CR_SUCCESS,
 };
 use windows::Win32::Devices::Properties::{DEVPKEY_Device_InstanceId, DEVPKEY_Device_LocationPaths, DEVPROPTYPE};
+use windows::core::PCWSTR;
 
 /// Where the receiver, or a mouse on its cable, is plugged in.
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -22,9 +22,11 @@ pub struct UsbPort {
 /// The port of the HID device at `hid_path`, as hidapi names it.
 pub fn port_of(hid_path: &str) -> Option<UsbPort> {
     let iface = wide(hid_path);
-    let id = strings(|ty, buf, len| unsafe { CM_Get_Device_Interface_PropertyW(PCWSTR(iface.as_ptr()), &DEVPKEY_Device_InstanceId, ty, buf, len, 0) })
-        .into_iter()
-        .next()?;
+    let id = strings(|ty, buf, len| unsafe {
+        CM_Get_Device_Interface_PropertyW(PCWSTR(iface.as_ptr()), &DEVPKEY_Device_InstanceId, ty, buf, len, 0)
+    })
+    .into_iter()
+    .next()?;
     let id = wide(&id);
     let mut node = 0u32;
     if unsafe { CM_Locate_DevNodeW(&mut node, PCWSTR(id.as_ptr()), CM_LOCATE_DEVNODE_NORMAL) } != CR_SUCCESS {
@@ -32,8 +34,12 @@ pub fn port_of(hid_path: &str) -> Option<UsbPort> {
     }
     // Up from the HID collection, past the USB interface ("…#USBMI(1)"), to the device on the port.
     for _ in 0..8 {
-        let paths = strings(|ty, buf, len| unsafe { CM_Get_DevNode_PropertyW(node, &DEVPKEY_Device_LocationPaths, ty, buf, len, 0) });
-        if let Some(path) = paths.into_iter().find(|p| p.starts_with("PCIROOT") && p.contains("#USB(") && !p.contains("#USBMI(")) {
+        let paths = strings(|ty, buf, len| unsafe {
+            CM_Get_DevNode_PropertyW(node, &DEVPKEY_Device_LocationPaths, ty, buf, len, 0)
+        });
+        if let Some(path) =
+            paths.into_iter().find(|p| p.starts_with("PCIROOT") && p.contains("#USB(") && !p.contains("#USBMI("))
+        {
             let hubs = path.matches("#USB(").count().saturating_sub(1).min(u8::MAX as usize) as u8;
             return Some(UsbPort { path, hubs });
         }

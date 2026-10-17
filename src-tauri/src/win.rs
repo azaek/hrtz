@@ -7,28 +7,28 @@ use std::sync::OnceLock;
 use base64::Engine as _;
 use parking_lot::Mutex;
 use serde::Serialize;
-use windows::core::{BOOL, PCWSTR};
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, MAX_PATH};
-use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
+use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DIB_RGB_COLORS,
+    BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC, DeleteObject,
+    GetDIBits, GetObjectW,
 };
 use windows::Win32::Storage::FileSystem::{
-    GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, FILE_FLAGS_AND_ATTRIBUTES,
+    FILE_FLAGS_AND_ATTRIBUTES, GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
 };
 use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+    CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
-use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
+use windows::Win32::UI::Shell::{SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGetFileInfoW};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DestroyIcon, EnumChildWindows, EnumWindows, GetForegroundWindow, GetIconInfo, GetWindow, GetWindowLongW,
-    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, ShowWindow, GWL_EXSTYLE,
-    GW_OWNER, ICONINFO, SW_SHOWNOACTIVATE, WS_EX_TOOLWINDOW,
+    DestroyIcon, EnumChildWindows, EnumWindows, GW_OWNER, GWL_EXSTYLE, GetForegroundWindow, GetIconInfo, GetWindow,
+    GetWindowLongW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, ICONINFO, IsWindowVisible,
+    SW_SHOWNOACTIVATE, ShowWindow, WS_EX_TOOLWINDOW,
 };
+use windows::core::{BOOL, PCWSTR};
 
 const VENDOR_EXE: &str = "mouse drive beta.exe";
 /// Hosts whose windows belong to another process (Store/UWP apps run inside it).
@@ -86,7 +86,7 @@ pub fn foreground_window() -> isize {
 
 /// The monitor a window is mostly on, as a number that can cross threads.
 pub fn monitor_of(hwnd: isize) -> isize {
-    use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
+    use windows::Win32::Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromWindow};
     unsafe { MonitorFromWindow(HWND(hwnd as *mut _), MONITOR_DEFAULTTONEAREST) }.0 as isize
 }
 
@@ -102,7 +102,8 @@ pub fn app_name(path: &str) -> String {
     if let Some(game) = crate::games::find(&exe) {
         return game.name.to_string();
     }
-    file_description(path).unwrap_or_else(|| exe.strip_suffix(".exe").or(exe.strip_suffix(".EXE")).unwrap_or(&exe).to_string())
+    file_description(path)
+        .unwrap_or_else(|| exe.strip_suffix(".exe").or(exe.strip_suffix(".EXE")).unwrap_or(&exe).to_string())
 }
 
 /// An app the user would recognise in the taskbar: visible, titled, not cloaked, not a tool window.
@@ -174,7 +175,13 @@ pub fn app_info(path: &str) -> Option<RunningApp> {
     if !is_exe || !p.is_file() {
         return None;
     }
-    Some(RunningApp { exe: file_name(path), name: app_name(path), title: String::new(), path: path.to_string(), icon: app_icon(path) })
+    Some(RunningApp {
+        exe: file_name(path),
+        name: app_name(path),
+        title: String::new(),
+        path: path.to_string(),
+        icon: app_icon(path),
+    })
 }
 
 /// `FileDescription` from the exe's version resource ("Brave Browser" for brave.exe).
@@ -212,9 +219,9 @@ pub fn app_icon(path: &str) -> Option<String> {
     if let Some(v) = cache.lock().get(path) {
         return v.clone();
     }
-    let v = icon_rgba(path).and_then(|(w, h, rgba)| encode_png(w, h, &rgba)).map(|png| {
-        format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
-    });
+    let v = icon_rgba(path)
+        .and_then(|(w, h, rgba)| encode_png(w, h, &rgba))
+        .map(|png| format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)));
     cache.lock().insert(path.to_string(), v.clone());
     v
 }
@@ -237,8 +244,11 @@ fn icon_rgba(path: &str) -> Option<(u32, u32, Vec<u8>)> {
         let result = (|| {
             GetIconInfo(info.hIcon, &mut ii).ok()?;
             let mut bm = BITMAP::default();
-            if GetObjectW(ii.hbmColor.into(), std::mem::size_of::<BITMAP>() as i32, Some((&mut bm as *mut BITMAP).cast()))
-                == 0
+            if GetObjectW(
+                ii.hbmColor.into(),
+                std::mem::size_of::<BITMAP>() as i32,
+                Some((&mut bm as *mut BITMAP).cast()),
+            ) == 0
             {
                 return None;
             }
@@ -365,7 +375,7 @@ pub struct PointerSettings {
 
 pub fn pointer_settings() -> PointerSettings {
     use windows::Win32::UI::WindowsAndMessaging::{
-        SystemParametersInfoW, SPI_GETMOUSE, SPI_GETMOUSESPEED, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+        SPI_GETMOUSE, SPI_GETMOUSESPEED, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
     };
     let mut mouse = [0i32; 3];
     let mut speed = 10u32;
@@ -381,7 +391,7 @@ pub fn pointer_settings() -> PointerSettings {
 /// good (saved, and every app told).
 pub fn set_pointer(acceleration_off: bool, neutral_speed: bool) -> windows::core::Result<()> {
     use windows::Win32::UI::WindowsAndMessaging::{
-        SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETMOUSE, SPI_SETMOUSESPEED,
+        SPI_SETMOUSE, SPI_SETMOUSESPEED, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SystemParametersInfoW,
     };
     let flags = SPIF_UPDATEINIFILE | SPIF_SENDCHANGE;
     unsafe {
@@ -400,13 +410,21 @@ pub fn set_pointer(acceleration_off: bool, neutral_speed: bool) -> windows::core
 
 /// Raw Accel is listed as an upper filter of the mouse device class.
 fn raw_accel_installed() -> bool {
+    use windows::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_MULTI_SZ, RegGetValueW};
     use windows::core::w;
-    use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_MULTI_SZ};
     let key = w!(r"SYSTEM\CurrentControlSet\Control\Class\{4d36e96f-e325-11ce-bfc1-08002be10318}");
     let mut buf = [0u16; 512];
     let mut size = (buf.len() * 2) as u32;
     let r = unsafe {
-        RegGetValueW(HKEY_LOCAL_MACHINE, key, w!("UpperFilters"), RRF_RT_REG_MULTI_SZ, None, Some(buf.as_mut_ptr().cast()), Some(&mut size))
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            key,
+            w!("UpperFilters"),
+            RRF_RT_REG_MULTI_SZ,
+            None,
+            Some(buf.as_mut_ptr().cast()),
+            Some(&mut size),
+        )
     };
     r.is_ok()
         && String::from_utf16_lossy(&buf[..(size as usize / 2).min(buf.len())])
@@ -416,12 +434,14 @@ fn raw_accel_installed() -> bool {
 
 /// Steam's folder, from the registry (per-user first, then the machine-wide install key).
 pub fn steam_path() -> Option<std::path::PathBuf> {
-    use windows::core::{w, PCWSTR};
-    use windows::Win32::System::Registry::{RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
+    use windows::Win32::System::Registry::{HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
+    use windows::core::{PCWSTR, w};
     let read = |root: HKEY, key: PCWSTR, value: PCWSTR| -> Option<String> {
         let mut buf = vec![0u16; 1024];
         let mut size = (buf.len() * 2) as u32;
-        unsafe { RegGetValueW(root, key, value, RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr().cast()), Some(&mut size)) }.ok().ok()?;
+        unsafe { RegGetValueW(root, key, value, RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr().cast()), Some(&mut size)) }
+            .ok()
+            .ok()?;
         let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
         Some(String::from_utf16_lossy(&buf[..len]))
     };
@@ -433,8 +453,8 @@ pub fn steam_path() -> Option<std::path::PathBuf> {
 
 /// Whether the taskbar uses the light theme (Settings > Personalisation > Colours > Windows mode).
 pub fn taskbar_is_light() -> bool {
+    use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
     use windows::core::w;
-    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
     let mut value = 0u32;
     let mut size = 4u32;
     let r = unsafe {
@@ -453,13 +473,13 @@ pub fn taskbar_is_light() -> bool {
 
 /// Coverage mask (one byte per pixel, `size` x `size`) of a Segoe Fluent Icons glyph.
 pub fn glyph_alpha(ch: char, size: i32) -> Option<Vec<u8>> {
-    use windows::core::w;
     use windows::Win32::Foundation::{COLORREF, RECT};
     use windows::Win32::Graphics::Gdi::{
-        CreateDIBSection, CreateFontW, DrawTextW, GdiFlush, SelectObject, SetBkMode, SetTextColor, ANTIALIASED_QUALITY,
-        CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DT_CENTER, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, FF_DONTCARE,
-        FW_NORMAL, OUT_DEFAULT_PRECIS, TRANSPARENT,
+        ANTIALIASED_QUALITY, CLIP_DEFAULT_PRECIS, CreateDIBSection, CreateFontW, DEFAULT_CHARSET, DT_CENTER,
+        DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, DrawTextW, FF_DONTCARE, FW_NORMAL, GdiFlush, OUT_DEFAULT_PRECIS,
+        SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
     };
+    use windows::core::w;
     unsafe {
         let dc = CreateCompatibleDC(None);
         let bi = BITMAPINFO {
@@ -521,10 +541,10 @@ pub fn glyph_alpha(ch: char, size: i32) -> Option<Vec<u8>> {
 /// square. Chromium re-adds the bits on its own, so this is called periodically and on resize:
 /// it strips them and repaints the frame. Only very old trackpad drivers rely on WM_VSCROLL.
 pub fn strip_webview_scroll_styles(top: isize) {
-    use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW};
+    use windows::Win32::Graphics::Gdi::{RDW_ERASE, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW, RedrawWindow};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetClassNameW, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, WS_HSCROLL, WS_VSCROLL,
+        GWL_STYLE, GetClassNameW, GetWindowLongPtrW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER,
+        SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_HSCROLL, WS_VSCROLL,
     };
     unsafe extern "system" fn each(hwnd: HWND, _: LPARAM) -> BOOL {
         unsafe {
@@ -544,7 +564,8 @@ pub fn strip_webview_scroll_styles(top: isize) {
                         0,
                         SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
                     );
-                    let _ = RedrawWindow(Some(hwnd), None, None, RDW_FRAME | RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
+                    let _ =
+                        RedrawWindow(Some(hwnd), None, None, RDW_FRAME | RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
                 }
             }
             BOOL(1)

@@ -8,33 +8,35 @@
 //! plan next changes.
 
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use crossbeam_channel::{Receiver, Sender};
-use windows::core::w;
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetMonitorInfoW, MonitorFromWindow, SelectObject,
-    AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ,
-    MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    AC_SRC_ALPHA, AC_SRC_OVER, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLENDFUNCTION, CreateCompatibleDC,
+    CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetMonitorInfoW, HBITMAP, HDC, HGDIOBJ,
+    MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, SelectObject,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
-use windows::Win32::UI::HiDpi::{GetDpiForMonitor, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI};
-use windows::Win32::UI::Shell::{SHQueryUserNotificationState, QUNS_RUNNING_D3D_FULL_SCREEN};
+use windows::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForMonitor, MDT_EFFECTIVE_DPI, SetThreadDpiAwarenessContext,
+};
+use windows::Win32::UI::Shell::{QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow, GetMessageW, GetWindowRect,
-    KillTimer, PeekMessageW, PostMessageW, RegisterClassExW, SetTimer, SetWindowPos, ShowWindow, TranslateMessage,
-    UpdateLayeredWindow, HWND_TOPMOST, MA_NOACTIVATE, MSG, PM_NOREMOVE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_SHOWWINDOW, SW_HIDE, ULW_ALPHA, WM_APP, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_MOUSEACTIVATE,
-    WM_SETTINGCHANGE, WM_TIMER, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    WS_EX_TRANSPARENT, WS_POPUP,
+    HWND_TOPMOST, KillTimer, MA_NOACTIVATE, MSG, PM_NOREMOVE, PeekMessageW, PostMessageW, RegisterClassExW, SW_HIDE,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetTimer, SetWindowPos, ShowWindow, TranslateMessage,
+    ULW_ALPHA, UpdateLayeredWindow, WM_APP, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_MOUSEACTIVATE, WM_SETTINGCHANGE,
+    WM_TIMER, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    WS_POPUP,
 };
+use windows::core::w;
 
 use super::draw::{Look, Painter};
-use super::model::{self, Facts, Field, Link, Moments, Plan, Scene, Tab, DIM};
+use super::model::{self, DIM, Facts, Field, Link, Moments, Plan, Scene, Tab};
 use super::text::Gdi;
 use super::{Input, Report, Shared};
 use crate::device::DeviceState;
@@ -57,7 +59,13 @@ const DIM_FADE_MS: f32 = 400.0;
 /// to it after it starts.
 const EXCLUSIVE_EVERY_MS: u64 = 5000;
 
-pub(super) fn run(rx: Receiver<Input>, shared: Arc<Shared>, report: Box<dyn Fn(Report) + Send>, prefs: Prefs, done: Sender<()>) {
+pub(super) fn run(
+    rx: Receiver<Input>,
+    shared: Arc<Shared>,
+    report: Box<dyn Fn(Report) + Send>,
+    prefs: Prefs,
+    done: Sender<()>,
+) {
     unsafe {
         // Physical pixels everywhere, so the HUD is placed and sized right on every monitor.
         SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -420,7 +428,8 @@ impl State {
 
         // Is a game the HUD shows in at the front? Every tab shows for a moment when one comes
         // to the front.
-        let exe = self.foreground.as_deref().map(crate::win::file_name).filter(|e| !e.eq_ignore_ascii_case(&self.own_exe));
+        let exe =
+            self.foreground.as_deref().map(crate::win::file_name).filter(|e| !e.eq_ignore_ascii_case(&self.own_exe));
         let game = exe.filter(|e| self.is_game(e)).map(|e| e.to_lowercase());
         if game != self.game {
             if game.is_some() {
@@ -468,7 +477,12 @@ impl State {
         unsafe {
             match next {
                 Some(t) => {
-                    SetTimer(Some(self.hwnd), TIMER_WAKE, t.saturating_sub(now).clamp(10, u32::MAX as u64) as u32, None);
+                    SetTimer(
+                        Some(self.hwnd),
+                        TIMER_WAKE,
+                        t.saturating_sub(now).clamp(10, u32::MAX as u64) as u32,
+                        None,
+                    );
                 }
                 None => {
                     let _ = KillTimer(Some(self.hwnd), TIMER_WAKE);
@@ -492,7 +506,10 @@ impl State {
         let fields: Vec<Field> = tabs.iter().map(|t| t.field).collect();
         self.anims.retain(|f, _| fields.contains(f));
         for (i, f) in fields.iter().enumerate() {
-            let a = self.anims.entry(*f).or_insert_with(|| TabAnim { alpha: Anim::at(0.0, true), bright: Anim::at(0.0, false) });
+            let a = self
+                .anims
+                .entry(*f)
+                .or_insert_with(|| TabAnim { alpha: Anim::at(0.0, true), bright: Anim::at(0.0, false) });
             a.alpha.toward(if plan.visible[i] { 1.0 } else { 0.0 }, now, FADE_IN_MS, FADE_OUT_MS);
             a.bright.toward(if plan.bright[i] { 1.0 } else { 0.0 }, now, BRIGHT_FADE_MS, BRIGHT_FADE_MS);
         }
@@ -565,7 +582,12 @@ impl State {
 
         let resized = self.surface.as_ref().is_none_or(|s| s.w != size.cx || s.h != size.cy);
         let repaint = redone || resized || self.drawn.as_ref() != Some(&(share.clone(), lit.clone()));
-        let blend = BLENDFUNCTION { BlendOp: AC_SRC_OVER as u8, BlendFlags: 0, SourceConstantAlpha: window_alpha, AlphaFormat: AC_SRC_ALPHA as u8 };
+        let blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: window_alpha,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
         unsafe {
             if repaint {
                 if resized {
@@ -573,7 +595,10 @@ impl State {
                 }
                 let shares: Vec<f32> = share.iter().map(|s| *s as f32 / 255.0).collect();
                 let lights: Vec<f32> = lit.iter().map(|b| *b as f32 / 255.0).collect();
-                let (Some(surface), Some(bitmap)) = (self.surface.as_mut(), self.painter.compose(&shares, &lights)) else { return };
+                let (Some(surface), Some(bitmap)) = (self.surface.as_mut(), self.painter.compose(&shares, &lights))
+                else {
+                    return;
+                };
                 surface.write(&bitmap.bgra());
                 let src = POINT::default();
                 let _ = UpdateLayeredWindow(
@@ -590,7 +615,17 @@ impl State {
                 self.drawn = Some((share, lit));
             } else if window_alpha != self.alpha || pos.x != self.pos.x || pos.y != self.pos.y {
                 // Same pixels: only the fade or the position moves.
-                let _ = UpdateLayeredWindow(self.hwnd, None, Some(&pos as *const _), None, None, None, COLORREF(0), Some(&blend as *const _), ULW_ALPHA);
+                let _ = UpdateLayeredWindow(
+                    self.hwnd,
+                    None,
+                    Some(&pos as *const _),
+                    None,
+                    None,
+                    None,
+                    COLORREF(0),
+                    Some(&blend as *const _),
+                    ULW_ALPHA,
+                );
             }
         }
         self.alpha = window_alpha;
@@ -605,7 +640,15 @@ impl State {
     /// Topmost again, over whatever just came to the front, without taking the focus.
     fn raise(&self) {
         unsafe {
-            let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            let _ = SetWindowPos(
+                self.hwnd,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            );
         }
     }
 
@@ -668,7 +711,7 @@ mod tests {
     #[test]
     #[ignore = "shows the HUD on screen"]
     fn shows_the_window_fades_and_hides() {
-        use windows::Win32::Graphics::Gdi::{BitBlt, GetDC, GetDIBits, ReleaseDC, CAPTUREBLT, SRCCOPY};
+        use windows::Win32::Graphics::Gdi::{BitBlt, CAPTUREBLT, GetDC, GetDIBits, ReleaseDC, SRCCOPY};
         use windows::Win32::UI::WindowsAndMessaging::{IsWindowVisible, PM_REMOVE};
 
         fn pump(hud: &mut State, ms: u64) {
@@ -702,7 +745,13 @@ mod tests {
         let seen = reports.clone();
         let mut prefs = Prefs::default();
         prefs.hud.show = HudShow::Always;
-        let mut hud = State::new(hwnd, shared.clone(), Box::new(move |r| seen.lock().push(r)), prefs.clone(), Gdi::new().unwrap());
+        let mut hud = State::new(
+            hwnd,
+            shared.clone(),
+            Box::new(move |r| seen.lock().push(r)),
+            prefs.clone(),
+            Gdi::new().unwrap(),
+        );
         hud.facts = Facts::sample(&prefs);
         hud.foreground = Some(r"C:\Games\cs2.exe".into());
         hud.update(false);
@@ -741,8 +790,15 @@ mod tests {
             p[3] = 255;
         }
         let dir = std::env::var("HRTZ_OUT").map(std::path::PathBuf::from).unwrap_or_else(|_| std::env::temp_dir());
-        std::fs::write(dir.join("native-on-screen.png"), crate::win::encode_png(w as u32, h as u32, &px).unwrap()).unwrap();
-        eprintln!("window {w}x{h} at {},{} ({:?}); saved {}", r.left, r.top, hud.place, dir.join("native-on-screen.png").display());
+        std::fs::write(dir.join("native-on-screen.png"), crate::win::encode_png(w as u32, h as u32, &px).unwrap())
+            .unwrap();
+        eprintln!(
+            "window {w}x{h} at {},{} ({:?}); saved {}",
+            r.left,
+            r.top,
+            hud.place,
+            dir.join("native-on-screen.png").display()
+        );
 
         // The game goes away: the HUD fades out and hides.
         hud.foreground = Some(r"C:\Windows\explorer.exe".into());

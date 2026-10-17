@@ -13,14 +13,15 @@
 
 use std::collections::HashMap;
 
-use windows::core::PCWSTR;
 use windows::Win32::Foundation::{COLORREF, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, CreateFontW, DeleteDC, DeleteObject, ExtTextOutW, GdiFlush, GetTextExtentExPointW,
-    GetTextFaceW, GetTextMetricsW, SelectObject, SetBkMode, SetTextAlign, SetTextColor, ANTIALIASED_QUALITY, BITMAPINFO,
-    BITMAPINFOHEADER, BI_RGB, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DIB_RGB_COLORS, ETO_OPTIONS, FF_DONTCARE, FW_NORMAL,
-    FW_SEMIBOLD, HDC, HFONT, HGDIOBJ, OUT_TT_PRECIS, TA_BASELINE, TA_LEFT, TEXTMETRICW, TRANSPARENT,
+    ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CLIP_DEFAULT_PRECIS, CreateCompatibleDC,
+    CreateDIBSection, CreateFontW, DEFAULT_CHARSET, DIB_RGB_COLORS, DeleteDC, DeleteObject, ETO_OPTIONS, ExtTextOutW,
+    FF_DONTCARE, FW_NORMAL, FW_SEMIBOLD, GdiFlush, GetTextExtentExPointW, GetTextFaceW, GetTextMetricsW, HDC, HFONT,
+    HGDIOBJ, OUT_TT_PRECIS, SelectObject, SetBkMode, SetTextAlign, SetTextColor, TA_BASELINE, TA_LEFT, TEXTMETRICW,
+    TRANSPARENT,
 };
+use windows::core::PCWSTR;
 
 use super::draw::{Face, Fonts};
 
@@ -142,7 +143,15 @@ impl Gdi {
             let mut ends = vec![0i32; n];
             let mut size = SIZE::default();
             if n > 0 {
-                let _ = GetTextExtentExPointW(dc, PCWSTR(text.as_ptr()), n as i32, 0, None, Some(ends.as_mut_ptr()), &mut size);
+                let _ = GetTextExtentExPointW(
+                    dc,
+                    PCWSTR(text.as_ptr()),
+                    n as i32,
+                    0,
+                    None,
+                    Some(ends.as_mut_ptr()),
+                    &mut size,
+                );
             }
             let zero = [u16::from(b'0')];
             let _ = GetTextExtentExPointW(dc, PCWSTR(zero.as_ptr()), 1, 0, None, None, &mut size);
@@ -236,7 +245,16 @@ impl Fonts for Gdi {
             SetTextColor(dc, COLORREF(0x00FF_FFFF));
             SetBkMode(dc, TRANSPARENT);
             SetTextAlign(dc, TA_BASELINE | TA_LEFT);
-            let _ = ExtTextOutW(dc, at[0], y * ss, ETO_OPTIONS(0), None, PCWSTR(t.as_ptr()), t.len() as u32, Some(dx.as_ptr()));
+            let _ = ExtTextOutW(
+                dc,
+                at[0],
+                y * ss,
+                ETO_OPTIONS(0),
+                None,
+                PCWSTR(t.as_ptr()),
+                t.len() as u32,
+                Some(dx.as_ptr()),
+            );
             let _ = GdiFlush();
             let px = std::slice::from_raw_parts(bits as *const u8, (sw * sh * 4) as usize);
             let big = px.chunks(4).map(|p| p[0].max(p[1]).max(p[2])).collect();

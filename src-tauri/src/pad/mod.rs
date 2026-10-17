@@ -29,8 +29,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use filter::{Filter, Landing};
-use lift::{After, Inputs, FEATURES};
-use segment::{Pause, Segmenter, BLIP_MAX, BLIP_WINDOW, PAUSE_MIN};
+use lift::{After, FEATURES, Inputs};
+use segment::{BLIP_MAX, BLIP_WINDOW, PAUSE_MIN, Pause, Segmenter};
 
 /// Swipes are binned by width and height in 1 cm steps up to this.
 pub const REACH_BINS: usize = 100;
@@ -217,7 +217,8 @@ impl PadData {
         }
         if self.apps.len() >= MAX_APPS {
             let score = |a: &AppRecord| a.record.moving_ms / (1.0 + now.saturating_sub(a.last_used) as f64 / 86_400.0);
-            if let Some(i) = (0..self.apps.len()).min_by(|&i, &j| score(&self.apps[i]).total_cmp(&score(&self.apps[j]))) {
+            if let Some(i) = (0..self.apps.len()).min_by(|&i, &j| score(&self.apps[i]).total_cmp(&score(&self.apps[j])))
+            {
                 self.apps.remove(i);
             }
         }
@@ -348,7 +349,15 @@ struct Held {
 }
 
 impl Held {
-    fn new(started: Instant, slot: usize, bit: u32, app: Option<Arc<str>>, inputs: Inputs, paused: bool, prior: f64) -> Self {
+    fn new(
+        started: Instant,
+        slot: usize,
+        bit: u32,
+        app: Option<Arc<str>>,
+        inputs: Inputs,
+        paused: bool,
+        prior: f64,
+    ) -> Self {
         Self {
             started,
             slot,
@@ -590,7 +599,7 @@ impl Tracker {
     pub fn tick(&mut self, now: Instant) {
         let Some(cal) = self.data.calibration else { return };
         self.settle_drift(now);
-        if self.held.is_empty() || !self.seg.last().is_some_and(|t| now - t >= IDLE_FLUSH) {
+        if self.held.is_empty() || self.seg.last().is_none_or(|t| now - t < IDLE_FLUSH) {
             return;
         }
         self.flush_bin(now, &cal);
@@ -726,7 +735,8 @@ impl Tracker {
         let same_way = if len > 0.05 { (a.moved.0 * a.dir.0 + a.moved.1 * a.dir.1) / len } else { 0.0 };
         let secs = (a.last - a.start).as_secs_f64().max(0.005);
         let resume = a.path / secs;
-        let dropout = a.gap < Duration::from_millis(150) && same_way > 0.8 && a.end_speed > 10.0 && resume >= 0.5 * a.end_speed;
+        let dropout =
+            a.gap < Duration::from_millis(150) && same_way > 0.8 && a.end_speed > 10.0 && resume >= 0.5 * a.end_speed;
         // A landing blip is a few millimetres back before the swipe gets going. A swipe that just
         // heads back the other way isn't one, and below 1 mm lift-off there are none.
         let reverse = if self.blips && same_way > -0.3 { a.reverse.min(BLIP_MAX) } else { 0.0 };
@@ -841,13 +851,23 @@ impl Tracker {
         let pending = self
             .held
             .iter()
-            .filter(|h| h.paused && h.app.is_some() && (kept.is_none() || h.app.as_deref() == app) && self.filter.lift_share(h.bit) > 0.5)
+            .filter(|h| {
+                h.paused
+                    && h.app.is_some()
+                    && (kept.is_none() || h.app.as_deref() == app)
+                    && self.filter.lift_share(h.bit) > 0.5
+            })
             .count();
         record.lifts += pending as f64;
         let mut apps: Vec<AppSummary> = d
             .apps
             .iter()
-            .map(|a| AppSummary { exe: a.exe.clone(), name: a.name.clone(), path: a.path.clone(), moving_ms: a.record.moving_ms })
+            .map(|a| AppSummary {
+                exe: a.exe.clone(),
+                name: a.name.clone(),
+                path: a.path.clone(),
+                moving_ms: a.record.moving_ms,
+            })
             .collect();
         apps.sort_by(|a, b| b.moving_ms.total_cmp(&a.moving_ms));
         let accuracy = (d.drift.len() >= 5).then(|| {
@@ -877,7 +897,7 @@ impl Tracker {
 
 #[cfg(test)]
 mod tests {
-    use super::sim::{self, Options, CAL};
+    use super::sim::{self, CAL, Options};
     use super::*;
 
     const DPI: u32 = 1600;
@@ -1019,7 +1039,12 @@ mod tests {
         for i in 0..=MAX_APPS {
             t.set_app(Some(tag(&format!("app{i}.exe"))));
             // app0 gets the least movement.
-            now = swipe(&mut t, now + Duration::from_millis(300), if i % 2 == 0 { 3.0 } else { -3.0 }, if i == 0 { 20 } else { 100 });
+            now = swipe(
+                &mut t,
+                now + Duration::from_millis(300),
+                if i % 2 == 0 { 3.0 } else { -3.0 },
+                if i == 0 { 20 } else { 100 },
+            );
         }
         let apps: Vec<String> = t.data.apps.iter().map(|a| a.exe.clone()).collect();
         assert_eq!(apps.len(), MAX_APPS);
@@ -1127,7 +1152,11 @@ mod tests {
 
     #[test]
     fn session_with_flicks_in_the_background() {
-        let s = session("background, flicks", &Options { flicks: 0.6, ..Options::default() }, Some(Duration::from_millis(8)));
+        let s = session(
+            "background, flicks",
+            &Options { flicks: 0.6, ..Options::default() },
+            Some(Duration::from_millis(8)),
+        );
         assert!(s.precision > 0.75, "{}", s.precision);
     }
 
@@ -1155,16 +1184,28 @@ mod learning {
     #[test]
     #[ignore]
     fn improves_over_a_long_session() {
-        for (name, o) in [("0.7 mm", Options::default()), ("1 mm", Options { blips: true, dropouts: false, ..Options::default() })] {
+        for (name, o) in
+            [("0.7 mm", Options::default()), ("1 mm", Options { blips: true, dropouts: false, ..Options::default() })]
+        {
             let s = sim::play(1200.0, 21, &o);
             let (t, est, t0) = sim::run(&s, None, 9);
             for w in 0..4 {
                 let (a, b) = (Duration::from_secs(w * 300), Duration::from_secs((w + 1) * 300));
                 let (p, r) = sim::lift_scores_between(&s, &t, t0, a, b);
                 let e = sim::rms_between(&s, &est, a, b);
-                eprintln!("{name} minutes {}-{}: live dot off by {e:.1} cm, lift precision {:.0}%, recall {:.0}%", w * 5, w * 5 + 5, p * 100.0, r * 100.0);
+                eprintln!(
+                    "{name} minutes {}-{}: live dot off by {e:.1} cm, lift precision {:.0}%, recall {:.0}%",
+                    w * 5,
+                    w * 5 + 5,
+                    p * 100.0,
+                    r * 100.0
+                );
             }
-            eprintln!("{name}: weights {:?}, learned from {}", t.data.weights.iter().map(|w| (w * 100.0).round() / 100.0).collect::<Vec<_>>(), t.data.learned);
+            eprintln!(
+                "{name}: weights {:?}, learned from {}",
+                t.data.weights.iter().map(|w| (w * 100.0).round() / 100.0).collect::<Vec<_>>(),
+                t.data.learned
+            );
         }
     }
 }
@@ -1196,11 +1237,15 @@ mod diagnose {
                     how[(*prior > 0.5) as usize * 2 + (*chance > 0.5) as usize] += 1;
                 }
             }
-            let avg = |v: &[f64], n: f64| v.iter().map(|a| (a / n.max(1.0) * 100.0).round() / 100.0).collect::<Vec<_>>();
+            let avg =
+                |v: &[f64], n: f64| v.iter().map(|a| (a / n.max(1.0) * 100.0).round() / 100.0).collect::<Vec<_>>();
             eprintln!("{name}: called {nc}, rest {nr}");
             eprintln!("  inputs + prior, chance, share when called: {:?}", avg(&called, nc));
             eprintln!("  the rest:                                  {:?}", avg(&rest, nr));
-            eprintln!("  called with prior/chance low-low {}, low-high {}, high-low {}, high-high {}", how[0], how[1], how[2], how[3]);
+            eprintln!(
+                "  called with prior/chance low-low {}, low-high {}, high-low {}, high-high {}",
+                how[0], how[1], how[2], how[3]
+            );
         }
     }
 }
@@ -1221,7 +1266,9 @@ mod lab {
     fn dump_lab_pad() {
         let out = PathBuf::from("../src/lab/data");
         std::fs::create_dir_all(&out).unwrap();
-        let write = |name: &str, v: serde_json::Value| std::fs::write(out.join(name), format!("{}\n", serde_json::to_string_pretty(&v).unwrap())).unwrap();
+        let write = |name: &str, v: serde_json::Value| {
+            std::fs::write(out.join(name), format!("{}\n", serde_json::to_string_pretty(&v).unwrap())).unwrap()
+        };
 
         let saved = PathBuf::from(std::env::var("APPDATA").unwrap()).join(r"com.azaek.hrtz\pad.json");
         let yours = Tracker::new(PadData::load(&saved));
@@ -1252,6 +1299,11 @@ mod lab {
             views.insert((*exe).into(), serde_json::to_value(t.view(false, Some(exe))).unwrap());
         }
         write("pad-sim.json", serde_json::Value::Object(views));
-        eprintln!("lifts {:.0}, accuracy {:?}, learned {}", t.data.all.lifts, t.view(false, None).accuracy, t.data.learned);
+        eprintln!(
+            "lifts {:.0}, accuracy {:?}, learned {}",
+            t.data.all.lifts,
+            t.view(false, None).accuracy,
+            t.data.learned
+        );
     }
 }

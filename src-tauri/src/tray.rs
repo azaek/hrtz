@@ -35,8 +35,14 @@ pub enum TrayLevel {
     /// No receiver plugged in.
     Disconnected,
     /// Receiver present, mouse asleep or out of range; `level` is the last known reading.
-    Asleep { level: Option<u8> },
-    Battery { level: u8, charging: bool, low_at: u8 },
+    Asleep {
+        level: Option<u8>,
+    },
+    Battery {
+        level: u8,
+        charging: bool,
+        low_at: u8,
+    },
 }
 
 pub struct Rendered {
@@ -217,7 +223,10 @@ mod tests {
             for (style_name, style) in [("percent", TrayStyle::Percent), ("battery", TrayStyle::Battery)] {
                 let r = render_at(level, style, Some(32));
                 let png = crate::win::encode_png(r.width, r.height, &r.rgba).unwrap();
-                out.insert(format!("{name}-{style_name}"), format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)).into());
+                out.insert(
+                    format!("{name}-{style_name}"),
+                    format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)).into(),
+                );
             }
         }
         std::fs::write(std::env::var("HRTZ_OUT").unwrap(), serde_json::Value::Object(out).to_string()).unwrap();

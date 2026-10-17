@@ -21,7 +21,8 @@ const PRE: usize = 9;
 /// A pause with nothing else to say reads as about one lift in eight: players stop far more often
 /// than they lift, and the edges settle the rest. Running low on room only says much once the next
 /// swipe carries on the same way, which is what lifting to make room is for.
-pub(super) const START_WEIGHTS: [f64; FEATURES] = [-2.0, -1.0, 0.0, -0.8, -2.0, 3.0, 1.0, 0.2, 1.0, 1.0, -4.0, 2.0, -1.0];
+pub(super) const START_WEIGHTS: [f64; FEATURES] =
+    [-2.0, -1.0, 0.0, -0.8, -2.0, 3.0, 1.0, 0.2, 1.0, 1.0, -4.0, 2.0, -1.0];
 const WEIGHT_LIMIT: f64 = 6.0;
 const LEARN_RATE: f64 = 0.05;
 /// Share of a refit blended into the weights, its step size, and how hard it's pulled back toward
@@ -106,7 +107,8 @@ pub(super) fn refit(w: &mut [f64], xs: &[Vec<f32>], ps: &[f32]) {
     if n < 100 {
         return;
     }
-    let xs: Vec<Inputs> = xs[..n].iter().map(|x| std::array::from_fn(|j| x.get(j).map_or(0.0, |v| *v as f64))).collect();
+    let xs: Vec<Inputs> =
+        xs[..n].iter().map(|x| std::array::from_fn(|j| x.get(j).map_or(0.0, |v| *v as f64))).collect();
     let mut fit = w.to_vec();
     for _ in 0..300 {
         let mut grad = [0.0; FEATURES];

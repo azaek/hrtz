@@ -18,11 +18,11 @@ pub mod text;
 mod window;
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use parking_lot::{Mutex, RwLock};
 
 use crate::battery_log::{self, BatteryLog};
@@ -135,7 +135,9 @@ impl Hud {
                 .name("hrtz-hud".into())
                 .spawn(move || window::run(rx, shared, Box::new(report), prefs, done_tx));
             let (shared, tx) = (self.shared.clone(), self.tx.clone());
-            let _ = std::thread::Builder::new().name("hrtz-hud-games".into()).spawn(move || list_installed(shared, kicked, tx));
+            let _ = std::thread::Builder::new()
+                .name("hrtz-hud-games".into())
+                .spawn(move || list_installed(shared, kicked, tx));
         }
         #[cfg(not(windows))]
         let _ = (rx, kicked, done_tx, prefs, report);
@@ -219,7 +221,8 @@ fn wake(_: &Shared) {}
 /// HUD's never waits on the disk.
 #[cfg(windows)]
 fn list_installed(shared: Arc<Shared>, kicked: Receiver<()>, tx: Sender<Input>) {
-    let program_data = std::path::PathBuf::from(std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into()));
+    let program_data =
+        std::path::PathBuf::from(std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into()));
     loop {
         if shared.enabled.load(Ordering::SeqCst) {
             let games = crate::installed::installed_games(crate::win::steam_path(), &program_data);
@@ -238,8 +241,8 @@ fn list_installed(shared: Arc<Shared>, kicked: Receiver<()>, tx: Sender<Input>) 
 
 #[cfg(all(test, windows))]
 mod tests {
-    use super::draw::{render, Look};
-    use super::model::{tabs, Facts, Link};
+    use super::draw::{Look, render};
+    use super::model::{Facts, Link, tabs};
     use super::text::Gdi;
     use crate::store::{HudAnchor, HudFields, HudSize, HudValueColor, Prefs};
 
@@ -249,7 +252,9 @@ mod tests {
     fn draws_the_sample_mouse_at_its_real_sizes() {
         let prefs = Prefs::default();
         let sample = Facts::sample(&prefs);
-        let draw = |hud: &crate::store::HudPrefs, facts: &Facts| render(&tabs(facts, &hud.fields), 1.0, Look::of(hud), Gdi::new().unwrap());
+        let draw = |hud: &crate::store::HudPrefs, facts: &Facts| {
+            render(&tabs(facts, &hud.fields), 1.0, Look::of(hud), Gdi::new().unwrap())
+        };
         let b = draw(&prefs.hud, &sample).unwrap();
         // The mark and three tabs in a row, 24 px tall plus the room for shadows.
         assert_eq!(b.height, 24 + 2 * 4);
@@ -265,12 +270,20 @@ mod tests {
         assert_eq!((small.height, large.height), (20 + 2 * 4, 29 + 2 * 5));
         assert!(small.width < b.width && b.width < large.width, "{} {} {}", small.width, b.width, large.width);
         // Without labels the row is the values alone, a good deal narrower.
-        let bare = crate::store::HudPrefs { fields: HudFields { labels: false, ..HudFields::default() }, ..prefs.hud.clone() };
+        let bare =
+            crate::store::HudPrefs { fields: HudFields { labels: false, ..HudFields::default() }, ..prefs.hud.clone() };
         let bare = draw(&bare, &sample).unwrap();
         assert!(bare.width + 80 < b.width, "{} {}", bare.width, b.width);
         // The mark alone leads nothing.
         let nothing = crate::store::HudPrefs {
-            fields: HudFields { battery: false, time_left: false, polling: false, dpi: false, profile: false, ..HudFields::default() },
+            fields: HudFields {
+                battery: false,
+                time_left: false,
+                polling: false,
+                dpi: false,
+                profile: false,
+                ..HudFields::default()
+            },
             ..prefs.hud.clone()
         };
         assert!(draw(&nothing, &sample).is_none(), "nothing to draw");
@@ -282,13 +295,19 @@ mod tests {
     #[test]
     #[ignore = "writes PNGs into shots/lab/hud"]
     fn dump_hud() {
-        let dir = std::env::var("HRTZ_OUT").map(std::path::PathBuf::from).unwrap_or_else(|_| {
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\..\shots\lab\hud")
-        });
+        let dir = std::env::var("HRTZ_OUT")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\..\shots\lab\hud"));
         std::fs::create_dir_all(&dir).unwrap();
         let prefs = Prefs::default();
         let yours = Facts::sample(&prefs);
-        let stages = Facts { dpi: Some((800, 1, 4)), battery: Some((82, false)), time_left_h: Some(10.7), profile: Some("Valorant".into()), ..yours.clone() };
+        let stages = Facts {
+            dpi: Some((800, 1, 4)),
+            battery: Some((82, false)),
+            time_left_h: Some(10.7),
+            profile: Some("Valorant".into()),
+            ..yours.clone()
+        };
         let look = |anchor, plate| Look { anchor, size: HudSize::Medium, plate, value_color: HudValueColor::Teal };
         let row = look(HudAnchor::TopRight, 90);
         let fields = HudFields::default();
@@ -298,9 +317,27 @@ mod tests {
             ("yours", yours.clone(), row, 1.0, fields),
             ("no-labels", yours.clone(), row, 1.0, bare),
             ("no-labels-stages", stages.clone(), row, 1.0, HudFields { profile: true, ..bare }),
-            ("no-labels-saver", Facts { battery: Some((14, false)), polling_hz: Some(2000), saver: true, time_left_h: Some(1.8), ..yours.clone() }, row, 1.0, bare),
+            (
+                "no-labels-saver",
+                Facts {
+                    battery: Some((14, false)),
+                    polling_hz: Some(2000),
+                    saver: true,
+                    time_left_h: Some(1.8),
+                    ..yours.clone()
+                },
+                row,
+                1.0,
+                bare,
+            ),
             ("no-labels-away-plate0", away.clone(), look(HudAnchor::TopRight, 0), 1.0, bare),
-            ("no-labels-stacked-right", stages.clone(), look(HudAnchor::Right, 90), 1.0, HudFields { profile: true, ..bare }),
+            (
+                "no-labels-stacked-right",
+                stages.clone(),
+                look(HudAnchor::Right, 90),
+                1.0,
+                HudFields { profile: true, ..bare },
+            ),
             ("stages", stages.clone(), row, 1.0, fields),
             ("low", Facts { battery: Some((14, false)), time_left_h: Some(1.8), ..yours.clone() }, row, 1.0, fields),
             ("charging", Facts { battery: Some((62, true)), time_left_h: None, ..yours.clone() }, row, 1.0, fields),
@@ -308,12 +345,30 @@ mod tests {
             ("away-plate0", away.clone(), look(HudAnchor::TopRight, 0), 1.0, fields),
             ("away-stacked-right", away.clone(), look(HudAnchor::Right, 90), 1.0, fields),
             ("away-large-150", away.clone(), Look { size: HudSize::Large, ..row }, 1.5, fields),
-            ("saver", Facts { battery: Some((48, false)), polling_hz: Some(2000), saver: true, time_left_h: None, ..yours.clone() }, row, 1.0, fields),
+            (
+                "saver",
+                Facts {
+                    battery: Some((48, false)),
+                    polling_hz: Some(2000),
+                    saver: true,
+                    time_left_h: None,
+                    ..yours.clone()
+                },
+                row,
+                1.0,
+                fields,
+            ),
             ("plate0", yours.clone(), look(HudAnchor::TopRight, 0), 1.0, fields),
             ("stacked-right", stages.clone(), look(HudAnchor::Right, 90), 1.0, HudFields { profile: true, ..fields }),
             ("vendor", Facts { vendor_app: true, ..yours.clone() }, row, 1.0, fields),
             ("white", stages.clone(), Look { value_color: HudValueColor::White, ..row }, 1.0, fields),
-            ("cable-long-range", Facts { link: Link::Cable, long_range: true, battery: Some((71, true)), ..yours.clone() }, row, 1.0, fields),
+            (
+                "cable-long-range",
+                Facts { link: Link::Cable, long_range: true, battery: Some((71, true)), ..yours.clone() },
+                row,
+                1.0,
+                fields,
+            ),
             ("yours-150", yours.clone(), row, 1.5, fields),
             ("small", stages.clone(), Look { size: HudSize::Small, ..row }, 1.0, fields),
             ("large", stages.clone(), Look { size: HudSize::Large, ..row }, 1.0, fields),

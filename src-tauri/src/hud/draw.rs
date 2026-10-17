@@ -115,6 +115,7 @@ pub trait Fonts {
     /// Ascent and descent, rounded as the browser rounds them for a line box.
     fn metrics(&mut self, px: i32, face: Face) -> (i32, i32);
     /// Coverage (one byte per pixel, `w` x `h`) of `text` drawn from `x` on the baseline `y`.
+    #[allow(clippy::too_many_arguments)]
     fn coverage(&mut self, text: &str, px: i32, face: Face, w: i32, h: i32, x: f32, y: i32) -> Vec<u8>;
 }
 
@@ -125,7 +126,9 @@ pub fn spans(tab: &Tab, look: &Look) -> Vec<Span> {
     match tab.field {
         // The mark is drawn, not written (see `mark_place`).
         Field::Mark => return Vec::new(),
-        Field::Vendor => return vec![span(tab.note.as_deref().unwrap_or_default(), NOTE_FONT, Face::Regular, LABEL, 0.8)],
+        Field::Vendor => {
+            return vec![span(tab.note.as_deref().unwrap_or_default(), NOTE_FONT, Face::Regular, LABEL, 0.8)];
+        }
         _ => {}
     }
     let color = match tab.tone {
@@ -254,7 +257,8 @@ pub fn layout(tabs: &[Tab], scale: f32, look: &Look, fonts: &mut impl Fonts) -> 
     let (a13, d13) = fonts.metrics(px13, Face::Regular);
     // Each run's line is the tab's height with its text centred; the runs share a baseline, the
     // 15px text's when there is any.
-    let baseline = |px: i32| if px == px13 { (m.tab_h - (a13 + d13)) / 2 + a13 } else { (m.tab_h - (a15 + d15)) / 2 + a15 };
+    let baseline =
+        |px: i32| if px == px13 { (m.tab_h - (a13 + d13)) / 2 + a13 } else { (m.tab_h - (a15 + d15)) / 2 + a15 };
 
     // Each tab's runs (or the mark), its width unrounded as the browser lays it out, and its
     // baseline.
@@ -314,7 +318,15 @@ pub fn layout(tabs: &[Tab], scale: f32, look: &Look, fonts: &mut impl Fonts) -> 
         .collect();
     let inner_w = placed.iter().map(|p| p.x + p.w).max().unwrap_or(0);
     let inner_h = placed.iter().map(|p| p.y + p.h).max().unwrap_or(0);
-    Layout { inner_w, inner_h, width: inner_w + 2 * m.bleed, height: inner_h + 2 * m.bleed, bleed: m.bleed, margin: m.margin, tabs: placed }
+    Layout {
+        inner_w,
+        inner_h,
+        width: inner_w + 2 * m.bleed,
+        height: inner_h + 2 * m.bleed,
+        bleed: m.bleed,
+        margin: m.margin,
+        tabs: placed,
+    }
 }
 
 /// A premultiplied RGBA image.
@@ -494,7 +506,8 @@ pub(crate) fn emblem() -> Vec<Vec<(f32, f32)>> {
             let mut out: Vec<(f32, f32)> = Vec::new();
             let (mut cmd, mut nums) = ('M', Vec::<f32>::new());
             // Commands are capitals; the "e" in "2.9e-05" belongs to its number.
-            let words: String = d.chars().map(|c| if c.is_ascii_uppercase() { format!(" {c} ") } else { c.to_string() }).collect();
+            let words: String =
+                d.chars().map(|c| if c.is_ascii_uppercase() { format!(" {c} ") } else { c.to_string() }).collect();
             for word in words.split_whitespace() {
                 let Ok(n) = word.parse::<f32>() else {
                     cmd = word.chars().next().unwrap_or('Z');
@@ -593,7 +606,10 @@ fn text_layer(p: &Placed, m: &Metrics, look: &Look, fonts: &mut impl Fonts) -> C
         let b = m.bleed as f32;
         let (x, y, eh) = mark.emblem;
         let k = eh / 10.0;
-        let polys: Vec<Vec<(f32, f32)>> = emblem().into_iter().map(|poly| poly.into_iter().map(|(u, v)| (b + x + u * k, b + y + v * k)).collect()).collect();
+        let polys: Vec<Vec<(f32, f32)>> = emblem()
+            .into_iter()
+            .map(|poly| poly.into_iter().map(|(u, v)| (b + x + u * k, b + y + v * k)).collect())
+            .collect();
         let mut shapes = vec![(polys, LABEL, MARK_ALPHA)];
         if let Some((x, y, r)) = mark.dot {
             shapes.push((vec![circle(b + x, b + y, r)], AMBER, 1.0));
@@ -670,7 +686,8 @@ impl<F: Fonts> Painter<F> {
         let chip = look.chip();
         if !look.outlined() {
             for (i, (p, mask)) in l.tabs.iter().zip(&self.plates).enumerate() {
-                let (a, b) = (alpha.get(i).copied().unwrap_or(1.0), bright.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0));
+                let (a, b) =
+                    (alpha.get(i).copied().unwrap_or(1.0), bright.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0));
                 // The mark stands bare.
                 if a <= 0.0 || p.mark.is_some() {
                     continue;
@@ -704,7 +721,7 @@ pub fn render(tabs: &[Tab], scale: f32, look: Look, fonts: impl Fonts) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hud::model::{tabs, Facts};
+    use crate::hud::model::{Facts, tabs};
     use crate::store::{HudFields, Prefs};
 
     /// Every character 8 px wide at 15 px (scaled with the size), ascent 80% and descent 20%.
@@ -746,7 +763,15 @@ mod tests {
 
     #[test]
     fn edge_spans_and_colours() {
-        let t = values(&Facts { dpi: Some((800, 1, 4)), battery: Some((14, false)), time_left_h: Some(11.0), ..Facts::sample(&Prefs::default()) }, &HudFields::default());
+        let t = values(
+            &Facts {
+                dpi: Some((800, 1, 4)),
+                battery: Some((14, false)),
+                time_left_h: Some(11.0),
+                ..Facts::sample(&Prefs::default())
+            },
+            &HudFields::default(),
+        );
         let l = look(HudAnchor::TopRight, 90);
         let battery = spans(&t[0], &l);
         let texts: Vec<&str> = battery.iter().map(|s| s.text.as_str()).collect();
@@ -758,13 +783,29 @@ mod tests {
         assert_eq!((dpi[1].color, dpi[2].text.as_str(), dpi[2].size, dpi[2].alpha), (TEAL, "2/4", 13.0, 0.7));
         let white = Look { value_color: HudValueColor::White, ..l };
         assert_eq!(spans(&t[1], &white)[1].color, WHITE);
-        let charging = values(&Facts { battery: Some((62, true)), ..Facts::sample(&Prefs::default()) }, &HudFields::default());
+        let charging =
+            values(&Facts { battery: Some((62, true)), ..Facts::sample(&Prefs::default()) }, &HudFields::default());
         assert_eq!(spans(&charging[0], &l)[1].color, GREEN);
 
         // Without labels the value leads, in the same colours.
-        let bare = values(&Facts { dpi: Some((800, 1, 4)), battery: Some((14, false)), time_left_h: Some(11.0), ..Facts::sample(&Prefs::default()) }, &HudFields { labels: false, ..HudFields::default() });
+        let bare = values(
+            &Facts {
+                dpi: Some((800, 1, 4)),
+                battery: Some((14, false)),
+                time_left_h: Some(11.0),
+                ..Facts::sample(&Prefs::default())
+            },
+            &HudFields { labels: false, ..HudFields::default() },
+        );
         let texts = |t: &Tab| spans(t, &l).iter().map(|s| s.text.clone()).collect::<Vec<_>>();
-        assert_eq!((texts(&bare[0]), texts(&bare[1]), texts(&bare[2])), (vec!["14%".to_string(), "•".into(), "11h".into()], vec!["8K Hz".into()], vec!["800 DPI".into(), "2/4".into()]));
+        assert_eq!(
+            (texts(&bare[0]), texts(&bare[1]), texts(&bare[2])),
+            (
+                vec!["14%".to_string(), "•".into(), "11h".into()],
+                vec!["8K Hz".into()],
+                vec!["800 DPI".into(), "2/4".into()]
+            )
+        );
         assert_eq!((spans(&bare[0], &l)[0].color, spans(&bare[2], &l)[0].face), (AMBER, Face::Semibold));
     }
 
@@ -781,7 +822,8 @@ mod tests {
         // Filled, it covers what the strokes do: about half the box, all of a stroke's middle
         // and none of the gap between them.
         let k = 10;
-        let big: Vec<Vec<(f32, f32)>> = e.iter().map(|p| p.iter().map(|(x, y)| (x * k as f32, y * k as f32)).collect()).collect();
+        let big: Vec<Vec<(f32, f32)>> =
+            e.iter().map(|p| p.iter().map(|(x, y)| (x * k as f32, y * k as f32)).collect()).collect();
         let cov = fill_polygons(&big, 10 * k, 10 * k);
         let at = |x: f32, y: f32| cov[((y * k as f32) as i32 * 10 * k + (x * k as f32) as i32) as usize];
         let share = cov.iter().sum::<f32>() / (100 * k * k) as f32;
@@ -816,7 +858,10 @@ mod tests {
         let b = render(&t, 1.0, row, Fixed).unwrap();
         let (ex, ey) = (l.bleed, l.bleed + l.tabs[0].baseline - 13);
         let stroke = px(&b, ex + 2, ey + 6);
-        assert!((stroke[0] as i32 - 0xEC / 2).abs() <= 3 && stroke[0] == stroke[1] && stroke[1] == stroke[2], "{stroke:?}");
+        assert!(
+            (stroke[0] as i32 - 0xEC / 2).abs() <= 3 && stroke[0] == stroke[1] && stroke[1] == stroke[2],
+            "{stroke:?}"
+        );
         assert!(stroke[3] > 200, "{stroke:?}");
         assert_eq!(px(&b, ex + 5, l.bleed + l.tabs[0].h - 1), [0; 4], "no plate");
         // The value tabs keep theirs.
@@ -890,15 +935,24 @@ mod tests {
         let m = |scale, size| Metrics::new(scale, &sized(size, 90));
         // Medium is the lab's 100%.
         let medium = m(1.0, HudSize::Medium);
-        assert_eq!((medium.tab_h, medium.pad_x, medium.span_gap, medium.gap, medium.bleed, medium.margin), (24, 7, 5, 8, 4, 4));
+        assert_eq!(
+            (medium.tab_h, medium.pad_x, medium.span_gap, medium.gap, medium.bleed, medium.margin),
+            (24, 7, 5, 8, 4, 4)
+        );
         assert_eq!((medium.scale, medium.radius), (1.0, 2.0));
         // Small is 0.85 of it: 20.4, 5.95, 4.25, 6.8 and 3.4 px, the bleed rounded up.
         let small = m(1.0, HudSize::Small);
-        assert_eq!((small.tab_h, small.pad_x, small.span_gap, small.gap, small.bleed, small.margin), (20, 6, 4, 7, 4, 3));
+        assert_eq!(
+            (small.tab_h, small.pad_x, small.span_gap, small.gap, small.bleed, small.margin),
+            (20, 6, 4, 7, 4, 3)
+        );
         assert!((small.radius - 1.7).abs() < 1e-6 && (small.scale - 0.85).abs() < 1e-6);
         // Large is 1.2: 28.8, 8.4, 6, 9.6 and 4.8 px.
         let large = m(1.0, HudSize::Large);
-        assert_eq!((large.tab_h, large.pad_x, large.span_gap, large.gap, large.bleed, large.margin), (29, 8, 6, 10, 5, 5));
+        assert_eq!(
+            (large.tab_h, large.pad_x, large.span_gap, large.gap, large.bleed, large.margin),
+            (29, 8, 6, 10, 5, 5)
+        );
         assert!((large.radius - 2.4).abs() < 1e-6);
         // On top of the monitor's scale: large at 150% is 1.8.
         let both = m(1.5, HudSize::Large);

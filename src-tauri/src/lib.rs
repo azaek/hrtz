@@ -1,7 +1,7 @@
 pub mod battery;
 pub mod battery_log;
-pub mod device;
 pub mod clicks;
+pub mod device;
 pub mod diag;
 pub mod games;
 pub mod hud;
@@ -23,8 +23,8 @@ mod win;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -180,7 +180,13 @@ fn list_backups(ctx: State<'_, Arc<Ctx>>) -> Vec<BackupMeta> {
 
 /// Who the mouse is, as a backup records it.
 fn backup_device(s: &DeviceState) -> BackupDevice {
-    BackupDevice { cid: s.cid, mid: s.mid, device_type: s.device_type, firmware: s.firmware.clone().unwrap_or_default(), profile_index: s.profile }
+    BackupDevice {
+        cid: s.cid,
+        mid: s.mid,
+        device_type: s.device_type,
+        firmware: s.firmware.clone().unwrap_or_default(),
+        profile_index: s.profile,
+    }
 }
 
 #[tauri::command]
@@ -333,7 +339,10 @@ fn tray_previews(ctx: State<'_, Arc<Ctx>>) -> std::collections::HashMap<&'static
         let r = tray::render_at(level, style, Some(32));
         #[cfg(windows)]
         if let Some(png) = win::encode_png(r.width, r.height, &r.rgba) {
-            out.insert(name, format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)));
+            out.insert(
+                name,
+                format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)),
+            );
         }
     }
     out
@@ -538,7 +547,12 @@ fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &Prefs
 }
 
 fn notify_low_battery(app: &AppHandle, level: u8, model: &str) {
-    let _ = app.notification().builder().title(format!("Mouse battery at {level}%")).body(format!("Charge your {model} soon.")).show();
+    let _ = app
+        .notification()
+        .builder()
+        .title(format!("Mouse battery at {level}%"))
+        .body(format!("Charge your {model} soon."))
+        .show();
 }
 
 fn notify_saver(app: &AppHandle, level: u8, to: u32, from: u32, model: &str) {
@@ -572,7 +586,13 @@ fn test_popup(app: AppHandle, ctx: State<'_, Arc<Ctx>>, kind: String) -> CmdResu
             None
         }
         "battery-saver" => {
-            notify_saver(&app, level.min(prefs.battery_saver_below), prefs.battery_saver_hz, hz.max(prefs.battery_saver_hz * 2), &model);
+            notify_saver(
+                &app,
+                level.min(prefs.battery_saver_below),
+                prefs.battery_saver_hz,
+                hz.max(prefs.battery_saver_hz * 2),
+                &model,
+            );
             None
         }
         other => return Err(format!("No pop-up called {other}")),
@@ -588,7 +608,7 @@ fn fmt_hz(hz: u32) -> String {
     let s = hz.to_string();
     let mut out = String::new();
     for (i, c) in s.chars().enumerate() {
-        if i > 0 && (s.len() - i) % 3 == 0 {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(c);
@@ -622,7 +642,7 @@ fn fix_pointer(acceleration: bool, speed: bool) -> CmdResult<Option<serde_json::
     #[cfg(windows)]
     {
         win::set_pointer(acceleration, speed).map_err(|e| e.to_string())?;
-        return Ok(serde_json::to_value(win::pointer_settings()).ok());
+        Ok(serde_json::to_value(win::pointer_settings()).ok())
     }
     #[cfg(not(windows))]
     {
@@ -791,11 +811,19 @@ fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs) {
         detail: String,
     }
     let payload = match e {
-        DeviceEvent::Dpi { stage, dpi } => Osd { kind: "dpi", title: format!("{} DPI", fmt_hz(*dpi)), detail: format!("Stage {}", stage + 1) },
-        DeviceEvent::Polling { hz } => Osd { kind: "polling", title: format!("{} Hz", fmt_hz(*hz)), detail: "Polling rate".into() },
+        DeviceEvent::Dpi { stage, dpi } => {
+            Osd { kind: "dpi", title: format!("{} DPI", fmt_hz(*dpi)), detail: format!("Stage {}", stage + 1) }
+        }
+        DeviceEvent::Polling { hz } => {
+            Osd { kind: "polling", title: format!("{} Hz", fmt_hz(*hz)), detail: "Polling rate".into() }
+        }
         DeviceEvent::Profile { index } => Osd {
             kind: "profile",
-            title: prefs.profile_names.get(*index as usize).cloned().unwrap_or_else(|| format!("Profile {}", index + 1)),
+            title: prefs
+                .profile_names
+                .get(*index as usize)
+                .cloned()
+                .unwrap_or_else(|| format!("Profile {}", index + 1)),
             detail: format!("Profile {}", index + 1),
         },
         DeviceEvent::Progress { .. } | DeviceEvent::Pairing { .. } => return,
@@ -819,17 +847,16 @@ fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs) {
     // restarts it.
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(1450));
-        if let Some(ctx) = app.try_state::<Arc<Ctx>>() {
-            if ctx.osd_gen.load(Ordering::SeqCst) == generation {
-                if let Some(w) = app.get_webview_window("osd") {
-                    #[cfg(windows)]
-                    if let Ok(h) = w.hwnd() {
-                        win::hide(h.0 as isize);
-                    }
-                    #[cfg(not(windows))]
-                    let _ = w.hide();
-                }
+        if let Some(ctx) = app.try_state::<Arc<Ctx>>()
+            && ctx.osd_gen.load(Ordering::SeqCst) == generation
+            && let Some(w) = app.get_webview_window("osd")
+        {
+            #[cfg(windows)]
+            if let Ok(h) = w.hwnd() {
+                win::hide(h.0 as isize);
             }
+            #[cfg(not(windows))]
+            let _ = w.hide();
         }
     });
 }
@@ -854,13 +881,13 @@ fn watch_foreground(app: AppHandle) {
                 thread::sleep(Duration::from_millis(500));
                 let Some(ctx) = app.try_state::<Arc<Ctx>>() else { continue };
                 ticks += 1;
-                if ticks % 6 == 0 {
+                if ticks.is_multiple_of(6) {
                     refresh_tray(&ctx, &ctx.engine.snapshot());
                 }
-                if ticks % 4 == 0 {
-                    if let Some(h) = app.get_webview_window("main").and_then(|w| w.hwnd().ok()) {
-                        win::strip_webview_scroll_styles(h.0 as isize);
-                    }
+                if ticks.is_multiple_of(4)
+                    && let Some(h) = app.get_webview_window("main").and_then(|w| w.hwnd().ok())
+                {
+                    win::strip_webview_scroll_styles(h.0 as isize);
                 }
                 if ticks % 20 == 1 {
                     let running = win::vendor_app_running();
@@ -894,12 +921,12 @@ fn watch_foreground(app: AppHandle) {
                             commit_prefs(&app, &ctx, prefs);
                         }
                     }
-                    if let (Some(p), Some(e), false) = (&path, &exe, ours) {
-                        if games::find(e).is_some() {
-                            let mut prefs = ctx.prefs.read().clone();
-                            if prefs.join_pad_game(e, win::app_name(p), p.clone()) {
-                                commit_prefs(&app, &ctx, prefs);
-                            }
+                    if let (Some(p), Some(e), false) = (&path, &exe, ours)
+                        && games::find(e).is_some()
+                    {
+                        let mut prefs = ctx.prefs.read().clone();
+                        if prefs.join_pad_game(e, win::app_name(p), p.clone()) {
+                            commit_prefs(&app, &ctx, prefs);
                         }
                     }
                 }
@@ -908,7 +935,11 @@ fn watch_foreground(app: AppHandle) {
                 let recording = game.as_ref().map(|g| g.exe.to_lowercase());
                 if recording != last_recording {
                     last_recording = recording;
-                    meter::set_app(game.map(|g| pad::AppTag { exe: g.exe.to_lowercase().into(), name: g.name, path: g.path }));
+                    meter::set_app(game.map(|g| pad::AppTag {
+                        exe: g.exe.to_lowercase().into(),
+                        name: g.name,
+                        path: g.path,
+                    }));
                 }
                 if exe.is_none() || exe == last_exe || ours {
                     continue;
@@ -922,10 +953,12 @@ fn watch_foreground(app: AppHandle) {
                 }
                 let Some(want) = exe.as_deref().and_then(|e| prefs.profile_for(e)) else { continue };
                 let s = ctx.engine.snapshot();
-                if s.online && s.profile.is_some() && s.profile != Some(want) {
-                    if let Err(e) = ctx.engine.call(move |w| w.set_profile(want)) {
-                        eprintln!("rule switch failed: {e:#}");
-                    }
+                if s.online
+                    && s.profile.is_some()
+                    && s.profile != Some(want)
+                    && let Err(e) = ctx.engine.call(move |w| w.set_profile(want))
+                {
+                    eprintln!("rule switch failed: {e:#}");
                 }
             }
         })
@@ -968,10 +1001,10 @@ fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
                 if let Some(i) = id.strip_prefix("profile-").and_then(|n| n.parse::<u8>().ok()) {
                     let app = app.clone();
                     thread::spawn(move || {
-                        if let Some(ctx) = app.try_state::<Arc<Ctx>>() {
-                            if let Err(e) = ctx.engine.call(move |w| w.set_profile(i)) {
-                                eprintln!("profile switch failed: {e:#}");
-                            }
+                        if let Some(ctx) = app.try_state::<Arc<Ctx>>()
+                            && let Err(e) = ctx.engine.call(move |w| w.set_profile(i))
+                        {
+                            eprintln!("profile switch failed: {e:#}");
                         }
                     });
                 }
@@ -1011,7 +1044,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .setup(move |app| {
             let handle = app.handle().clone();
             let config_dir = app.path().app_config_dir()?;
@@ -1083,30 +1119,29 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             #[cfg(windows)]
-            if let WindowEvent::Resized(_) = event {
-                if window.label() == "main" {
-                    if let Ok(h) = window.hwnd() {
-                        win::strip_webview_scroll_styles(h.0 as isize);
-                        // Minimised: the HUD page's preview ends, as it does when the
-                        // page hears it went. WebView2 doesn't always tell the page.
-                        if !win::window_up(h.0 as isize) {
-                            if let Some(ctx) = window.app_handle().try_state::<Arc<Ctx>>() {
-                                ctx.hud.test(false);
-                            }
-                        }
-                    }
+            if let WindowEvent::Resized(_) = event
+                && window.label() == "main"
+                && let Ok(h) = window.hwnd()
+            {
+                win::strip_webview_scroll_styles(h.0 as isize);
+                // Minimised: the HUD page's preview ends, as it does when the
+                // page hears it went. WebView2 doesn't always tell the page.
+                if !win::window_up(h.0 as isize)
+                    && let Some(ctx) = window.app_handle().try_state::<Arc<Ctx>>()
+                {
+                    ctx.hud.test(false);
                 }
             }
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                    #[cfg(windows)]
-                    meter::set_running(false, None);
-                    // Hidden to the tray, so nobody's looking at the HUD page's test.
-                    if let Some(ctx) = window.app_handle().try_state::<Arc<Ctx>>() {
-                        ctx.hud.test(false);
-                    }
+            if let WindowEvent::CloseRequested { api, .. } = event
+                && window.label() == "main"
+            {
+                api.prevent_close();
+                let _ = window.hide();
+                #[cfg(windows)]
+                meter::set_running(false, None);
+                // Hidden to the tray, so nobody's looking at the HUD page's test.
+                if let Some(ctx) = window.app_handle().try_state::<Arc<Ctx>>() {
+                    ctx.hud.test(false);
                 }
             }
         })
@@ -1175,14 +1210,18 @@ mod lab {
         let data = PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.azaek.hrtz");
         let out = PathBuf::from("../src/lab/data");
         std::fs::create_dir_all(&out).unwrap();
-        let write = |name: &str, v: serde_json::Value| std::fs::write(out.join(name), format!("{}\n", serde_json::to_string_pretty(&v).unwrap())).unwrap();
+        let write = |name: &str, v: serde_json::Value| {
+            std::fs::write(out.join(name), format!("{}\n", serde_json::to_string_pretty(&v).unwrap())).unwrap()
+        };
 
         // The app's own backups, then the first one, made by scripts/backup.py before any change.
         let backups = Backups::new(data.join("backups"));
         let first = Backups::new(PathBuf::from("../../backups"));
         let list: Vec<serde_json::Value> = [&backups, &first]
             .iter()
-            .flat_map(|b| b.list().into_iter().map(|m| serde_json::json!({ "meta": m, "settings": b.settings(&m.id).unwrap() })))
+            .flat_map(|b| {
+                b.list().into_iter().map(|m| serde_json::json!({ "meta": m, "settings": b.settings(&m.id).unwrap() }))
+            })
             .collect();
         let newest = backups.list().first().map(|m| backups.settings(&m.id).unwrap()).expect("a backup");
         write("backups.json", serde_json::Value::Array(list));
@@ -1200,7 +1239,12 @@ mod lab {
             mid: 4,
             device_type: 5,
             firmware: Some("2.17".into()),
-            battery: Some(Battery { level, raw_level: level, charging: false, millivolts: last["mv"].as_u64().unwrap() as u16 }),
+            battery: Some(Battery {
+                level,
+                raw_level: level,
+                charging: false,
+                millivolts: last["mv"].as_u64().unwrap() as u16,
+            }),
             profile: Some(0),
             long_range: Some(false),
             settings: Some(newest),
@@ -1210,7 +1254,8 @@ mod lab {
         };
         write("device.json", serde_json::to_value(&state).unwrap());
 
-        let prefs: serde_json::Value = serde_json::from_slice(&std::fs::read(data.join("prefs.json")).unwrap()).unwrap();
+        let prefs: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(data.join("prefs.json")).unwrap()).unwrap();
         write("prefs.json", prefs);
         write("pointer.json", serde_json::to_value(crate::win::pointer_settings()).unwrap());
         let games: serde_json::Map<String, serde_json::Value> = ["VALORANT-Win64-Shipping.exe", "r5apex_dx12.exe"]

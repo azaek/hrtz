@@ -23,25 +23,26 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU32, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
 use serde::Serialize;
-use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::System::Threading::{GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL};
 use windows::Win32::UI::Input::{
-    GetRawInputBuffer, GetRawInputData, GetRawInputDeviceInfoW, RegisterRawInputDevices, HRAWINPUT, MOUSE_MOVE_ABSOLUTE,
-    RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RIDEV_INPUTSINK, RIDEV_REMOVE, RIDI_DEVICENAME, RID_INPUT, RIM_TYPEMOUSE,
+    GetRawInputBuffer, GetRawInputData, GetRawInputDeviceInfoW, HRAWINPUT, MOUSE_MOVE_ABSOLUTE, RAWINPUT,
+    RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIDEV_INPUTSINK, RIDEV_REMOVE, RIDI_DEVICENAME, RIM_TYPEMOUSE,
+    RegisterRawInputDevices,
 };
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    ClipCursor, CreateWindowExW, DispatchMessageW, GetClipCursor, GetCursorPos, MsgWaitForMultipleObjectsEx, PeekMessageW,
-    PostMessageW, HWND_MESSAGE, MSG,
-    MWMO_INPUTAVAILABLE, PM_REMOVE, QS_POSTMESSAGE, QS_RAWINPUT, WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_INPUT,
+    ClipCursor, CreateWindowExW, DispatchMessageW, GetClipCursor, GetCursorPos, HWND_MESSAGE, MSG, MWMO_INPUTAVAILABLE,
+    MsgWaitForMultipleObjectsEx, PM_REMOVE, PeekMessageW, PostMessageW, QS_POSTMESSAGE, QS_RAWINPUT, WINDOW_EX_STYLE,
+    WINDOW_STYLE, WM_APP, WM_INPUT,
 };
+use windows::core::{PCWSTR, w};
 
 use crate::clicks::{self, ClickLog, Day};
 use crate::diag::{Conn, ConnStats, Stroke, Strokes};
@@ -54,7 +55,8 @@ const MOVING_GAP: Duration = Duration::from_millis(12);
 const SAVE_EVERY: Duration = Duration::from_secs(30);
 
 /// RI_MOUSE_* down/up flags for left, right, middle, back, forward.
-const BUTTON_FLAGS: [(u16, u16); 5] = [(0x0001, 0x0002), (0x0004, 0x0008), (0x0010, 0x0020), (0x0040, 0x0080), (0x0100, 0x0200)];
+const BUTTON_FLAGS: [(u16, u16); 5] =
+    [(0x0001, 0x0002), (0x0004, 0x0008), (0x0010, 0x0020), (0x0040, 0x0080), (0x0100, 0x0200)];
 /// RI_MOUSE_WHEEL and RI_MOUSE_HWHEEL: the signed amount is in `usButtonData`.
 const WHEEL: u16 = 0x0400;
 const HWHEEL: u16 = 0x0800;
@@ -256,10 +258,10 @@ pub fn attach(hwnd: isize, pad_file: PathBuf, emit: impl Fn(MeterSample) + Send 
             let mut last_save = Instant::now();
             loop {
                 thread::sleep(TICK);
-                if TRACKING.load(Ordering::SeqCst) {
-                    if let Some(p) = PAD.get() {
-                        p.lock().tick(Instant::now());
-                    }
+                if TRACKING.load(Ordering::SeqCst)
+                    && let Some(p) = PAD.get()
+                {
+                    p.lock().tick(Instant::now());
                 }
                 if last_save.elapsed() >= SAVE_EVERY {
                     save_pad();
@@ -271,10 +273,11 @@ pub fn attach(hwnd: isize, pad_file: PathBuf, emit: impl Fn(MeterSample) + Send 
                 }
                 let fg = crate::win::foreground_window();
                 let front = fg == MAIN_HWND.load(Ordering::SeqCst) || (fg != 0 && fg == crate::capture::hwnd());
-                if FOREGROUND.swap(front, Ordering::SeqCst) && !front {
-                    if let Some(c) = COUNTS.get() {
-                        c.lock().behind();
-                    }
+                if FOREGROUND.swap(front, Ordering::SeqCst)
+                    && !front
+                    && let Some(c) = COUNTS.get()
+                {
+                    c.lock().behind();
                 }
                 let Some(c) = COUNTS.get() else { continue };
                 let mut c = c.lock();
@@ -310,7 +313,21 @@ pub fn attach(hwnd: isize, pad_file: PathBuf, emit: impl Fn(MeterSample) + Send 
                 let conn = conn.stats();
                 let foreground = FOREGROUND.load(Ordering::SeqCst);
                 let held = HOLD.load(Ordering::SeqCst) == HOLDING;
-                emit(MeterSample { hz, counts_per_s, dx, dy, reports, travel, stutters, conn, strokes, buttons, wheel, foreground, held });
+                emit(MeterSample {
+                    hz,
+                    counts_per_s,
+                    dx,
+                    dy,
+                    reports,
+                    travel,
+                    stutters,
+                    conn,
+                    strokes,
+                    buttons,
+                    wheel,
+                    foreground,
+                    held,
+                });
             }
         })
         .expect("spawn meter thread");
@@ -322,7 +339,20 @@ pub fn attach(hwnd: isize, pad_file: PathBuf, emit: impl Fn(MeterSample) + Send 
 fn reader() {
     unsafe {
         let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-        let window = match CreateWindowExW(WINDOW_EX_STYLE(0), w!("Message"), PCWSTR::null(), WINDOW_STYLE(0), 0, 0, 0, 0, Some(HWND_MESSAGE), None, None, None) {
+        let window = match CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            w!("Message"),
+            PCWSTR::null(),
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
+            Some(HWND_MESSAGE),
+            None,
+            None,
+            None,
+        ) {
             Ok(w) => w,
             Err(e) => {
                 eprintln!("raw input window: {e}");
@@ -336,7 +366,9 @@ fn reader() {
         let mut msg = MSG::default();
         loop {
             // Everything but raw input: raw input stays queued for the batch read.
-            while PeekMessageW(&mut msg, None, 0, WM_INPUT - 1, PM_REMOVE).as_bool() || PeekMessageW(&mut msg, None, WM_INPUT + 1, 0xFFFF, PM_REMOVE).as_bool() {
+            while PeekMessageW(&mut msg, None, 0, WM_INPUT - 1, PM_REMOVE).as_bool()
+                || PeekMessageW(&mut msg, None, WM_INPUT + 1, 0xFFFF, PM_REMOVE).as_bool()
+            {
                 if msg.message == WM_REGISTER {
                     register_on(window.0 as isize);
                 } else {
@@ -428,16 +460,15 @@ fn handle(now: Instant, raw: &RAWINPUT) {
         c.record(now, dx, dy, flags, data);
     }
     drop(c);
-    if counting && flags & clicks::BUTTON_BITS != 0 {
-        if let Some(log) = CLICK_LOG.get() {
-            let date = chrono::Local::now().format("%Y-%m-%d").to_string();
-            log.lock().report(&date, secs(now), flags);
-        }
+    if counting
+        && flags & clicks::BUTTON_BITS != 0
+        && let Some(log) = CLICK_LOG.get()
+    {
+        let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        log.lock().report(&date, secs(now), flags);
     }
-    if tracking {
-        if let Some(p) = PAD.get() {
-            p.lock().report(now, dx, dy, DPI.load(Ordering::Relaxed));
-        }
+    if tracking && let Some(p) = PAD.get() {
+        p.lock().report(now, dx, dy, DPI.load(Ordering::Relaxed));
     }
 }
 
@@ -631,10 +662,10 @@ pub fn click_days() -> Vec<Day> {
 pub fn save_clicks() {
     let (Some(log), Some(path)) = (CLICK_LOG.get(), CLICKS_PATH.get()) else { return };
     let mut log = log.lock();
-    if log.dirty {
-        if let Err(e) = log.save(path) {
-            eprintln!("click log not saved: {e}");
-        }
+    if log.dirty
+        && let Err(e) = log.save(path)
+    {
+        eprintln!("click log not saved: {e}");
     }
 }
 
@@ -727,7 +758,9 @@ impl Counts {
 
 /// The main window's raw input, when it reads it (`HRTZ_RAW_INPUT=window`).
 unsafe extern "system" fn subclass(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _data: usize) -> LRESULT {
-    if msg == WM_INPUT && (RUNNING.load(Ordering::Relaxed) || TRACKING.load(Ordering::Relaxed) || CLICKS.load(Ordering::Relaxed)) {
+    if msg == WM_INPUT
+        && (RUNNING.load(Ordering::Relaxed) || TRACKING.load(Ordering::Relaxed) || CLICKS.load(Ordering::Relaxed))
+    {
         let mut raw = RAWINPUT::default();
         let mut size = std::mem::size_of::<RAWINPUT>() as u32;
         let got = unsafe {

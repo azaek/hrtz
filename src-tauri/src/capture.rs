@@ -18,26 +18,29 @@ use std::thread;
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    BeginPaint, BitBlt, CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRoundRectRgn, CreateSolidBrush, DeleteDC,
-    DeleteObject, DrawTextW, EndPaint, FillRect, FillRgn, GdiFlush, GetMonitorInfoW, GetTextExtentPoint32W, InvalidateRect,
-    MonitorFromWindow, SelectObject, SetBkMode, SetTextAlign, SetTextCharacterExtra, SetTextColor, TextOutW, BITMAPINFO,
-    BITMAPINFOHEADER, BI_RGB, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER, DT_NOPREFIX,
-    DT_SINGLELINE, DT_VCENTER, FF_DONTCARE, FW_NORMAL, FW_SEMIBOLD, HBITMAP, HDC, HFONT, HGDIOBJ, MONITORINFO,
-    MONITOR_DEFAULTTONEAREST, OUT_TT_PRECIS, PAINTSTRUCT, SRCCOPY, TA_BASELINE, TEXT_ALIGN_OPTIONS, TRANSPARENT,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BeginPaint, BitBlt, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS,
+    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRoundRectRgn, CreateSolidBrush, DEFAULT_CHARSET,
+    DIB_RGB_COLORS, DT_CENTER, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, EndPaint,
+    FF_DONTCARE, FW_NORMAL, FW_SEMIBOLD, FillRect, FillRgn, GdiFlush, GetMonitorInfoW, GetTextExtentPoint32W, HBITMAP,
+    HDC, HFONT, HGDIOBJ, InvalidateRect, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_TT_PRECIS,
+    PAINTSTRUCT, SRCCOPY, SelectObject, SetBkMode, SetTextAlign, SetTextCharacterExtra, SetTextColor, TA_BASELINE,
+    TEXT_ALIGN_OPTIONS, TRANSPARENT, TextOutW,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::UI::HiDpi::{GetDpiForWindow, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetCursorPos, GetMessageW, PostMessageW,
-    PostQuitMessage, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow, SetTimer, ShowWindow, TranslateMessage, MSG,
-    SW_SHOW, WM_ACTIVATE, WM_APP, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_PAINT, WM_SETCURSOR, WM_TIMER, WNDCLASSEXW,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+use windows::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, SetThreadDpiAwarenessContext,
 };
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetCursorPos, GetMessageW, MSG,
+    PostMessageW, PostQuitMessage, RegisterClassExW, SW_SHOW, SetCursor, SetCursorPos, SetForegroundWindow, SetTimer,
+    ShowWindow, TranslateMessage, WM_ACTIVATE, WM_APP, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_PAINT, WM_SETCURSOR,
+    WM_TIMER, WNDCLASSEXW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+};
+use windows::core::{PCWSTR, w};
 
-use crate::hud::draw::{emblem, fill_polygons, EMBLEM_W};
+use crate::hud::draw::{EMBLEM_W, emblem, fill_polygons};
 
 /// What the screen shows, sent by the page.
 #[derive(Deserialize, Clone, Debug, Default, PartialEq)]
@@ -476,7 +479,11 @@ unsafe fn wordmark(f: &Frame, size: i32, y: i32, color: COLORREF) {
 
 /// Windows 11's own face, as the HUD uses; GDI falls back to Segoe UI where it's missing.
 unsafe fn font(size: i32, strong: bool) -> HFONT {
-    let (face, weight) = if strong { (w!("Segoe UI Variable Display Semib"), FW_SEMIBOLD) } else { (w!("Segoe UI Variable Text"), FW_NORMAL) };
+    let (face, weight) = if strong {
+        (w!("Segoe UI Variable Display Semib"), FW_SEMIBOLD)
+    } else {
+        (w!("Segoe UI Variable Text"), FW_NORMAL)
+    };
     unsafe {
         CreateFontW(
             -size,
@@ -533,7 +540,8 @@ mod tests {
             let all: Vec<u8> = pixels.iter().flat_map(|p| rgba(*p)).collect();
             let name = format!("hrtz-game-screen-{}", (s * 100.0) as i32);
             let out = std::env::temp_dir();
-            std::fs::write(out.join(format!("{name}.png")), crate::win::encode_png(w as u32, h as u32, &all).unwrap()).unwrap();
+            std::fs::write(out.join(format!("{name}.png")), crate::win::encode_png(w as u32, h as u32, &all).unwrap())
+                .unwrap();
             // The wordmark's corner of the screen, four times over.
             let (cw, ch, zoom) = ((200.0 * s) as i32, (110.0 * s) as i32, 4);
             let (cx, cy) = ((w - cw) / 2, 0);

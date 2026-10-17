@@ -43,7 +43,9 @@ fn steam_games(root: &Path) -> Vec<InstalledGame> {
         libraries.extend(vdf_values(&text, "path").into_iter().map(PathBuf::from));
     }
     let mut seen = HashSet::new();
-    libraries.retain(|l| seen.insert(l.to_string_lossy().to_lowercase().replace('/', "\\").trim_end_matches('\\').to_string()));
+    libraries.retain(|l| {
+        seen.insert(l.to_string_lossy().to_lowercase().replace('/', "\\").trim_end_matches('\\').to_string())
+    });
 
     let mut out = Vec::new();
     for lib in libraries {
@@ -54,7 +56,11 @@ fn steam_games(root: &Path) -> Vec<InstalledGame> {
                 continue;
             }
             let Ok(text) = fs::read_to_string(e.path()) else { continue };
-            let (Some(name), Some(dir)) = (vdf_values(&text, "name").into_iter().next(), vdf_values(&text, "installdir").into_iter().next()) else { continue };
+            let (Some(name), Some(dir)) =
+                (vdf_values(&text, "name").into_iter().next(), vdf_values(&text, "installdir").into_iter().next())
+            else {
+                continue;
+            };
             if is_steam_tool(&name) {
                 continue;
             }
@@ -111,7 +117,11 @@ fn epic_games(manifests: &Path) -> Vec<InstalledGame> {
         if !e.file_name().to_string_lossy().to_lowercase().ends_with(".item") {
             continue;
         }
-        let Some(m) = fs::read_to_string(e.path()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) else { continue };
+        let Some(m) =
+            fs::read_to_string(e.path()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        else {
+            continue;
+        };
         let is_game = m["AppCategories"].as_array().is_some_and(|c| c.iter().any(|x| x.as_str() == Some("games")));
         if !is_game || m["bIsIncompleteInstall"].as_bool() == Some(true) {
             continue;
@@ -161,12 +171,43 @@ fn yaml_value(text: &str, key: &str) -> Option<String> {
 const KNOWN_EXES: &[&str] = &["league of legends.exe"];
 
 /// Folders that never hold the game's own exe, and are big.
-const SKIP_DIRS: &[&str] = &["engine", "_commonredist", "commonredist", "redist", "__installer", "directx", "support", "easyanticheat", "battleye", "content", "paks", "movies", "localization"];
+const SKIP_DIRS: &[&str] = &[
+    "engine",
+    "_commonredist",
+    "commonredist",
+    "redist",
+    "__installer",
+    "directx",
+    "support",
+    "easyanticheat",
+    "battleye",
+    "content",
+    "paks",
+    "movies",
+    "localization",
+];
 
 /// Parts of an exe's name that mark a helper rather than the game.
 const HELPERS: &[&str] = &[
-    "unins", "setup", "install", "redist", "crash", "report", "helper", "updat", "easyanticheat", "beservice", "battleye", "dxsetup", "prereq",
-    "cefprocess", "webhelper", "overlay", "start_protected_game", "bootstrap", "launcher",
+    "unins",
+    "setup",
+    "install",
+    "redist",
+    "crash",
+    "report",
+    "helper",
+    "updat",
+    "easyanticheat",
+    "beservice",
+    "battleye",
+    "dxsetup",
+    "prereq",
+    "cefprocess",
+    "webhelper",
+    "overlay",
+    "start_protected_game",
+    "bootstrap",
+    "launcher",
 ];
 
 /// The exe in a game's folder that runs the game:
@@ -180,17 +221,25 @@ pub fn main_exe(dir: &Path) -> Option<PathBuf> {
     walk(dir, 0, &mut found, &mut budget);
     let name = |p: &Path| p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
 
-    if let Some((p, ..)) = found.iter().find(|(p, ..)| crate::games::find(&name(p)).is_some() || KNOWN_EXES.contains(&name(p).as_str())) {
+    if let Some((p, ..)) =
+        found.iter().find(|(p, ..)| crate::games::find(&name(p)).is_some() || KNOWN_EXES.contains(&name(p).as_str()))
+    {
         return Some(p.clone());
     }
-    let largest = |items: Vec<&(PathBuf, u64, usize)>| items.into_iter().max_by_key(|(_, size, _)| *size).map(|(p, ..)| p.clone());
+    let largest = |items: Vec<&(PathBuf, u64, usize)>| {
+        items.into_iter().max_by_key(|(_, size, _)| *size).map(|(p, ..)| p.clone())
+    };
     let shipping = found.iter().filter(|(p, ..)| name(p).ends_with("-shipping.exe")).collect::<Vec<_>>();
     if !shipping.is_empty() {
         return largest(shipping);
     }
     let unity = found
         .iter()
-        .filter(|(p, _, depth)| *depth <= 1 && p.file_stem().is_some_and(|stem| p.with_file_name(format!("{}_Data", stem.to_string_lossy())).is_dir()))
+        .filter(|(p, _, depth)| {
+            *depth <= 1
+                && p.file_stem()
+                    .is_some_and(|stem| p.with_file_name(format!("{}_Data", stem.to_string_lossy())).is_dir())
+        })
         .collect::<Vec<_>>();
     if !unity.is_empty() {
         return largest(unity);

@@ -6,15 +6,15 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use anyhow::{anyhow, bail, Context, Result};
-use crossbeam_channel::{bounded, unbounded, RecvTimeoutError, Sender};
+use anyhow::{Context, Result, anyhow, bail};
+use crossbeam_channel::{RecvTimeoutError, Sender, bounded, unbounded};
 use hidapi::{HidApi, HidDevice};
 use parking_lot::{Mutex, RwLock};
 use serde::Serialize;
 
 use crate::battery::{Estimator, Saved};
 use crate::battery_log::{BatteryLog, Entry};
-use crate::protocol::{self as p, cmd, status, Packet};
+use crate::protocol::{self as p, Packet, cmd, status};
 use crate::settings::{self, Capabilities, Settings};
 
 /// Everything below this address is read on connect: config, buttons and shortcut slots.
@@ -68,12 +68,24 @@ pub struct DeviceState {
 #[derive(Serialize, Clone, Debug)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DeviceEvent {
-    Dpi { stage: u8, dpi: u32 },
-    Polling { hz: u32 },
-    Profile { index: u8 },
-    Progress { done: usize, total: usize },
+    Dpi {
+        stage: u8,
+        dpi: u32,
+    },
+    Polling {
+        hz: u32,
+    },
+    Profile {
+        index: u8,
+    },
+    Progress {
+        done: usize,
+        total: usize,
+    },
     /// The receiver is looking for a mouse to pair with, for this many more seconds.
-    Pairing { seconds_left: u32 },
+    Pairing {
+        seconds_left: u32,
+    },
 }
 
 pub type Notify = Arc<dyn Fn(&DeviceState, Option<DeviceEvent>) + Send + Sync>;
@@ -146,7 +158,12 @@ pub struct Worker {
 }
 
 impl Worker {
-    fn new(state: Arc<RwLock<DeviceState>>, notify: Notify, battery_file: Option<PathBuf>, log: Arc<Mutex<BatteryLog>>) -> Self {
+    fn new(
+        state: Arc<RwLock<DeviceState>>,
+        notify: Notify,
+        battery_file: Option<PathBuf>,
+        log: Arc<Mutex<BatteryLog>>,
+    ) -> Self {
         let saved = battery_file
             .as_ref()
             .and_then(|f| std::fs::read(f).ok())
@@ -262,7 +279,9 @@ impl Worker {
         api.refresh_devices()?;
         let info = api
             .device_list()
-            .find(|d| d.vendor_id() == p::VENDOR_ID && d.usage_page() == p::CONFIG_USAGE_PAGE && d.usage() == p::CONFIG_USAGE)
+            .find(|d| {
+                d.vendor_id() == p::VENDOR_ID && d.usage_page() == p::CONFIG_USAGE_PAGE && d.usage() == p::CONFIG_USAGE
+            })
             .ok_or_else(|| anyhow!("no Zaopin receiver found"))?
             .clone();
         let dev = info.open_device(api).context("open HID device")?;
@@ -338,10 +357,10 @@ impl Worker {
         let (raw_level, charging, millivolts) = (d[0].min(100), d[1] != 0, u16::from_be_bytes([d[2], d[3]]));
         let before = self.battery.saved().map(|s| s.level);
         let level = self.battery.update(raw_level, charging, millivolts, SystemTime::now());
-        if before != Some(level) {
-            if let (Some(f), Some(saved)) = (&self.battery_file, self.battery.saved()) {
-                let _ = std::fs::write(f, serde_json::to_vec(&saved).unwrap_or_default());
-            }
+        if before != Some(level)
+            && let (Some(f), Some(saved)) = (&self.battery_file, self.battery.saved())
+        {
+            let _ = std::fs::write(f, serde_json::to_vec(&saved).unwrap_or_default());
         }
         let b = Battery { level, raw_level, charging, millivolts };
         self.last_battery_poll = Instant::now();
@@ -465,10 +484,10 @@ impl Worker {
             }
         }
         let bits = self.pending_status.drain(..).fold(0u8, |a, b| a | b);
-        if bits != 0 {
-            if let Err(e) = self.handle_status(bits) {
-                eprintln!("status handling failed: {e:#}");
-            }
+        if bits != 0
+            && let Err(e) = self.handle_status(bits)
+        {
+            eprintln!("status handling failed: {e:#}");
         }
     }
 
@@ -574,7 +593,9 @@ impl Worker {
                 }
                 Ok(r) if r[6] == p::pair_state::FAILED => return Ok(false),
                 Ok(_) => {}
-                Err(_) if self.dev.is_none() => bail!("The receiver disconnected while pairing. Plug it back in and try again."),
+                Err(_) if self.dev.is_none() => {
+                    bail!("The receiver disconnected while pairing. Plug it back in and try again.")
+                }
                 // A dropped answer is asked again next second.
                 Err(_) => {}
             }
@@ -588,7 +609,11 @@ impl Worker {
         if api.refresh_devices().is_err() {
             return 1;
         }
-        api.device_list().filter(|d| d.vendor_id() == p::VENDOR_ID && d.usage_page() == p::CONFIG_USAGE_PAGE && d.usage() == p::CONFIG_USAGE).count()
+        api.device_list()
+            .filter(|d| {
+                d.vendor_id() == p::VENDOR_ID && d.usage_page() == p::CONFIG_USAGE_PAGE && d.usage() == p::CONFIG_USAGE
+            })
+            .count()
     }
 
     pub fn factory_reset(&mut self) -> Result<()> {

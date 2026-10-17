@@ -156,7 +156,9 @@ impl Facts {
             polling_hz: st.map(|x| caps.map_or(x.polling_hz, |c| x.polling_hz.min(c.max_polling_hz))),
             saver: prefs.battery_saver_restore.is_some(),
             dpi: st.map(|x| (x.stages.get(x.dpi_stage as usize).map_or(0, |d| d.dpi), x.dpi_stage, x.dpi_stage_count)),
-            profile: s.profile.map(|i| prefs.profile_names.get(i as usize).cloned().unwrap_or_else(|| format!("Profile {}", i + 1))),
+            profile: s
+                .profile
+                .map(|i| prefs.profile_names.get(i as usize).cloned().unwrap_or_else(|| format!("Profile {}", i + 1))),
             time_left_h,
             low_at: prefs.low_battery_percent,
             vendor_app,
@@ -265,7 +267,13 @@ pub fn tabs(f: &Facts, fields: &HudFields) -> Vec<Tab> {
             value: format!("{level}%"),
             extra: left,
             note: charging.then(|| "charging".into()),
-            tone: if charging { Tone::Charge } else if f.low() { Tone::Warn } else { Tone::Plain },
+            tone: if charging {
+                Tone::Charge
+            } else if f.low() {
+                Tone::Warn
+            } else {
+                Tone::Plain
+            },
             sticky: f.low(),
         });
     }
@@ -513,7 +521,8 @@ mod tests {
         let charging_low = Facts { battery: Some((5, true)), ..yours() };
         assert!(!tab(&charging_low, Field::Battery).sticky);
 
-        let saver = Facts { polling_hz: Some(2000), saver: true, time_left_h: None, battery: Some((48, false)), ..yours() };
+        let saver =
+            Facts { polling_hz: Some(2000), saver: true, time_left_h: None, battery: Some((48, false)), ..yours() };
         assert_eq!(texts(&saver), ["hrtz", "Battery: 48%", "Polling: 2K Hz battery saver", "DPI: 1,600"]);
 
         // On its cable the battery's tab says it's charging, and there's no tab for the cable.
@@ -532,7 +541,14 @@ mod tests {
         let no_time = HudFields { time_left: false, ..HudFields::default() };
         assert_eq!(tabs(&yours(), &no_time)[1].text(), "Battery: 50%");
         // Nothing to say, so neither the mark nor the note about Zaopin's app.
-        let nothing = HudFields { battery: false, polling: false, dpi: false, time_left: false, profile: false, ..HudFields::default() };
+        let nothing = HudFields {
+            battery: false,
+            polling: false,
+            dpi: false,
+            time_left: false,
+            profile: false,
+            ..HudFields::default()
+        };
         assert!(tabs(&vendor, &nothing).is_empty());
     }
 
@@ -550,7 +566,8 @@ mod tests {
         // The DPI keeps its unit, and its stage after it.
         let stages = Facts { dpi: Some((800, 1, 4)), polling_hz: Some(500), ..yours() };
         assert_eq!(texts(&stages)[2..4], ["500 Hz", "800 DPI 2/4"]);
-        let notes = Facts { battery: Some((62, true)), saver: true, polling_hz: Some(2000), long_range: true, ..yours() };
+        let notes =
+            Facts { battery: Some((62, true)), saver: true, polling_hz: Some(2000), long_range: true, ..yours() };
         assert_eq!(texts(&notes)[1..3], ["62% charging", "2K Hz battery saver"]);
         assert_eq!(texts(&notes).last().unwrap(), "Long range");
         // Colours and the low battery's stickiness don't change.
@@ -563,10 +580,21 @@ mod tests {
         let fields = HudFields::default();
         let away = Facts { link: Link::Away, ..yours() };
         let t = tabs(&away, &fields);
-        assert_eq!(t.iter().map(Tab::text).collect::<Vec<_>>(), ["hrtz •", "Battery: 50%", "Polling: 8K Hz", "DPI: 1,600"], "no time left while away");
+        assert_eq!(
+            t.iter().map(Tab::text).collect::<Vec<_>>(),
+            ["hrtz •", "Battery: 50%", "Polling: 8K Hz", "DPI: 1,600"],
+            "no time left while away"
+        );
         assert_eq!((t[0].field, t[0].tone, t[0].sticky), (Field::Mark, Tone::Warn, false), "no alarm");
         // The mark and its dot show even with no values chosen.
-        let nothing = HudFields { battery: false, polling: false, dpi: false, time_left: false, profile: false, ..HudFields::default() };
+        let nothing = HudFields {
+            battery: false,
+            polling: false,
+            dpi: false,
+            time_left: false,
+            profile: false,
+            ..HudFields::default()
+        };
         assert_eq!(tabs(&away, &nothing).iter().map(Tab::text).collect::<Vec<_>>(), ["hrtz •"]);
         // No receiver, no HUD: there's no mouse to say anything about.
         assert!(tabs(&Facts { link: Link::NoReceiver, ..yours() }, &fields).is_empty());

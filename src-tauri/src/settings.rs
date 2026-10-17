@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{checksum, group_valid, CONFIG_REGION, FLASH_SIZE};
+use crate::protocol::{CONFIG_REGION, FLASH_SIZE, checksum, group_valid};
 
 const POLLING: [(u32, u8); 7] = [(125, 8), (250, 4), (500, 2), (1000, 1), (2000, 0x10), (4000, 0x20), (8000, 0x40)];
 pub const PEAK_TIMEOUTS_S: [u32; 6] = [30, 60, 120, 300, 600, 900];
@@ -62,20 +62,43 @@ pub struct DpiStage {
 #[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum ButtonAction {
     Disabled,
-    Mouse { button: MouseButton },
-    Dpi { action: DpiAction },
-    Scroll { direction: ScrollDirection },
+    Mouse {
+        button: MouseButton,
+    },
+    Dpi {
+        action: DpiAction,
+    },
+    Scroll {
+        direction: ScrollDirection,
+    },
     /// Rapid fire: `times` = 0 repeats while held.
-    Fire { interval_ms: u8, times: u8 },
+    Fire {
+        interval_ms: u8,
+        times: u8,
+    },
     PollingSwitch,
-    DpiLock { dpi: u32 },
+    DpiLock {
+        dpi: u32,
+    },
     /// HID consumer-page usage (e.g. 0x00CD play/pause).
-    Media { usage: u16 },
+    Media {
+        usage: u16,
+    },
     /// Key combination: modifier bitmask (HID: 1 LCtrl, 2 LShift, 4 LAlt, 8 LWin, 16.. right-hand) plus key usages.
-    Keys { modifiers: u8, keys: Vec<u8> },
-    Macro { slot: u8, repeat: u8 },
+    Keys {
+        modifiers: u8,
+        keys: Vec<u8>,
+    },
+    Macro {
+        slot: u8,
+        repeat: u8,
+    },
     /// Anything this app does not model yet; written back unchanged.
-    Raw { code: u8, p1: u8, p2: u8 },
+    Raw {
+        code: u8,
+        p1: u8,
+        p2: u8,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -253,7 +276,7 @@ pub fn decode(f: &[u8]) -> Settings {
             _ => SensorMode::Lp,
         },
         debounce_ms: pair(f, addr::DEBOUNCE).unwrap_or(8),
-        motion_sync: pair(f, addr::MOTION_SYNC).map_or(true, |v| v != 0),
+        motion_sync: pair(f, addr::MOTION_SYNC) != Some(0),
         angle_snapping: pair(f, addr::ANGLE_SNAP).is_some_and(|v| v != 0),
         ripple_control: pair(f, addr::RIPPLE).is_some_and(|v| v != 0),
         peak_timeout_enabled: pair(f, addr::PEAK_ENABLE).is_some_and(|v| v != 0),
@@ -338,18 +361,26 @@ fn put_shortcut(f: &mut [u8], i: usize, events: &[[u8; 3]]) {
 fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction) {
     let (code, p1, p2) = match b {
         ButtonAction::Disabled => (0, 0, 0),
-        ButtonAction::Mouse { button } => (1, match button {
-            MouseButton::Left => 0x01,
-            MouseButton::Right => 0x02,
-            MouseButton::Middle => 0x04,
-            MouseButton::Back => 0x08,
-            MouseButton::Forward => 0x10,
-        }, 0),
-        ButtonAction::Dpi { action } => (2, match action {
-            DpiAction::Cycle => 1,
-            DpiAction::Up => 2,
-            DpiAction::Down => 3,
-        }, 0),
+        ButtonAction::Mouse { button } => (
+            1,
+            match button {
+                MouseButton::Left => 0x01,
+                MouseButton::Right => 0x02,
+                MouseButton::Middle => 0x04,
+                MouseButton::Back => 0x08,
+                MouseButton::Forward => 0x10,
+            },
+            0,
+        ),
+        ButtonAction::Dpi { action } => (
+            2,
+            match action {
+                DpiAction::Cycle => 1,
+                DpiAction::Up => 2,
+                DpiAction::Down => 3,
+            },
+            0,
+        ),
         ButtonAction::Scroll { direction } => match direction {
             ScrollDirection::Left => (3, 1, 0),
             ScrollDirection::Right => (3, 2, 0),
@@ -402,10 +433,10 @@ pub fn validate(s: &Settings, old: &Settings, caps: &Capabilities) -> Result<(),
         return Err("sleep must be 1-255 s".into());
     }
     for b in &s.buttons {
-        if let ButtonAction::Keys { modifiers, keys } = b {
-            if modifiers.count_ones() as usize + keys.len() > 3 {
-                return Err("a key combination can have at most three keys".into());
-            }
+        if let ButtonAction::Keys { modifiers, keys } = b
+            && modifiers.count_ones() as usize + keys.len() > 3
+        {
+            return Err("a key combination can have at most three keys".into());
         }
     }
     Ok(())
@@ -433,16 +464,24 @@ pub fn encode(s: &Settings, image: &[u8]) -> Vec<u8> {
     pair_if(s.polling_hz != old.polling_hz, addr::POLLING, polling_code(s.polling_hz).unwrap_or(1));
     pair_if(s.dpi_stage_count != old.dpi_stage_count, addr::STAGE_COUNT, s.dpi_stage_count);
     pair_if(s.dpi_stage != old.dpi_stage, addr::STAGE, s.dpi_stage);
-    pair_if(s.lod != old.lod, addr::LOD, match s.lod {
-        Lod::Low => 3,
-        Lod::Mid => 1,
-        Lod::High => 2,
-    });
-    pair_if(s.sensor_mode != old.sensor_mode, addr::SENSOR_MODE, match s.sensor_mode {
-        SensorMode::Lp => 0,
-        SensorMode::Hp => 1,
-        SensorMode::Corded => 10,
-    });
+    pair_if(
+        s.lod != old.lod,
+        addr::LOD,
+        match s.lod {
+            Lod::Low => 3,
+            Lod::Mid => 1,
+            Lod::High => 2,
+        },
+    );
+    pair_if(
+        s.sensor_mode != old.sensor_mode,
+        addr::SENSOR_MODE,
+        match s.sensor_mode {
+            SensorMode::Lp => 0,
+            SensorMode::Hp => 1,
+            SensorMode::Corded => 10,
+        },
+    );
     pair_if(s.debounce_ms != old.debounce_ms, addr::DEBOUNCE, s.debounce_ms);
     pair_if(s.motion_sync != old.motion_sync, addr::MOTION_SYNC, s.motion_sync as u8);
     pair_if(s.angle_snapping != old.angle_snapping, addr::ANGLE_SNAP, s.angle_snapping as u8);
@@ -495,7 +534,16 @@ pub(crate) fn sample_image() -> Vec<u8> {
     put_pair(&mut f, 0x06, 0); // X spindown
     put_pair(&mut f, 0x08, 0); // Y spindown
     put_pair(&mut f, addr::LOD, 1); // 1 mm
-    let colours = [[0xFF, 0x40, 0x40], [0x40, 0xFF, 0x40], [0x40, 0x40, 0xFF], [0xFF, 0xFF, 0x40], [0xFF, 0x40, 0xFF], [0x40, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF], [0x80, 0x80, 0x80]];
+    let colours = [
+        [0xFF, 0x40, 0x40],
+        [0x40, 0xFF, 0x40],
+        [0x40, 0x40, 0xFF],
+        [0xFF, 0xFF, 0x40],
+        [0xFF, 0x40, 0xFF],
+        [0x40, 0xFF, 0xFF],
+        [0xFF, 0xFF, 0xFF],
+        [0x80, 0x80, 0x80],
+    ];
     for (i, dpi) in [400, 800, 1600, 3200, 6400, 12800, 26000, 30000].into_iter().enumerate() {
         let (x, ex) = dpi_encode(dpi);
         put_triple(&mut f, addr::DPI + 4 * i, [x, x, ex]);

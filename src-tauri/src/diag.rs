@@ -332,7 +332,8 @@ impl Conn {
 /// How the gaps fall, from the polls between one and the next in the same stretch of movement.
 /// For a steady rhythm, also how many polls apart they come.
 fn pattern(log: &[(u32, f64, u32)]) -> (Pattern, Option<f64>) {
-    let apart: Vec<f64> = log.windows(2).filter(|w| w[0].0 == w[1].0).map(|w| w[1].1 - w[0].1).filter(|x| *x > 0.0).collect();
+    let apart: Vec<f64> =
+        log.windows(2).filter(|w| w[0].0 == w[1].0).map(|w| w[1].1 - w[0].1).filter(|x| *x > 0.0).collect();
     if log.len() < 8 || apart.len() < 6 {
         return (Pattern::Few, None);
     }
@@ -431,7 +432,15 @@ pub struct Strokes {
 
 impl Strokes {
     pub fn new(dpi: u32, hz: u32) -> Self {
-        Self { dpi: dpi.max(1) as f64, period: 1.0 / hz.max(1) as f64, cur: Vec::new(), net: (0.0, 0.0), far: 0.0, far_at: 0, done: Vec::new() }
+        Self {
+            dpi: dpi.max(1) as f64,
+            period: 1.0 / hz.max(1) as f64,
+            cur: Vec::new(),
+            net: (0.0, 0.0),
+            far: 0.0,
+            far_at: 0,
+            done: Vec::new(),
+        }
     }
 
     /// The DPI in use, to turn distances and speeds into counts, and the polling rate.
@@ -576,7 +585,8 @@ impl Strokes {
             (sx, sy, len)
         };
         // Reports read in a burst right after a gap: the app was busy, not the mouse.
-        let burst_after = |k: usize| (k + 1..(k + 4).min(n)).filter(|&q| r[q].0 - r[q - 1].0 < 0.3 * self.period).count() >= 2;
+        let burst_after =
+            |k: usize| (k + 1..(k + 4).min(n)).filter(|&q| r[q].0 - r[q - 1].0 < 0.3 * self.period).count() >= 2;
 
         let need = FILL_COUNTS / self.period;
         let slow_min = STALL_MIN_CMS * 10.0 / 25.4 * self.dpi;
@@ -643,7 +653,12 @@ mod tests {
     /// `secs` of fast movement at 8,000 Hz, 6 counts a poll. `skip(poll)` says how many polls
     /// from this one come without a report; `late(poll)` how long the app takes to read it.
     /// Returns the reports as the app reads them: (time read, counts).
-    fn stream(secs: f64, period: f64, mut skip: impl FnMut(u64) -> u64, mut late: impl FnMut(u64) -> f64) -> Vec<(f64, f64)> {
+    fn stream(
+        secs: f64,
+        period: f64,
+        mut skip: impl FnMut(u64) -> u64,
+        mut late: impl FnMut(u64) -> f64,
+    ) -> Vec<(f64, f64)> {
         let polls = (secs / period) as u64;
         let mut out = Vec::new();
         let mut poll = 0;
@@ -684,7 +699,8 @@ mod tests {
         // A second at 8,000 Hz with a gap every 100 polls, then the mouse goes to 4,000 Hz: reports
         // still read as 8,000 Hz ones until the meter hears of it.
         let fast = stream(1.0, P8K, |poll| u64::from(poll % 100 == 99), |_| 0.0);
-        let slow: Vec<(f64, f64)> = stream(1.0, 2.0 * P8K, |_| 0, |_| 0.0).into_iter().map(|(t, n)| (t + 1.0, n)).collect();
+        let slow: Vec<(f64, f64)> =
+            stream(1.0, 2.0 * P8K, |_| 0, |_| 0.0).into_iter().map(|(t, n)| (t + 1.0, n)).collect();
         let mut c = Conn::new(8000);
         for &(t, n) in fast.iter().chain(&slow[..400]) {
             c.push(t, n);
@@ -704,15 +720,25 @@ mod tests {
         // Reads up to 200 µs late, and now and then the app stalls for 1 to 4 ms and catches up.
         let mut rng = Rng(7);
         let mut stall_until = 0.0;
-        let s = stream(5.0, P8K, |_| 0, |poll| {
-            let t = poll as f64 * P8K;
-            if t > stall_until && rng.next() < 0.0005 {
-                stall_until = t + 0.001 + rng.next() * 0.003;
-            }
-            if t < stall_until { stall_until - t } else { rng.next() * 200e-6 }
-        });
+        let s = stream(
+            5.0,
+            P8K,
+            |_| 0,
+            |poll| {
+                let t = poll as f64 * P8K;
+                if t > stall_until && rng.next() < 0.0005 {
+                    stall_until = t + 0.001 + rng.next() * 0.003;
+                }
+                if t < stall_until { stall_until - t } else { rng.next() * 200e-6 }
+            },
+        );
         // Read naively, the stream is full of gaps and stutters.
-        assert!(long_intervals(&s, 1.5) > 1000 && long_intervals(&s, 8.0) > 5, "{} {}", long_intervals(&s, 1.5), long_intervals(&s, 8.0));
+        assert!(
+            long_intervals(&s, 1.5) > 1000 && long_intervals(&s, 8.0) > 5,
+            "{} {}",
+            long_intervals(&s, 1.5),
+            long_intervals(&s, 8.0)
+        );
         let st = run(&s, 8000);
         assert!(st.ms > 4900.0, "{st:?}");
         assert_eq!(st.missed, 0, "{st:?}");
@@ -724,7 +750,16 @@ mod tests {
         // The radio carries about 3,500 of 8,000 a second, the rest merged into the next: a gap of
         // one poll or two every other report or so.
         let (mut rng, mut jitter) = (Rng(9), Rng(10));
-        let s = stream(5.0, P8K, |_| match rng.next() { r if r < 0.1 => 0, r if r < 0.7 => 1, _ => 2 }, |_| jitter.next() * 40e-6);
+        let s = stream(
+            5.0,
+            P8K,
+            |_| match rng.next() {
+                r if r < 0.1 => 0,
+                r if r < 0.7 => 1,
+                _ => 2,
+            },
+            |_| jitter.next() * 40e-6,
+        );
         let st = run(&s, 8000);
         let per_s = st.reports as f64 / (st.ms / 1000.0);
         assert!((per_s - 3500.0).abs() < 300.0, "{per_s} a second, {st:?}");
@@ -760,10 +795,15 @@ mod tests {
     fn gaps_in_bursts() {
         // Clean, except for 30 ms of interference every half second, missing 1 to 3 polls in 5.
         let mut rng = Rng(11);
-        let s = stream(5.0, P8K, |poll| {
-            let t = poll as f64 * P8K;
-            if t % 0.5 < 0.03 && rng.next() < 0.2 { 1 + (rng.next() * 3.0) as u64 } else { 0 }
-        }, |_| 20e-6);
+        let s = stream(
+            5.0,
+            P8K,
+            |poll| {
+                let t = poll as f64 * P8K;
+                if t % 0.5 < 0.03 && rng.next() < 0.2 { 1 + (rng.next() * 3.0) as u64 } else { 0 }
+            },
+            |_| 20e-6,
+        );
         let st = run(&s, 8000);
         assert!(st.missed > 100, "{st:?}");
         assert_eq!(st.pattern, Pattern::Bursts);
@@ -782,10 +822,19 @@ mod tests {
         // The radio merges every other report or so, steadily, and interference comes for 30 ms
         // every half second with gaps of 5 to 20 polls.
         let (mut rng, mut jitter) = (Rng(21), Rng(22));
-        let s = stream(5.0, P8K, |poll| {
-            let t = poll as f64 * P8K;
-            if t % 0.5 < 0.03 && rng.next() < 0.05 { 5 + (rng.next() * 15.0) as u64 } else { u64::from(rng.next() < 0.5) }
-        }, |_| jitter.next() * 40e-6);
+        let s = stream(
+            5.0,
+            P8K,
+            |poll| {
+                let t = poll as f64 * P8K;
+                if t % 0.5 < 0.03 && rng.next() < 0.05 {
+                    5 + (rng.next() * 15.0) as u64
+                } else {
+                    u64::from(rng.next() < 0.5)
+                }
+            },
+            |_| jitter.next() * 40e-6,
+        );
         let st = run(&s, 8000);
         assert_eq!(st.pattern, Pattern::Regular, "{st:?}");
         assert_eq!(st.long_pattern, Pattern::Bursts, "{st:?}");
@@ -910,7 +959,15 @@ mod tests {
         assert_eq!(s[0].stalls, 1, "{:?}", s[0]);
         // A hand that stops for longer, or speeds off afterwards, isn't a stall.
         let mut r = Vec::new();
-        slide(&mut r, 0.0, 1.0, |t| if (0.5..0.54).contains(&t) { 0.0 } else if t > 0.54 { 9.0 } else { 2.0 });
+        slide(&mut r, 0.0, 1.0, |t| {
+            if (0.5..0.54).contains(&t) {
+                0.0
+            } else if t > 0.54 {
+                9.0
+            } else {
+                2.0
+            }
+        });
         assert_eq!(strokes(&r)[0].stalls, 0);
     }
 
@@ -952,7 +1009,11 @@ mod bench {
             s.push(t, dx, dy);
         }
         let took = t0.elapsed();
-        println!("{:.2} µs a report, {:.1}% of a core at 8,000 Hz", took.as_secs_f64() * 1e6 / 80_000.0, took.as_secs_f64() / 10.0 * 100.0);
+        println!(
+            "{:.2} µs a report, {:.1}% of a core at 8,000 Hz",
+            took.as_secs_f64() * 1e6 / 80_000.0,
+            took.as_secs_f64() / 10.0 * 100.0
+        );
         let _ = (c.snapshot().stats(), s.take());
     }
 }

@@ -243,7 +243,10 @@ mod tests {
     #[ignore = "reads a log named by HRTZ_LOG"]
     fn dump_log() {
         let log = BatteryLog::load(Some(PathBuf::from(std::env::var("HRTZ_LOG").unwrap())));
-        let now = std::env::var("HRTZ_NOW").ok().and_then(|v| v.parse().ok()).unwrap_or_else(|| log.entries().last().map_or(0, |e| e.t));
+        let now = std::env::var("HRTZ_NOW")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| log.entries().last().map_or(0, |e| e.t));
         let out = serde_json::json!({
             "now": now,
             "summary": summary(log.entries(), now),
@@ -251,7 +254,6 @@ mod tests {
         });
         fs::write(std::env::var("HRTZ_OUT").unwrap(), serde_json::to_string(&out).unwrap()).unwrap();
     }
-
 
     const T0: u64 = 1_800_000_000;
 
