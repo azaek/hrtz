@@ -10,9 +10,10 @@ use std::time::Duration;
 use anyhow::{Result, bail};
 use parking_lot::Mutex;
 
-use crate::device::{Finder, Link, Opened};
-use crate::protocol::{self as p, Packet, checksum, cmd};
-use crate::settings::sample_image;
+use super::driver::{Opened, connect};
+use super::image::sample_image;
+use super::protocol::{self as p, Packet, checksum, cmd};
+use crate::mice::{Board, Driver, Finder, Link};
 
 pub struct SimMouse {
     pub cid: u8,
@@ -217,16 +218,17 @@ impl Link for SimLink {
 pub struct SimFinder(pub Arc<Mutex<SimMouse>>);
 
 impl Finder for SimFinder {
-    fn open(&mut self) -> Result<Opened> {
+    fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
         if self.0.lock().unplugged {
             bail!("no Zaopin receiver found");
         }
-        Ok(Opened {
+        let opened = Opened {
             link: Box::new(SimLink(self.0.clone())),
             gap: Duration::ZERO,
             #[cfg(windows)]
             port: None,
-        })
+        };
+        connect(opened, board)
     }
 
     fn count(&mut self) -> usize {

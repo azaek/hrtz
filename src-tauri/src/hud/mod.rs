@@ -26,7 +26,7 @@ use crossbeam_channel::{Receiver, Sender, unbounded};
 use parking_lot::{Mutex, RwLock};
 
 use crate::battery_log::{self, BatteryLog};
-use crate::device::DeviceState;
+use crate::mice::DeviceState;
 use crate::store::{HudShow, Prefs};
 
 /// The battery log's life per rate is worked out again at most this often.

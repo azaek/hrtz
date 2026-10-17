@@ -1,16 +1,12 @@
 pub mod battery;
 pub mod battery_log;
 pub mod clicks;
-pub mod device;
 pub mod diag;
 pub mod games;
 pub mod hud;
 pub mod installed;
+pub mod mice;
 pub mod pad;
-pub mod protocol;
-pub mod settings;
-#[cfg(test)]
-mod sim;
 pub mod store;
 pub mod tray;
 
@@ -38,8 +34,8 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, We
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 
-use device::{DeviceEvent, DeviceState, Engine};
-use settings::Settings;
+use mice::model::Settings;
+use mice::{DeviceEvent, DeviceState, Engine};
 use store::{AutoReason, BackupDevice, BackupMeta, Backups, Prefs, ProfileSnapshot};
 use tray::{TrayLevel, TrayStyle};
 
@@ -105,7 +101,7 @@ fn err(e: anyhow::Error) -> String {
 
 async fn on_device<T: Send + 'static>(
     ctx: &Ctx,
-    f: impl FnOnce(&mut device::Worker) -> anyhow::Result<T> + Send + 'static,
+    f: impl FnOnce(&mut mice::Worker) -> anyhow::Result<T> + Send + 'static,
 ) -> CmdResult<T> {
     let engine = ctx.engine.clone();
     tauri::async_runtime::spawn_blocking(move || engine.call(f)).await.map_err(|e| e.to_string())?.map_err(err)
@@ -271,7 +267,7 @@ async fn restore_backup(ctx: State<'_, Arc<Ctx>>, id: String) -> CmdResult<Resto
     if current.connected && current.mid != file.device.mid {
         return Err(format!(
             "This backup is for a {}, but a {} is connected.",
-            settings::model_name(file.device.mid),
+            mice::compx::models::model_name(file.device.mid),
             current.model.unwrap_or_default()
         ));
     }
@@ -781,7 +777,7 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
     #[cfg(windows)]
     if let Some(st) = &s.settings {
         meter::set_dpi(st.stages.get(st.dpi_stage as usize).map_or(0, |x| x.dpi));
-        meter::set_lift_off(st.lod != settings::Lod::Low);
+        meter::set_lift_off(st.lod != mice::model::Lod::Low);
     }
 
     refresh_tray(&ctx, s);
@@ -830,7 +826,7 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
     if !s.online || s.settings.is_none() || ctx.status.read().vendor_app_running || !ctx.met.lock().insert(s.mid) {
         return;
     }
-    let model = settings::model_name(s.mid);
+    let model = mice::compx::models::model_name(s.mid);
     if ctx.backups.list().iter().any(|b| b.model == model) {
         return;
     }
@@ -1182,6 +1178,7 @@ pub fn run() {
             let notify_handle = handle.clone();
             std::fs::create_dir_all(&data_dir)?;
             let engine = Engine::start(
+                Box::new(mice::compx::HidFinder::default()),
                 Arc::new(move |s, e| on_device_change(&notify_handle, s, e)),
                 Some(data_dir.join("battery.json")),
                 Some(data_dir.join("battery_log.jsonl")),
@@ -1378,8 +1375,8 @@ mod focus {
 mod lab {
     use std::path::PathBuf;
 
-    use crate::device::{Battery, DeviceState};
-    use crate::settings;
+    use crate::mice::compx::models;
+    use crate::mice::{Battery, DeviceState};
     use crate::store::Backups;
 
     /// Real data for the page labs (`lab-labpage.html`, `lab-backups.html`): this PC's backups
@@ -1416,7 +1413,7 @@ mod lab {
             rev: 1,
             connected: true,
             online: true,
-            model: Some(settings::model_name(4).into()),
+            model: Some(models::model_name(4).into()),
             cid: 7,
             mid: 4,
             device_type: 5,
@@ -1430,7 +1427,7 @@ mod lab {
             profile: Some(0),
             long_range: Some(false),
             settings: Some(newest),
-            capabilities: Some(settings::capabilities(4, 5)),
+            capabilities: Some(models::capabilities(4, 5)),
             // The stand-in backend says where the receiver is.
             port: None,
         };

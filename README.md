@@ -90,8 +90,8 @@ Quit Zaopin's own app first (see Safety).
 
 | Path | |
 |---|---|
-| `src-tauri/src/protocol.rs`, `settings.rs` | The mouse's packets, and its memory as typed settings, written field by field |
-| `src-tauri/src/device.rs` | The device thread: requests, status messages, sleep and wake, plugging in and out, pairing |
+| `src-tauri/src/mice/` | The mice: `engine.rs` runs a mouse's connection (sleep and wake, plugging in and out, the battery), `model.rs` is what the UI reads and writes |
+| `src-tauri/src/mice/compx/` | Zaopin's protocol: the packets, the memory as typed settings written field by field, the models, and a simulated mouse for the tests |
 | `src-tauri/src/meter.rs`, `diag.rs`, `capture.rs` | Raw input from the mouse, the connection and stroke analysis, and the Lab's game screen |
 | `src-tauri/src/pad/`, `clicks.rs` | The mousepad map, and double clicks counted over days |
 | `src-tauri/src/hud/` | The in-game HUD, drawn natively |

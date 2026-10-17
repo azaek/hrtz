@@ -6,7 +6,7 @@
 //! input while a game is in front. The honest stand-in for the link is a yellow dot on hrtz's
 //! mark while the mouse doesn't answer.
 
-use crate::device::DeviceState;
+use crate::mice::DeviceState;
 use crate::store::{HudFields, HudShow, Prefs};
 
 /// How long a tab stays up after its value changes, and after a game comes to the front.
@@ -464,8 +464,9 @@ pub fn plan(tabs: &[Tab], scene: &Scene, m: &Moments) -> Plan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::device::Battery;
-    use crate::settings::{self, DpiStage};
+    use crate::mice::Battery;
+    use crate::mice::compx::{image, models};
+    use crate::mice::model::{DpiStage, Settings};
 
     fn prefs() -> Prefs {
         Prefs::default()
@@ -602,14 +603,14 @@ mod tests {
 
     #[test]
     fn facts_come_from_the_device_state_and_prefs() {
-        let mut caps = settings::capabilities(4, 1); // a 4K receiver
+        let mut caps = models::capabilities(4, 1); // a 4K receiver
         caps.buttons.clear();
-        let st = settings::Settings {
+        let st = Settings {
             polling_hz: 8000,
             dpi_stage_count: 4,
             dpi_stage: 1,
             stages: [400, 800, 1600, 3200].iter().map(|&dpi| DpiStage { dpi, color: "#ffffff".into() }).collect(),
-            ..settings::decode(&[0xFF; crate::protocol::FLASH_SIZE])
+            ..image::decode(&[0xFF; crate::mice::compx::protocol::FLASH_SIZE])
         };
         let s = DeviceState {
             connected: true,

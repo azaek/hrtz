@@ -39,7 +39,7 @@ use super::draw::{Look, Painter};
 use super::model::{self, DIM, Facts, Field, Link, Moments, Plan, Scene, Tab};
 use super::text::Gdi;
 use super::{Input, Report, Shared};
-use crate::device::DeviceState;
+use crate::mice::DeviceState;
 use crate::store::{HudShow, Prefs};
 
 /// Something was queued for the HUD.

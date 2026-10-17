@@ -22,7 +22,11 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 
 ## Layout
 
-- `src-tauri/src/`: device protocol, the engine that talks to the mouse, the tray and the OSD.
+- `src-tauri/src/`: the tray, the OSD, the HUD, raw input and the stores.
+  - `mice/`: what talks to the mice. `engine.rs` runs a mouse's connection on its own thread;
+    `model.rs` is what the UI reads and writes. Each protocol family is a folder (`compx/` for
+    Zaopin) with its driver behind the `Driver` trait in `mice/mod.rs`, and a simulated mouse the
+    tests run against (`compx/sim.rs`). The plan for several mice is the notes' `PLAN-mice.md`.
 - `src/pages/`: one file per sidebar page.
 - `src/components.tsx`: the Fluent building blocks (`SettingCard`, `Group`, `Choice`, `NavRow`, …).
 - `src/kit/`: the shared controls below. **Use these before writing new ones.**

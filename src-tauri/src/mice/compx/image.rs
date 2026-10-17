@@ -1,11 +1,13 @@
 //! Typed view of the mouse flash image. Decoding falls back to the vendor app's defaults for fields
 //! whose check byte is invalid; encoding only touches the bytes of fields it knows about.
 
-use serde::{Deserialize, Serialize};
+use super::protocol::{CONFIG_REGION, FLASH_SIZE, checksum, group_valid};
+use crate::mice::model::{
+    ButtonAction, Capabilities, DpiAction, DpiStage, Lod, MouseButton, ScrollDirection, SensorMode, Settings,
+};
 
-use crate::protocol::{CONFIG_REGION, FLASH_SIZE, checksum, group_valid};
-
-const POLLING: [(u32, u8); 7] = [(125, 8), (250, 4), (500, 2), (1000, 1), (2000, 0x10), (4000, 0x20), (8000, 0x40)];
+pub(crate) const POLLING: [(u32, u8); 7] =
+    [(125, 8), (250, 4), (500, 2), (1000, 1), (2000, 0x10), (4000, 0x20), (8000, 0x40)];
 pub const PEAK_TIMEOUTS_S: [u32; 6] = [30, 60, 120, 300, 600, 900];
 /// "Sleep after" choices. 0xBB is seconds without movement before the mouse sleeps, measured on a
 /// Z1 PRO MAX from 10 to 120 (scripts/sleep_timer.py, 2026-10-17); it comes set to 10.
@@ -31,188 +33,6 @@ mod addr {
     pub const SLEEP: usize = 0xBB;
     pub const SHORTCUTS: usize = 0x100;
     pub const SHORTCUT_LEN: usize = 0x20;
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Lod {
-    #[serde(rename = "0.7mm")]
-    Low,
-    #[serde(rename = "1mm")]
-    Mid,
-    #[serde(rename = "2mm")]
-    High,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum SensorMode {
-    Lp,
-    Hp,
-    Corded,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct DpiStage {
-    pub dpi: u32,
-    /// `#RRGGBB`
-    pub color: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
-pub enum ButtonAction {
-    Disabled,
-    Mouse {
-        button: MouseButton,
-    },
-    Dpi {
-        action: DpiAction,
-    },
-    Scroll {
-        direction: ScrollDirection,
-    },
-    /// Rapid fire: `times` = 0 repeats while held.
-    Fire {
-        interval_ms: u8,
-        times: u8,
-    },
-    PollingSwitch,
-    DpiLock {
-        dpi: u32,
-    },
-    /// HID consumer-page usage (e.g. 0x00CD play/pause).
-    Media {
-        usage: u16,
-    },
-    /// Key combination: modifier bitmask (HID: 1 LCtrl, 2 LShift, 4 LAlt, 8 LWin, 16.. right-hand) plus key usages.
-    Keys {
-        modifiers: u8,
-        keys: Vec<u8>,
-    },
-    Macro {
-        slot: u8,
-        repeat: u8,
-    },
-    /// Anything this app does not model yet; written back unchanged.
-    Raw {
-        code: u8,
-        p1: u8,
-        p2: u8,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-    Back,
-    Forward,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum DpiAction {
-    Cycle,
-    Up,
-    Down,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum ScrollDirection {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct Settings {
-    pub polling_hz: u32,
-    pub dpi_stage_count: u8,
-    /// 0-based index of the active stage.
-    pub dpi_stage: u8,
-    pub stages: Vec<DpiStage>,
-    pub lod: Lod,
-    pub sensor_mode: SensorMode,
-    pub debounce_ms: u8,
-    pub motion_sync: bool,
-    pub angle_snapping: bool,
-    pub ripple_control: bool,
-    pub peak_timeout_enabled: bool,
-    pub peak_timeout_s: u32,
-    /// Seconds without movement before the mouse sleeps (not in the vendor app).
-    pub sleep_s: u32,
-    pub buttons: Vec<ButtonAction>,
-}
-
-/// Device-specific limits the UI needs.
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Capabilities {
-    pub max_dpi: u32,
-    pub dpi_step: u32,
-    /// Connected by USB cable rather than a receiver.
-    pub wired: bool,
-    /// Highest rate this connection carries; the flash may hold a higher one for the other link.
-    pub max_polling_hz: u32,
-    pub polling_hz: Vec<u32>,
-    pub peak_timeouts_s: Vec<u32>,
-    /// "Sleep after" choices: only where the sleep timer has been measured, a Z1 PRO MAX so far.
-    pub sleep_times_s: Vec<u32>,
-    /// 0.7 mm lift-off is only offered on PAW3950 models.
-    pub low_lod: bool,
-    /// Flash indices of buttons that physically exist, with their names.
-    pub buttons: Vec<(u8, String)>,
-}
-
-/// Connection kinds, from the handshake's byte 6.
-pub fn link(device_type: u8) -> (bool, u32) {
-    match device_type {
-        0 => (false, 1000), // Wireless1K
-        1 => (false, 4000), // Wireless4K
-        2 => (true, 1000),  // Wired1K
-        3 => (true, 8000),  // Wired8K
-        4 => (false, 2000), // Wireless2K
-        5 => (false, 8000), // Wireless8K
-        _ => (false, 1000),
-    }
-}
-
-pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
-    // PAW3950 models (MAX line) go to 30K, PAW3395 to 26K.
-    let max_dpi = if (4..=6).contains(&mid) { 30000 } else { 26000 };
-    let (wired, max_polling_hz) = link(device_type);
-    Capabilities {
-        max_dpi,
-        dpi_step: 50,
-        wired,
-        max_polling_hz,
-        polling_hz: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= max_polling_hz).collect(),
-        peak_timeouts_s: PEAK_TIMEOUTS_S.to_vec(),
-        sleep_times_s: if mid == 4 { SLEEP_TIMES_S.to_vec() } else { Vec::new() },
-        low_lod: (4..=6).contains(&mid),
-        buttons: ["Left", "Right", "Wheel click", "Back", "Forward", "DPI"]
-            .iter()
-            .enumerate()
-            .map(|(i, n)| (i as u8, n.to_string()))
-            .collect(),
-    }
-}
-
-pub fn model_name(mid: u8) -> &'static str {
-    match mid {
-        1 => "ZI PRO",
-        2 => "Z2",
-        3 => "Z2 mini",
-        4 => "Z1 PRO MAX",
-        5 => "Z2 MAX",
-        6 => "Z2 mini MAX",
-        _ => "Zaopin mouse",
-    }
 }
 
 fn pair(f: &[u8], a: usize) -> Option<u8> {

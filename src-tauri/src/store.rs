@@ -8,8 +8,9 @@ use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::protocol::FLASH_SIZE;
-use crate::settings::{self, ButtonAction, Settings};
+use crate::mice::compx::protocol::FLASH_SIZE;
+use crate::mice::compx::{image, models};
+use crate::mice::model::{ButtonAction, Settings};
 use crate::tray::TrayStyle;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -558,7 +559,7 @@ impl Backups {
     }
 
     pub fn settings(&self, id: &str) -> Result<Settings> {
-        Ok(settings::decode(&self.load(id)?.1))
+        Ok(image::decode(&self.load(id)?.1))
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
@@ -653,7 +654,7 @@ fn meta(id: String, f: &BackupFile) -> BackupMeta {
     BackupMeta {
         id,
         created: f.created.clone(),
-        model: settings::model_name(f.device.mid).to_string(),
+        model: models::model_name(f.device.mid).to_string(),
         firmware: firmware_text(&f.device.firmware),
         profile: f.device.profile_index,
         note: f.note.clone(),
@@ -933,7 +934,7 @@ mod tests {
     fn reads_backup_written_by_python_tool() {
         let dir = std::env::temp_dir().join(format!("hrtz-test-{}", std::process::id()));
         let b = Backups::new(dir.clone());
-        let image: &[u8] = &crate::settings::sample_image();
+        let image: &[u8] = &crate::mice::compx::image::sample_image();
         let dev = BackupDevice { cid: 7, mid: 4, device_type: 5, firmware: "0x0217".into(), profile_index: Some(0) };
         let m = b.create(image, dev, "test").unwrap();
         let (_, back) = b.load(&m.id).unwrap();
@@ -950,7 +951,7 @@ mod tests {
     fn keeps_the_newest_automatic_backups_and_all_of_yours() {
         let dir = std::env::temp_dir().join(format!("hrtz-auto-{}", std::process::id()));
         let b = Backups::new(dir.clone());
-        let image: &[u8] = &crate::settings::sample_image();
+        let image: &[u8] = &crate::mice::compx::image::sample_image();
         let dev = || BackupDevice { cid: 7, mid: 4, device_type: 5, firmware: "2.17".into(), profile_index: Some(0) };
         let yours = b.create(image, dev(), "Mine").unwrap();
         // Several in the same second: each gets its own name instead of replacing the last.
