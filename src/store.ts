@@ -1,5 +1,11 @@
 import { useSyncExternalStore } from "react";
-import { api, message, on, showMouse, type AppStatus, type DeviceState, type KnownMouse, type MousePrefs, type Prefs, type Settings } from "./api";
+import { api, message, on, showMouse, type AppStatus, type DeviceState, type KnownMouse, type MousePrefs, type Prefs, type Settings, type Supported } from "./api";
+
+/** The onboarding's steps: first run goes Welcome, Connect, Your mouse, Preferences; "Connect a new
+ *  mouse" goes Connect, Your mouse. */
+export type Step = "welcome" | "connect" | "found" | "prefs";
+/** The onboarding while it's up: the mice known when it opened, so a new one can be told apart. */
+export type Flow = { mode: "first" | "add"; step: Step; known: string[] };
 
 interface Toast {
   id: number;
@@ -12,6 +18,12 @@ interface Store {
   device: DeviceState | null;
   /** Every mouse's state, by key: connected, or until its connection went. */
   devices: Record<string, DeviceState>;
+  /** The mouse the window shows, by key: the first one shown, then wherever the switcher puts it. */
+  selected: string | null;
+  /** Every mouse hrtz can run. */
+  supported: Supported[];
+  /** The onboarding, while it's up. */
+  flow: Flow | null;
   prefs: Prefs | null;
   /** The mice hrtz has met, each with what it keeps for it. */
   mice: KnownMouse[];
@@ -24,6 +36,9 @@ interface Store {
 let state: Store = {
   device: null,
   devices: {},
+  selected: null,
+  supported: [],
+  flow: null,
   prefs: null,
   mice: [],
   status: { foregroundExe: null, vendorAppRunning: false, hudShowing: false },
@@ -55,20 +70,77 @@ export function toast(text: string, tone: Toast["tone"] = "info") {
   setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), tone === "error" ? 6000 : 3000);
 }
 
-/** The mouse to show, as the app picks its primary one: the one in use, else one awake, else one
- *  connected, else any. (Picking one yourself comes with the switcher.) */
-function shown(devices: Record<string, DeviceState>, inUse = state.status.inUse): DeviceState | null {
-  const all = Object.values(devices);
-  const used = inUse ? devices[inUse] : undefined;
-  return (used?.connected ? used : undefined) ?? all.find((d) => d.connected && d.online) ?? all.find((d) => d.connected) ?? all[0] ?? null;
+const NOTHING: DeviceState = {
+  rev: 0,
+  connected: false,
+  online: false,
+  model: null,
+  cid: 0,
+  mid: 0,
+  deviceType: 0,
+  firmware: null,
+  battery: null,
+  profile: null,
+  longRange: null,
+  settings: null,
+  capabilities: null,
+  port: null,
+};
+
+/** A known mouse that isn't connected, as its pages show it: what it held last time. */
+function away(m: KnownMouse): DeviceState {
+  return { ...NOTHING, ...(m.last ?? {}), key: m.key, model: m.last?.model ?? m.model, connected: false, online: false, battery: null };
 }
 
-/** Put a mouse's state in, and show the one to show; commands follow it. */
+/** The mouse the window shows: the one picked, connected or not; before any, the one in use, else
+ *  one awake, else one connected, else the one seen last. */
+function shown(): DeviceState | null {
+  const { devices, mice, selected } = state;
+  const live = (k: string | null | undefined) => (k && devices[k]?.connected ? devices[k] : undefined);
+  const known = (k: string | null | undefined) => {
+    const m = k ? mice.find((x) => x.key === k) : undefined;
+    return m && away(m);
+  };
+  if (selected && (live(selected) || known(selected))) return live(selected) ?? known(selected)!;
+  const all = Object.values(devices);
+  const last = [...mice].sort((a, b) => b.lastSeen - a.lastSeen)[0];
+  return live(state.status.inUse) ?? all.find((d) => d.connected && d.online) ?? all.find((d) => d.connected) ?? known(last?.key) ?? null;
+}
+
+/** Show the mouse to show, and send commands to it. The first connected one shown stays shown,
+ *  until the switcher picks another. */
+function reshow() {
+  const device = shown();
+  showMouse(device?.connected ? (device.key ?? null) : null);
+  const selected = state.selected ?? (device?.connected ? (device.key ?? null) : null);
+  set({ device, selected });
+}
+
+/** Put a mouse's state in, and show the one to show. */
 function putDevice(d: DeviceState) {
-  const devices = { ...state.devices, [d.key!]: d };
-  const device = shown(devices);
-  showMouse(device?.key ?? null);
-  set({ devices, device });
+  set({ devices: { ...state.devices, [d.key!]: d } });
+  reshow();
+}
+
+/** Show mouse `key` (the switcher). */
+export function pickMouse(key: string) {
+  set({ selected: key });
+  reshow();
+}
+
+/** Open the onboarding: first run from its welcome, a new mouse from connecting it (or straight to
+ *  it, when it's just been plugged in). */
+export function startFlow(mode: Flow["mode"], step?: Step, except?: string) {
+  const known = state.mice.map((m) => m.key).filter((k) => k !== except);
+  set({ flow: { mode, step: step ?? (mode === "first" ? "welcome" : "connect"), known } });
+}
+
+export function goStep(step: Step) {
+  if (state.flow) set({ flow: { ...state.flow, step } });
+}
+
+export function endFlow() {
+  set({ flow: null });
 }
 
 /** Device state from a reply or an event, whichever is newer: they can arrive in either order. A
@@ -83,21 +155,26 @@ export async function init() {
   await Promise.all([
     on.state(setDevice),
     on.prefs((prefs) => set({ prefs })),
-    on.mice((mice) => set({ mice })),
+    on.mice((mice) => {
+      set({ mice });
+      reshow();
+    }),
+    // A mouse never met, plugged in while hrtz runs: the onboarding's second half.
+    on.mouseNew((key) => {
+      if (!state.flow && state.prefs?.welcomed) startFlow("add", "found", key);
+    }),
     on.status((status) => {
       set({ status });
-      // The mouse in use changed: show it.
-      const device = shown(state.devices);
-      if (device !== state.device) {
-        showMouse(device?.key ?? null);
-        set({ device });
-      }
+      reshow();
     }),
     on.progress((progress) => set({ progress: progress[0] >= progress[1] ? null : progress })),
   ]);
-  const [states, prefs, status, mice] = await Promise.all([api.states(), api.prefs(), api.appStatus(), api.mice()]);
+  const [states, prefs, status, mice, supported] = await Promise.all([api.states(), api.prefs(), api.appStatus(), api.mice(), api.supportedMice()]);
+  set({ prefs, status, mice, supported });
   states.forEach(setDevice);
-  set({ prefs, status, mice });
+  reshow();
+  // First run: the onboarding, as a full page.
+  if (!prefs.welcomed) startFlow("first");
 }
 
 /** Optimistically apply `next`, roll back and explain on failure. */

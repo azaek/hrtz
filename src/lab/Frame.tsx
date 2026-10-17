@@ -19,19 +19,7 @@ type Size = keyof typeof SIZES;
 
 const params = new URLSearchParams(location.search);
 
-/** `render` draws the window instead of the real app with one page swapped: for a lab of the shell
- *  itself. */
-export function Frame({
-  page,
-  variants,
-  panel,
-  render,
-}: {
-  page: PageId;
-  variants: Variant[];
-  panel: (v: Variant) => ReactNode;
-  render?: (v: Variant) => ReactNode;
-}) {
+export function Frame({ page, variants, panel }: { page: PageId; variants: Variant[]; panel: (v: Variant) => ReactNode }) {
   const [current, setCurrent] = useState(() => {
     const i = Math.min(variants.length, Math.max(1, Number(params.get("v")) || 1)) - 1;
     variants[i].enter?.();
@@ -82,7 +70,7 @@ export function Frame({
               boxShadow: showPanel ? "0 0 0 1px rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.4)" : undefined,
             }}
           >
-            {render ? render(v) : <App pages={{ [page]: v.Component }} start={page} />}
+            <App pages={{ [page]: v.Component }} start={page} />
           </div>
         </div>
 

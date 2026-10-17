@@ -1,30 +1,18 @@
 import { useEffect, useState, type ComponentType, type ReactElement, type ReactNode } from "react";
-import {
-  Badge,
-  Body1,
-  Body1Strong,
-  Caption1,
-  makeStyles,
-  mergeClasses,
-  ProgressBar,
-  Spinner,
-  Subtitle1,
-  Title2,
-  tokens,
-} from "@fluentui/react-components";
+import { Body1, Button, makeStyles, Spinner, Subtitle1, Title2, tokens } from "@fluentui/react-components";
 import {
   CursorClick20Regular,
   Beaker20Regular,
   Games20Regular,
   Settings20Regular,
   Battery820Regular,
-  BatterySaverRegular,
+  PlugDisconnected16Regular,
   Stack20Regular,
   TopSpeed20Regular,
   Warning16Filled,
   WeatherMoon16Filled,
 } from "@fluentui/react-icons";
-import { init, useMouse, useStore } from "./store";
+import { init, startFlow, useStore } from "./store";
 import { HeaderActionsSlot, NavRow, Notice, StatusPill, ToastBridge } from "./components";
 import { SensorPage } from "./pages/Sensor";
 import { ButtonsPage } from "./pages/Buttons";
@@ -33,12 +21,10 @@ import { LabPage } from "./pages/Lab";
 import { BatteryPage } from "./pages/Battery";
 import { HudPage } from "./pages/Hud";
 import { SettingsPage } from "./pages/SettingsPage";
-import { topRate, type Capabilities, type DeviceState } from "./api";
-import { LINK_NAME } from "./links";
-import { MODEL_ART } from "./models";
-import { BatteryIcon } from "./BatteryIcon";
+import type { Capabilities } from "./api";
+import { Onboarding } from "./Onboarding";
+import { Switcher } from "./Switcher";
 import { WhatsNew } from "./WhatsNew";
-import { Welcome } from "./Welcome";
 import { TitleBar } from "./TitleBar";
 import { SidebarFooter } from "./SidebarFooter";
 
@@ -78,73 +64,8 @@ const useStyles = makeStyles({
     padding: `${tokens.spacingVerticalL} ${tokens.spacingHorizontalM}`,
     overflowY: "auto",
   },
-  // The mouse anchors the pane: a raised card on the same surface as everything else.
-  card: {
-    display: "flex",
-    flexDirection: "column",
-    paddingBottom: tokens.spacingVerticalM,
-    backgroundColor: "var(--card)",
-    boxShadow: "0 0 0 1px var(--card-stroke)",
-    borderRadius: tokens.borderRadiusXLarge,
-  },
-  art: {
-    alignSelf: "center",
-    width: "176px",
-    height: "auto",
-    margin: `${tokens.spacingVerticalM} 0 ${tokens.spacingVerticalXS}`,
-    pointerEvents: "none",
-    userSelect: "none",
-  },
-  device: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "2px",
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0`,
-  },
-  modelRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: tokens.spacingHorizontalS, minWidth: 0 },
-  model: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  // Soft, like the rest of the shell: a light wash, no outline.
-  rate: {
-    flexShrink: 0,
-    fontVariantNumeric: "tabular-nums",
-    borderTopColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "transparent",
-    borderLeftColor: "transparent",
-  },
-  rateIdle: { backgroundColor: tokens.colorSubtleBackgroundHover, color: tokens.colorNeutralForeground2 },
-  linkState: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    color: tokens.colorNeutralForeground3,
-  },
-  dot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: tokens.borderRadiusCircular,
-    backgroundColor: tokens.colorNeutralForeground4,
-    flexShrink: 0,
-  },
-  dotOk: { backgroundColor: tokens.colorPaletteGreenForeground1 },
-  dotWarn: { backgroundColor: tokens.colorPaletteMarigoldForeground1 },
-  battery: {
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalXS,
-    marginTop: tokens.spacingVerticalM,
-  },
-  batteryLine: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  batteryNumber: {
-    fontVariantNumeric: "tabular-nums",
-  },
-  batteryIcon: { fontSize: "20px", color: tokens.colorNeutralForeground2 },
-  muted: { color: tokens.colorNeutralForeground3, fontVariantNumeric: "tabular-nums" },
   nav: { display: "flex", flexDirection: "column", gap: "2px" },
+  muted: { color: tokens.colorNeutralForeground3 },
   content: {
     display: "flex",
     flexDirection: "column",
@@ -201,99 +122,14 @@ const useStyles = makeStyles({
   },
 });
 
-function linkText(d: DeviceState | null): [string, "ok" | "warn" | "off"] {
-  if (!d?.connected) return ["No receiver connected", "off"];
-  if (!d.online) return [`Asleep · move to wake`, "warn"];
-  return [`Connected · ${LINK_NAME[d.deviceType] ?? "receiver"}`, "ok"];
-}
-
-/** 8000 → "8K", 500 → "500 Hz": how the rate reads on a badge. */
-const rateBadge = (hz: number) => (hz >= 1000 ? `${hz / 1000}K` : `${hz} Hz`);
-
-/** The polling rate the mouse is set to (as far as its connection carries), and whether the
- *  battery saver lowered it. */
-function RateBadge({ d }: { d: DeviceState }) {
-  const s = useStyles();
-  const restore = useMouse()?.prefs.batterySaverRestore ?? null;
-  const set = d.settings?.pollingHz;
-  if (set === undefined) return null;
-  const hz = Math.min(set, topRate(d.capabilities) ?? set);
-  const saving = restore !== null && restore !== hz;
-  const label = saving
-    ? `Lowered to ${hz.toLocaleString("en-US")} Hz by battery saver. Back to ${restore.toLocaleString("en-US")} Hz when charged.`
-    : `Polling at ${hz.toLocaleString("en-US")} Hz`;
-  return (
-    <Badge
-      className={mergeClasses(s.rate, !saving && s.rateIdle)}
-      appearance="tint"
-      shape="rounded"
-      color={saving ? "warning" : "informative"}
-      icon={saving ? <BatterySaverRegular /> : undefined}
-      title={label}
-      aria-label={label}
-    >
-      {rateBadge(hz)}
-    </Badge>
-  );
-}
-
-function DeviceCard() {
-  const s = useStyles();
-  const d = useStore((st) => st.device);
-  const lowAt = useStore((st) => st.prefs?.lowBatteryPercent ?? 15);
-  const [text, tone] = linkText(d);
-  const b = d?.battery;
-  const art = d?.connected ? MODEL_ART[d.mid] : undefined;
-  return (
-    <div className={s.card}>
-      {art && <img className={s.art} src={art.image} alt="" width={art.size[0]} height={art.size[1]} />}
-      <div className={s.device}>
-        <div className={s.modelRow}>
-          <Body1Strong className={s.model}>{d?.model ?? "Zaopin mouse"}</Body1Strong>
-          {d?.connected && <RateBadge d={d} />}
-        </div>
-        <div className={s.linkState}>
-          <span className={`${s.dot} ${tone === "ok" ? s.dotOk : tone === "warn" ? s.dotWarn : ""}`} aria-hidden />
-          <Caption1>{text}</Caption1>
-        </div>
-        {b && d?.connected && (
-          <div className={s.battery}>
-            <div className={s.batteryLine}>
-              <Body1
-                className={s.batteryNumber}
-                title={
-                  b.charging
-                    ? `Estimated. The mouse reads ${b.rawLevel}% while charging, which runs high.`
-                    : undefined
-                }
-              >
-                <strong>{b.level}%</strong> battery
-              </Body1>
-              <BatteryIcon level={b.level} charging={b.charging} className={s.batteryIcon} />
-            </div>
-            <ProgressBar
-              value={b.level / 100}
-              color={b.charging ? "brand" : b.level <= lowAt ? "error" : b.level <= lowAt * 2 ? "warning" : "success"}
-              aria-label="Battery level"
-            />
-            <Caption1 className={s.muted}>
-              {b.charging ? "Charging · " : ""}
-              {(b.millivolts / 1000).toFixed(2)} V{d.firmware ? ` · firmware ${d.firmware}` : ""}
-            </Caption1>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Empty({ title, children }: { title: string; children: ReactNode }) {
+function Empty({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   const s = useStyles();
   return (
     <div className={s.center}>
       <div className={s.emptyText}>
         <Subtitle1 as="h1">{title}</Subtitle1>
         <Body1 className={s.muted}>{children}</Body1>
+        {action}
       </div>
     </div>
   );
@@ -307,6 +143,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const device = useStore((st) => st.device);
   const vendor = useStore((st) => st.status.vendorAppRunning);
+  const flow = useStore((st) => st.flow);
 
   useEffect(() => {
     init().finally(() => setReady(true));
@@ -315,6 +152,8 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   // The battery log can be read without the mouse, and the HUD is set up without one.
   const needsDevice = page !== "settings" && page !== "battery" && page !== "hud";
   const asleep = !!device?.connected && !device.online && needsDevice;
+  // A mouse that isn't connected shows what it held last time, to read, not change.
+  const away = !!device && !device.connected && needsDevice;
   let body: ReactNode;
   if (!ready) {
     body = (
@@ -322,12 +161,21 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
         <Spinner label="Looking for your mouse" />
       </div>
     );
-  } else if (needsDevice && !device?.connected) {
+  } else if (needsDevice && !device) {
     body = (
-      <Empty title="Plug in the receiver">
-        Connect the Zaopin receiver, or plug in the mouse with its USB cable.
+      <Empty
+        title="No mouse connected"
+        action={
+          <Button appearance="primary" onClick={() => startFlow("add")}>
+            Connect a mouse
+          </Button>
+        }
+      >
+        Plug in its receiver or cable to set it up.
       </Empty>
     );
+  } else if (away && !device?.settings) {
+    body = <Empty title="Not connected">Plug in its receiver or cable to see its settings.</Empty>;
   } else if (needsDevice && !device?.settings) {
     // Awake shows as soon as the receiver reports it; the settings take about a second more.
     body = device?.online ? (
@@ -349,6 +197,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
           </Title2>
           <div className={s.headerSide}>
             <div role="status">
+              {away && <StatusPill tone="asleep" icon={<PlugDisconnected16Regular />} title="Not connected" detail="Plug it in to make changes" hint="Showing its last settings." />}
               {asleep && (
                 <StatusPill
                   tone="asleep"
@@ -377,13 +226,23 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
     );
   }
 
+  // Setting up a mouse takes the whole window.
+  if (flow) {
+    return (
+      <>
+        <Onboarding />
+        <ToastBridge />
+      </>
+    );
+  }
+
   return (
     <HeaderActionsSlot.Provider value={actionsSlot}>
     <div className={s.frame}>
     <TitleBar />
     <div className={s.shell}>
       <nav className={s.pane} aria-label="Sections">
-        <DeviceCard />
+        <Switcher />
         <div
           className={s.nav}
           onKeyDown={(e) => {
@@ -404,7 +263,6 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
       </nav>
       <main className={s.content}>{body}</main>
       <ToastBridge />
-      <Welcome />
       <WhatsNew />
     </div>
     </div>

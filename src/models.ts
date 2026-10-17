@@ -15,6 +15,18 @@ export interface ModelArt {
   hotspots: Record<number, [number, number]>;
 }
 
+/** The model (MID) in a Zaopin key: `compx/7-4` (or a simulated `sim/7-4`) is 4. */
+export const midOf = (key: string | null | undefined): number | undefined => {
+  const m = key && /^(?:compx|sim)\/\d+-(\d+)$/.exec(key);
+  return m ? Number(m[1]) : undefined;
+};
+
+/** A mouse's picture, from its key. */
+export const artOf = (key: string | null | undefined): ModelArt | undefined => {
+  const mid = midOf(key);
+  return mid === undefined ? undefined : MODEL_ART[mid];
+};
+
 export const MODEL_ART: Record<number, ModelArt> = {
   1: { name: "ZI PRO", image: mid1, size: [298, 263], hotspots: {"0": [105, 203], "1": [34, 163], "2": [91, 134], "4": [216, 166], "3": [253, 131], "5": [180, 128], "13": [290, 236], "14": [246, 236], "15": [202, 236]} },
   2: { name: "Z2", image: mid2, size: [310, 276], hotspots: {"0": [99, 218], "1": [34, 183], "2": [86, 157], "4": [208, 165], "3": [240, 131], "5": [213, 210], "13": [294, 237], "14": [250, 237], "15": [206, 237]} },

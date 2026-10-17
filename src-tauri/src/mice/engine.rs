@@ -12,7 +12,7 @@ use std::time::{Duration, Instant, SystemTime};
 use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{RecvTimeoutError, Sender, bounded, unbounded};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::model::{Capabilities, Settings};
 use super::{Driver, Finder, Follow};
@@ -27,7 +27,7 @@ const PROBE_ASLEEP: Duration = Duration::from_millis(250);
 /// How often to look for the mouse while there's none.
 const FIND_EVERY: Duration = Duration::from_millis(1500);
 
-#[derive(Serialize, Clone, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Battery {
     /// Smoothed estimate (see `battery.rs`); this is what the UI shows.
@@ -38,8 +38,8 @@ pub struct Battery {
     pub millivolts: u16,
 }
 
-#[derive(Serialize, Clone, Debug, Default)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
 pub struct DeviceState {
     /// Goes up with every change, so the UI can tell a stale copy from a fresh one: a reply and an
     /// event can arrive in either order.

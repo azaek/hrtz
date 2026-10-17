@@ -463,6 +463,20 @@ pub struct KnownMouse {
     pub last_seen: u64,
     #[serde(default)]
     pub prefs: MousePrefs,
+    /// What it held the last time it was connected: what its pages show while it isn't.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last: Option<crate::mice::DeviceState>,
+}
+
+/// What `KnownMice::meet` found.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Met {
+    /// Met before.
+    Again,
+    /// Never met: a new mouse.
+    New,
+    /// Never met, and given the prefs kept from before several mice: not new to the user.
+    TookOver,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -525,25 +539,31 @@ impl KnownMice {
     }
 
     /// A mouse connected at `now`. A new one is noted, the first Zaopin with the prefs from before
-    /// several mice. Returns whether the list changed (beyond the time).
-    pub fn meet(&mut self, key: &str, model: &str, now: u64) -> bool {
+    /// several mice.
+    pub fn meet(&mut self, key: &str, model: &str, now: u64) -> Met {
         if let Some(m) = self.file.mice.iter_mut().find(|m| m.key == key) {
             m.last_seen = now;
-            if m.model != model {
-                m.model = model.to_string();
-                return true;
-            }
-            return false;
+            m.model = model.to_string();
+            return Met::Again;
         }
         let prefs = if key.starts_with("compx/") { self.file.legacy.take() } else { None };
+        let met = if prefs.is_some() { Met::TookOver } else { Met::New };
         self.file.mice.push(KnownMouse {
             key: key.to_string(),
             model: model.to_string(),
             first_seen: now,
             last_seen: now,
             prefs: prefs.unwrap_or_default(),
+            last: None,
         });
-        true
+        met
+    }
+
+    /// What the mouse holds now, kept for when it isn't connected (saved with the rest).
+    pub fn note_last(&mut self, key: &str, state: &crate::mice::DeviceState) {
+        if let Some(m) = self.file.mice.iter_mut().find(|m| m.key == key) {
+            m.last = Some(state.clone());
+        }
     }
 
     /// The mouse was there until `now`.
@@ -1011,11 +1031,11 @@ mod tests {
         let mut old = MousePrefs::default();
         old.rules.push(AppRule { exe: "cs2.exe".into(), profile: 2, name: None, path: None });
         assert!(known.hold_legacy(old.clone()));
-        assert!(known.meet("hidpp/4093/1234", "PRO X SUPERLIGHT", 10), "a new mouse");
+        assert_eq!(known.meet("hidpp/4093/1234", "PRO X SUPERLIGHT", 10), Met::New);
         assert_eq!(known.prefs("hidpp/4093/1234"), MousePrefs::default(), "not a Zaopin: starts afresh");
-        assert!(known.meet("compx/7-4", "Z1 PRO MAX", 20));
+        assert_eq!(known.meet("compx/7-4", "Z1 PRO MAX", 20), Met::TookOver, "not new to the user");
         assert_eq!(known.prefs("compx/7-4"), old, "the Zaopin has them");
-        assert!(!known.meet("compx/7-4", "Z1 PRO MAX", 30), "met before");
+        assert_eq!(known.meet("compx/7-4", "Z1 PRO MAX", 30), Met::Again);
         assert_eq!(known.last_seen().map(|m| m.key.as_str()), Some("compx/7-4"));
         assert!(!known.hold_legacy(MousePrefs::default()), "once mice are known, nothing more to hold");
         assert!(known.fill_rule("CS2.exe", "Counter-Strike 2", r"C:\cs2.exe"));

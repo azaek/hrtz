@@ -4,6 +4,18 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### New
+- Several mice: the mouse card opens a list of every mouse hrtz knows, to switch between them, and Connect a new mouse.
+- Setting up a mouse is a full-page guide, on first run and for each new mouse, with its first backup.
+- Each mouse keeps its own profile names, app rules, battery saver and battery history.
+- A mouse that isn't connected shows its last settings.
+- The tray, the HUD and the pop-ups follow the mouse you're using.
+
+### Improved
+- Backups, restores and factory settings show their progress where you started them.
+
 ## 0.2.2 — 2026-10-17
 
 ### Fixed

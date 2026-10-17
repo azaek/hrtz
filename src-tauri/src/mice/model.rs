@@ -148,8 +148,8 @@ impl Settings {
 
 /// What the mouse can do, with its real limits. A feature it lacks is `None` (or `false`), so the
 /// UI leaves its card out, and app features that need it step aside for this mouse.
-#[derive(Serialize, Clone, Debug, Default)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Capabilities {
     /// Connected by USB cable rather than a receiver.
     pub wired: bool,
@@ -195,7 +195,7 @@ impl Capabilities {
     }
 }
 
-#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DpiCaps {
     pub min: u32,
@@ -207,7 +207,7 @@ pub struct DpiCaps {
     pub colors: bool,
 }
 
-#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PollingCaps {
     /// The rates this connection carries, lowest first. The mouse may hold a higher one, set for
@@ -215,7 +215,7 @@ pub struct PollingCaps {
     pub rates: Vec<u32>,
 }
 
-#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SensorModeCaps {
     pub modes: Vec<SensorMode>,
@@ -226,8 +226,22 @@ pub struct SensorModeCaps {
     pub corded_when_wired: bool,
 }
 
-#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Range {
     pub min: u32,
     pub max: u32,
+}
+
+/// A mouse hrtz can run, as its family's table lists it: for "See which mice work" and the report
+/// forms.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Supported {
+    pub family: &'static str,
+    pub brand: &'static str,
+    pub model: &'static str,
+    /// The key a connected one gets, for its picture (`compx/7-4`).
+    pub key: String,
+    /// Tried on the real mouse.
+    pub tested: bool,
 }

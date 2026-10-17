@@ -8,8 +8,8 @@ import { LabPage } from "@/pages/Lab";
 import { ProfilesPage } from "@/pages/Profiles";
 import { SensorPage } from "@/pages/Sensor";
 import { SettingsPage } from "@/pages/SettingsPage";
-import { OPEN_WELCOME } from "@/Welcome";
 import { OPEN_WHATS_NEW } from "@/WhatsNew";
+import { startFlow, type Step } from "@/store";
 import { env, fake, plugInto, pushDevice, startFakeBackend } from "../fake/backend";
 import { Frame, PanelButton, PanelTitle } from "../Frame";
 import "../../base.css";
@@ -121,10 +121,18 @@ window.addEventListener("load", async () => {
       .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
     if (sc) sc.scrollTop = scroll;
   }
-  // A window over the page: ?dialog=whats-new or ?dialog=welcome.
+  // ?away: the mouse unplugged, so its pages show its last settings.
+  if (params.has("away")) pushDevice({ connected: false, online: false, battery: null });
+  // ?click= clicks the element with that accessible name: "Switch mouse" opens the switcher.
+  const clickOn = params.get("click");
+  if (clickOn) document.querySelector<HTMLElement>(`[aria-label="${clickOn}"]`)?.click();
+  // A window over the page: ?dialog=whats-new.
   const dialog = params.get("dialog");
   if (dialog === "whats-new") window.dispatchEvent(new Event(OPEN_WHATS_NEW));
-  if (dialog === "welcome") window.dispatchEvent(new Event(OPEN_WELCOME));
+  // The onboarding: ?flow=first (from its welcome) or ?flow=add (connecting a new mouse), and
+  // ?step= for one of its steps.
+  const flow = params.get("flow");
+  if (flow === "first" || flow === "add") startFlow(flow, (params.get("step") as Step | null) ?? undefined);
 });
 
 const WORLD: Record<keyof typeof env, string> = {

@@ -1,7 +1,22 @@
 //! Zaopin's models: names, and what each can do on each connection.
 
 use super::image::{MAX_STAGES, PEAK_TIMEOUTS_S, POLLING, SLEEP_TIMES_S};
-use crate::mice::model::{Capabilities, DpiCaps, Lod, PollingCaps, Range, SensorMode, SensorModeCaps};
+use crate::mice::model::{Capabilities, DpiCaps, Lod, PollingCaps, Range, SensorMode, SensorModeCaps, Supported};
+
+/// Zaopin's models, by MID, and whether each has been tried on the real mouse (the Z1 PRO MAX
+/// only, so far). The CID of every one is 7.
+pub fn supported() -> Vec<Supported> {
+    [(4, true), (1, false), (2, false), (5, false), (3, false), (6, false)]
+        .into_iter()
+        .map(|(mid, tested)| Supported {
+            family: "compx",
+            brand: "Zaopin",
+            model: model_name(mid),
+            key: format!("compx/7-{mid}"),
+            tested,
+        })
+        .collect()
+}
 
 /// Connection kinds, from the handshake's byte 6.
 pub fn link(device_type: u8) -> (bool, u32) {

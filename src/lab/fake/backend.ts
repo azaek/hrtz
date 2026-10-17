@@ -71,6 +71,8 @@ export const real = {
     ];
     return mice.map((m) => ({
       ...m,
+      // What the stand-in's mouse held, for its pages while it's "unplugged" (?away).
+      last: m.last ?? (m.key === device.key ? { ...device, settings: device.settings && kindFirst(device.settings) } : null),
       prefs: {
         ...m.prefs,
         profileSnapshots: m.prefs.profileSnapshots.map((x) => x && { ...x, buttons: x.buttons.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) }),
@@ -675,6 +677,14 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       return fake.device;
     case "get_states":
       return [fake.device];
+    case "supported_mice":
+      return [4, 1, 2, 5, 3, 6].map((mid) => ({
+        family: "compx",
+        brand: "Zaopin",
+        model: ["", "ZI PRO", "Z2", "Z2 mini", "Z1 PRO MAX", "Z2 MAX", "Z2 mini MAX"][mid],
+        key: `compx/7-${mid}`,
+        tested: mid === 4,
+      }));
     case "get_mice":
       return clone(fake.mice);
     case "set_mouse_prefs": {

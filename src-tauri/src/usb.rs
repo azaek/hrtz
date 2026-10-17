@@ -1,7 +1,7 @@
 //! Where the receiver is plugged in, from Windows' device tree. The same port always reads the
 //! same, so the connection test can tell when the receiver moved, and a hub in between shows.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use windows::Win32::Devices::DeviceAndDriverInstallation::{
     CM_Get_DevNode_PropertyW, CM_Get_Device_Interface_PropertyW, CM_Get_Parent, CM_LOCATE_DEVNODE_NORMAL,
     CM_Locate_DevNodeW, CONFIGRET, CR_SUCCESS,
@@ -10,7 +10,7 @@ use windows::Win32::Devices::Properties::{DEVPKEY_Device_InstanceId, DEVPKEY_Dev
 use windows::core::PCWSTR;
 
 /// Where the receiver, or a mouse on its cable, is plugged in.
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UsbPort {
     /// Windows' location path, such as `PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(11)`.

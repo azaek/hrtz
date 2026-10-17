@@ -36,7 +36,9 @@ use tauri_plugin_opener::OpenerExt;
 
 use mice::model::Settings;
 use mice::{DeviceEvent, DeviceState, Engine, Hub};
-use store::{AutoReason, BackupDevice, BackupMeta, Backups, KnownMice, KnownMouse, MousePrefs, Prefs, ProfileSnapshot};
+use store::{
+    AutoReason, BackupDevice, BackupMeta, Backups, KnownMice, KnownMouse, Met, MousePrefs, Prefs, ProfileSnapshot,
+};
 use tray::{TrayLevel, TrayStyle};
 
 const OSD_W: f64 = 280.0;
@@ -143,7 +145,11 @@ fn meet(app: &AppHandle, ctx: &Ctx, s: &DeviceState) {
         }
         if s.connected {
             connected.insert(key.clone());
-            ctx.known.write().meet(key, s.model.as_deref().unwrap_or_default(), now);
+            // A mouse never met opens the onboarding's second half; the Zaopin taking over what
+            // was kept before several mice isn't new to anyone.
+            if ctx.known.write().meet(key, s.model.as_deref().unwrap_or_default(), now) == Met::New {
+                let _ = app.emit("mouse-new", key.clone());
+            }
         } else {
             connected.remove(key);
             ctx.known.write().seen(key, now);
@@ -281,6 +287,12 @@ fn get_prefs(ctx: State<'_, Arc<Ctx>>) -> Prefs {
 #[tauri::command]
 fn get_mice(ctx: State<'_, Arc<Ctx>>) -> Vec<KnownMouse> {
     ctx.known.read().list().to_vec()
+}
+
+/// Every mouse hrtz can run, by family, and whether each was tried on the real one.
+#[tauri::command]
+fn supported_mice() -> Vec<mice::model::Supported> {
+    mice::compx::models::supported()
 }
 
 #[tauri::command]
@@ -883,6 +895,10 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
     let prefs = ctx.prefs.read().clone();
 
     meet(app, &ctx, s);
+    // What it holds, for its pages while it's away: saved when it goes.
+    if let (true, Some(key), Some(_)) = (s.connected, &s.key, &s.settings) {
+        ctx.known.write().note_last(key, s);
+    }
     follow_primary(app, &ctx);
     first_meeting(app, &ctx, s);
     let mouse = mouse_prefs(&ctx, s);
@@ -1297,6 +1313,8 @@ fn quit(app: &AppHandle) {
                 Ok(())
             });
         }
+        // What each connected mouse holds, for its pages next time.
+        let _ = ctx.known.read().save();
     }
     app.exit(0);
 }
@@ -1472,6 +1490,7 @@ pub fn run() {
             factory_reset,
             get_prefs,
             get_mice,
+            supported_mice,
             set_mouse_prefs,
             set_prefs,
             list_backups,

@@ -3,8 +3,6 @@ import { api, type DeviceState } from "./api";
 import { LINK_NAME } from "./links";
 import { REPO_URL } from "./update";
 
-/** Mice tested with hrtz (`mid`); the others are recognised, not tested yet (README, "Supported mice"). */
-export const TESTED_MIDS = new Set([4]);
 
 export type ReportForm = "bug_report" | "mouse_report";
 

@@ -221,6 +221,19 @@ export interface KnownMouse {
   firstSeen: number;
   lastSeen: number;
   prefs: MousePrefs;
+  /** What it held the last time it was connected: what its pages show while it isn't. */
+  last?: DeviceState | null;
+}
+
+/** A mouse hrtz can run, as its family's table lists it. */
+export interface Supported {
+  family: string;
+  brand: string;
+  model: string;
+  /** The key a connected one gets, for its picture (`compx/7-4`). */
+  key: string;
+  /** Tried on the real mouse. */
+  tested: boolean;
 }
 
 export type HudShow = "off" | "change" | "always";
@@ -572,6 +585,7 @@ export const api = {
   prefs: () => invoke<Prefs>("get_prefs"),
   setPrefs: (prefs: Prefs) => invoke<void>("set_prefs", { prefs }),
   mice: () => invoke<KnownMouse[]>("get_mice"),
+  supportedMice: () => invoke<Supported[]>("supported_mice"),
   setMousePrefs: (key: string, prefs: MousePrefs) => invoke<void>("set_mouse_prefs", { key, prefs }),
   listBackups: () => invoke<BackupMeta[]>("list_backups"),
   createBackup: (note: string) => invoke<BackupMeta>("create_backup", { mouse, note }),
@@ -643,6 +657,8 @@ export const on = {
   pairing: (f: (secondsLeft: number) => void) => listen<number>("pairing", (e) => f(e.payload)),
   prefs: (f: (p: Prefs) => void) => listen<Prefs>("prefs", (e) => f(e.payload)),
   mice: (f: (m: KnownMouse[]) => void) => listen<KnownMouse[]>("mice", (e) => f(e.payload)),
+  /** A mouse hrtz never met connected (its key). */
+  mouseNew: (f: (key: string) => void) => listen<string>("mouse-new", (e) => f(e.payload)),
   status: (f: (s: AppStatus) => void) => listen<AppStatus>("app-status", (e) => f(e.payload)),
   meter: (f: (s: MeterSample) => void) => listen<MeterSample>("meter", (e) => f(e.payload)),
   /** hrtz saved a backup by itself (meeting a mouse, factory settings). */

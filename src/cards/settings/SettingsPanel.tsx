@@ -17,7 +17,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { api, message, on, type Prefs } from "@/api";
 import { Choice, Group, SettingCard } from "@/components";
 import { LINK_NAME } from "@/links";
-import { reportUrl, TESTED_MIDS, type ReportForm } from "@/report";
+import { reportUrl, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { run, savePrefs, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
@@ -66,7 +66,8 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
   const report = (form: ReportForm) => void reportUrl(form, device).then(openUrl).catch((e) => toast(message(e), "error"));
   // A mouse hrtz recognises but hasn't been tried on: its owner's report is what makes it supported.
-  const untested = device?.connected && !TESTED_MIDS.has(device.mid) ? device.model : null;
+  const supported = useStore((x) => x.supported);
+  const untested = device?.connected && supported.some((m) => m.key === device.key && !m.tested) ? device.model : null;
   const caps = device?.capabilities;
   const wired = !!caps?.wired;
   // A row this mouse can't use is left out; with no mouse they all show, waiting for one.
