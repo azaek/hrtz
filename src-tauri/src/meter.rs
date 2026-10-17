@@ -128,8 +128,11 @@ pub struct MeterSample {
 /// or not a mouse it follows (`None`).
 type Seen = Option<Option<Arc<str>>>;
 
+/// A raw input device as first looked up: what it is, and the USB port it's on.
+type Device = (Seen, Option<Arc<str>>);
+
 struct Counts {
-    devices: HashMap<isize, Seen>,
+    devices: HashMap<isize, Device>,
     last: Option<Instant>,
     moving_time: Duration,
     reports: u32,
@@ -150,7 +153,7 @@ struct Counts {
 
 impl Counts {
     /// Nothing counted yet, measured against the rate and DPI in use.
-    fn new(devices: HashMap<isize, Seen>) -> Self {
+    fn new(devices: HashMap<isize, Device>) -> Self {
         let hz = RATE.load(Ordering::SeqCst);
         Self {
             devices,
@@ -461,15 +464,19 @@ fn handle(now: Instant, raw: &RAWINPUT) {
     let Some(c) = COUNTS.get() else { return };
     let mut c = c.lock();
     let handle = raw.header.hDevice.0 as isize;
-    let Some(mouse) = c.devices.entry(handle).or_insert_with(|| mouse_of(raw.header.hDevice)).clone() else {
-        return;
-    };
+    let (mouse, port) = c.devices.entry(handle).or_insert_with(|| mouse_of(raw.header.hDevice)).clone();
     let m = unsafe { raw.data.mouse };
     let (dx, dy) = if m.usFlags.0 & MOUSE_MOVE_ABSOLUTE.0 == 0 { (m.lLastX, m.lLastY) } else { (0, 0) };
     let flags = unsafe { m.Anonymous.Anonymous.usButtonFlags };
     let data = unsafe { m.Anonymous.Anonymous.usButtonData } as i16;
+    let active = dx != 0 || dy != 0 || flags != 0;
+    // A mouse used on that port is awake, whether or not it's met yet.
+    if active && let Some(port) = &port {
+        crate::mice::input::note(port);
+    }
+    let Some(mouse) = mouse else { return };
     if let Some(key) = mouse
-        && (dx != 0 || dy != 0 || flags != 0)
+        && active
     {
         moved(key);
     }
@@ -748,24 +755,26 @@ pub fn save_pad() {
 }
 
 /// What a raw input device is: one of the connected mice (by its USB port), else a Zaopin not met
-/// yet (by its vendor), else not one hrtz follows.
-fn mouse_of(handle: HANDLE) -> Seen {
+/// yet (by its vendor), else not one hrtz follows; and its port.
+fn mouse_of(handle: HANDLE) -> Device {
     let mut len = 0u32;
     let name = unsafe {
         GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, None, &mut len);
         let mut buf = vec![0u16; len as usize + 1];
         if GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, Some(buf.as_mut_ptr().cast()), &mut len) == u32::MAX {
-            return None;
+            return (None, None);
         }
         String::from_utf16_lossy(&buf[..len as usize]).trim_end_matches('\0').to_string()
     };
-    let port = crate::usb::port_of(&name).map(|p| p.path);
-    if let Some(key) =
-        port.and_then(|path| MICE.lock().iter().find(|(p, _)| *p == path).map(|(_, k)| Arc::<str>::from(k.as_str())))
-    {
-        return Some(Some(key));
-    }
-    name.to_ascii_lowercase().contains("vid_3554").then_some(None)
+    let port = crate::usb::port_of(&name).map(|p| Arc::<str>::from(p.path));
+    let key = port
+        .as_deref()
+        .and_then(|path| MICE.lock().iter().find(|(p, _)| p == path).map(|(_, k)| Arc::<str>::from(k.as_str())));
+    let seen = match key {
+        Some(key) => Some(Some(key)),
+        None => name.to_ascii_lowercase().contains("vid_3554").then_some(None),
+    };
+    (seen, port)
 }
 
 /// Mouse `key` moved: it's the one in use. Whoever asked is told when that changes.
@@ -852,4 +861,40 @@ unsafe extern "system" fn subclass(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM,
         }
     }
     unsafe { DefSubclassProc(hwnd, msg, wp, lp) }
+}
+
+#[cfg(test)]
+mod port_tests {
+    use windows::Win32::UI::Input::{
+        GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST, RIDI_DEVICENAME,
+    };
+
+    /// Every mouse raw input sees, with the USB port hrtz puts its movement down to, beside the
+    /// ports of the Logitech HID++ collections the driver opens: a mouse's movement only counts for
+    /// it when they match. Reads Windows' records only; nothing goes to a device.
+    /// `cargo test --lib port_tests -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn raw_input_mice_and_their_ports() {
+        let mut n = 0u32;
+        let size = std::mem::size_of::<RAWINPUTDEVICELIST>() as u32;
+        unsafe { GetRawInputDeviceList(None, &mut n, size) };
+        let mut list = vec![RAWINPUTDEVICELIST::default(); n as usize];
+        unsafe { GetRawInputDeviceList(Some(list.as_mut_ptr()), &mut n, size) };
+        for d in list.iter().filter(|d| d.dwType.0 == 0) {
+            let mut len = 0u32;
+            unsafe { GetRawInputDeviceInfoW(Some(d.hDevice), RIDI_DEVICENAME, None, &mut len) };
+            let mut buf = vec![0u16; len as usize + 1];
+            unsafe {
+                GetRawInputDeviceInfoW(Some(d.hDevice), RIDI_DEVICENAME, Some(buf.as_mut_ptr().cast()), &mut len)
+            };
+            let name = String::from_utf16_lossy(&buf[..len as usize]).trim_end_matches('\0').to_string();
+            println!("mouse {name}\n  port {:?}", crate::usb::port_of(&name));
+        }
+        let api = hidapi::HidApi::new().unwrap();
+        for d in api.device_list().filter(|d| d.vendor_id() == 0x046D && d.usage_page() == 0xFF00) {
+            let path = d.path().to_string_lossy();
+            println!("hid++ {path}\n  port {:?}", crate::usb::port_of(&path));
+        }
+    }
 }

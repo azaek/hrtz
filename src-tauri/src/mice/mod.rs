@@ -7,6 +7,7 @@ pub mod compx;
 pub mod engine;
 pub mod hidpp;
 pub mod hub;
+pub mod input;
 pub mod model;
 
 use std::time::Duration;

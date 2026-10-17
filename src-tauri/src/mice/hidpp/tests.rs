@@ -534,6 +534,50 @@ fn sleep_and_wake_through_the_receiver() {
     assert!(r.state().online);
 }
 
+/// On the user's Superlight (2026-10-18), asking a sleeping mouse every quarter second woke it, or
+/// caught it checking in, and reading it whole each time kept it from sleeping.
+#[test]
+fn a_sleeping_mouse_is_left_alone_until_its_used() {
+    let port = "PCIROOT(0)#TEST(sleep)";
+    let mut r = Rig::connected(SimMouse { port: Some(port.into()), ..SimMouse::superlight() });
+    assert!(r.state().capabilities.unwrap().wake_by_input, "raw input is followed for it");
+    r.mouse.lock().online = false;
+    r.w.housekeeping();
+    assert!(!r.state().online);
+
+    // Asleep: nothing goes to it, however often hrtz looks.
+    let (from, _) = r.mark();
+    r.mouse.lock().online = true;
+    for _ in 0..20 {
+        r.w.housekeeping();
+    }
+    assert_eq!(r.mark().0, from, "no request while it sleeps");
+    assert!(!r.state().online);
+
+    // Used: it's asked, and it's awake.
+    crate::mice::input::note(port);
+    r.w.housekeeping();
+    assert!(r.state().online);
+}
+
+#[test]
+fn a_mouse_used_while_its_still_linking_is_asked_again_on_the_next_use() {
+    let port = "PCIROOT(0)#TEST(linking)";
+    let mut r = Rig::connected(SimMouse { port: Some(port.into()), ..SimMouse::superlight() });
+    r.mouse.lock().online = false;
+    r.w.housekeeping();
+    // Used, but not answering yet: asked once, then left until it's used again.
+    crate::mice::input::note(port);
+    r.w.housekeeping();
+    let (from, _) = r.mark();
+    r.w.housekeeping();
+    assert_eq!(r.mark().0, from);
+    r.mouse.lock().online = true;
+    crate::mice::input::note(port);
+    r.w.housekeeping();
+    assert!(r.state().online);
+}
+
 #[test]
 fn a_mouse_asleep_when_hrtz_starts_is_met_once_it_wakes() {
     let mut r = Rig::new(SimMouse { online: false, ..SimMouse::superlight() });
@@ -551,6 +595,9 @@ fn g_hubs_answers_on_the_same_receiver_are_passed_over() {
     assert_eq!(r.state().firmware.as_deref(), Some("MPM 25.02"));
 }
 
+/// The user's first change on the real mouse (2026-10-18): an 800 stage added below 1,600, which
+/// stayed in use. The rewritten profile kept the mouse on its first slot, now 800, until the stage
+/// was set too.
 #[test]
 fn a_new_stage_is_written_into_the_profile_in_use_and_selected() {
     let mut r = Rig::connected(SimMouse::superlight());
@@ -570,9 +617,35 @@ fn a_new_stage_is_written_into_the_profile_in_use_and_selected() {
     assert!(calls[..write].contains(&ob::func::READ));
     assert_eq!(calls.iter().filter(|f| **f == ob::func::WRITE).count(), 16, "255 bytes, 16 at a time");
     assert!(calls[write..].contains(&ob::func::WRITE_END));
-    assert_eq!(calls.last(), Some(&ob::func::SET_CURRENT));
+    let reselect = calls.iter().position(|f| *f == ob::func::SET_CURRENT).expect("selected again");
+    assert!(calls[reselect..].contains(&ob::func::SET_DPI_INDEX), "then the stage in use set");
 
     assert_eq!((after.dpi_stage_count, after.dpi_stage, after.dpi()), (Some(2), Some(1), Some(1600)));
+    let m = r.mouse.lock();
+    assert_eq!((m.stage, m.live_dpi()), (1, 1600), "the mouse runs 1,600, not the 800 now in its first slot");
+}
+
+#[test]
+fn using_another_stage_switches_the_mouse_to_it() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    let two = with_stages(&r.settings(), &[800, 1600], 1);
+    r.w.apply_settings(&two).unwrap();
+    for (i, dpi) in [(0, 800), (1, 1600), (0, 800)] {
+        let s = r.w.apply_settings(&Settings { dpi_stage: Some(i), ..r.settings() }).unwrap();
+        assert_eq!((s.dpi_stage, s.dpi()), (Some(i), Some(dpi)));
+        assert_eq!(r.mouse.lock().live_dpi(), dpi as u16);
+        assert_eq!(ob::decode(&r.sector(1), 4).default_index, Some(i), "and it starts on it, too");
+    }
+}
+
+#[test]
+fn a_mouse_that_cant_say_its_stage_shows_the_one_it_runs() {
+    let mut r = Rig::connected(SimMouse { dpi_index: false, ..SimMouse::superlight() });
+    let (from, _) = r.mark();
+    let after = r.w.apply_settings(&with_stages(&r.settings(), &[800, 1600], 1)).unwrap();
+    assert!(!r.profile_calls_since(from).contains(&ob::func::SET_DPI_INDEX), "not asked again once refused");
+    // It stayed on its first slot: what it runs is shown, not what was asked.
+    assert_eq!((after.dpi_stage, after.dpi()), (Some(0), Some(800)));
 }
 
 #[test]

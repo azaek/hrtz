@@ -28,6 +28,9 @@ const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 const WRITE_TIMEOUT: Duration = Duration::from_millis(3000);
 /// How long a receiver with no mouse hrtz can run is left alone before it's asked again.
 const NO_MOUSE_PAUSE: Duration = Duration::from_secs(30);
+/// A receiver whose mouse didn't answer (asleep, most likely) is asked again once a mouse is used
+/// on its port, or after this, should raw input not be followed.
+const QUIET_RETRY: Duration = Duration::from_secs(30);
 /// What a stage no profile holds shows, should the stages grow: the vendor's five.
 const LADDER: [u32; ob::STAGE_SLOTS] = [800, 1200, 1600, 2400, 3200];
 /// The Superlights have no light for a DPI stage.
@@ -45,7 +48,13 @@ impl Family for Logitech {
     }
 
     fn finder(&self, id: &str) -> Box<dyn Finder> {
-        Box::new(HidppFinder { api: None, path: id.to_string(), last_index: None, no_mouse_until: None })
+        Box::new(HidppFinder {
+            api: None,
+            path: id.to_string(),
+            last_index: None,
+            no_mouse_until: None,
+            quiet_since: None,
+        })
     }
 }
 
@@ -83,6 +92,8 @@ pub struct HidppFinder {
     last_index: Option<u8>,
     /// Nothing here was a mouse: not asked again before this.
     no_mouse_until: Option<Instant>,
+    /// When the mouse last didn't answer.
+    quiet_since: Option<Instant>,
 }
 
 impl HidppFinder {
@@ -100,6 +111,18 @@ impl Finder for HidppFinder {
             return Err(NotAMouse.into());
         }
         let path = self.path.clone();
+        #[cfg(windows)]
+        let port = crate::usb::port_of(&path);
+        // Asking a sleeping mouse can wake it: wait until it's used, as a met one does.
+        if let Some(t) = self.quiet_since {
+            #[cfg(windows)]
+            let used = port.as_ref().is_some_and(|p| crate::mice::input::since(&p.path, t));
+            #[cfg(not(windows))]
+            let used = false;
+            if !used && t.elapsed() < QUIET_RETRY {
+                bail!("The mouse is asleep. Move it to wake it.");
+            }
+        }
         let api = self.api()?;
         api.refresh_devices()?;
         let long = api
@@ -129,14 +152,21 @@ impl Finder for HidppFinder {
             link: Box::new(link),
             product_id: long.product_id(),
             #[cfg(windows)]
-            port: crate::usb::port_of(&path),
+            port,
         };
         match connect(opened, board, &mut self.last_index) {
             Err(e) if e.is::<NotAMouse>() => {
                 self.no_mouse_until = Some(Instant::now() + NO_MOUSE_PAUSE);
                 Err(e)
             }
-            r => r,
+            Err(e) => {
+                self.quiet_since = Some(Instant::now());
+                Err(e)
+            }
+            Ok(d) => {
+                self.quiet_since = None;
+                Ok(d)
+            }
         }
     }
 
@@ -485,19 +515,35 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
     for f in BATTERIES {
         battery |= t.feature(f)? != 0;
     }
+    #[cfg(windows)]
+    let port = opened.port.as_ref().map(|p| p.path.clone());
+    #[cfg(not(windows))]
+    let port: Option<String> = None;
+    // Through the receiver, it's told awake by being used, where its port is known.
+    let wake_by_input = !wired && port.is_some();
     board.set(|s| {
         *s = DeviceState {
             key: Some(key),
             connected: true,
             model: Some(model),
-            capabilities: Some(Capabilities { wired, battery, ..Default::default() }),
+            capabilities: Some(Capabilities { wired, battery, wake_by_input, ..Default::default() }),
             #[cfg(windows)]
             port: opened.port,
             ..Default::default()
         }
     });
     board.publish(None);
-    Ok(Box::new(Connected { t, wired, usb, onboard: None, dpi_options: None, rates: None }))
+    Ok(Box::new(Connected {
+        t,
+        wired,
+        usb,
+        port,
+        asleep_since: None,
+        stage_index: None,
+        onboard: None,
+        dpi_options: None,
+        rates: None,
+    }))
 }
 
 /// The battery features, the most direct first: 0x1004 and 0x1000 give a percentage, the others
@@ -525,12 +571,25 @@ impl Onboard {
     }
 }
 
+/// What the mouse runs now: the DPI, and which stage that is, where it says.
+#[derive(Clone, Copy, Default)]
+struct Live {
+    dpi: Option<u32>,
+    stage: Option<u8>,
+}
+
 /// A Logitech mouse, met.
 struct Connected {
     t: Hidpp,
     wired: bool,
     /// Its USB product ID, which says which model it is.
     usb: Option<u16>,
+    /// The USB port its receiver is on, where raw input shows it used.
+    port: Option<String>,
+    /// When it was found asleep: it isn't asked again until it's used after this.
+    asleep_since: Option<Instant>,
+    /// Whether it answers 0x8100's DPI index functions; `None` until asked.
+    stage_index: Option<bool>,
     onboard: Option<Onboard>,
     /// What the sensor offers, read once.
     dpi_options: Option<Vec<u32>>,
@@ -603,7 +662,52 @@ impl Connected {
         Ok(u16::from_be_bytes([r.first().copied().unwrap_or(0), r.get(1).copied().unwrap_or(0)]))
     }
 
-    /// The DPI the sensor runs now: which stage is in use.
+    /// The DPI the mouse runs now, and the stage, where it says (0x8100's getCurrentDpiIndex): a
+    /// DPI alone can't tell two stages of the same value apart.
+    fn live(&mut self) -> Result<Live> {
+        Ok(Live { dpi: self.live_dpi()?, stage: self.current_stage()? })
+    }
+
+    fn current_stage(&mut self) -> Result<Option<u8>> {
+        let Some(fi) = self.onboard.as_ref().map(|o| o.feature) else { return Ok(None) };
+        if self.stage_index == Some(false) {
+            return Ok(None);
+        }
+        match self.t.exchange(fi, ob::func::GET_DPI_INDEX, &[], REPLY_TIMEOUT) {
+            Ok(r) => {
+                self.stage_index = Some(true);
+                Ok(r.first().copied())
+            }
+            Err(Fail::Refused(_)) => {
+                self.stage_index = Some(false);
+                Ok(None)
+            }
+            Err(Fail::Silent) => Ok(None),
+            Err(Fail::Lost(e)) => Err(e),
+        }
+    }
+
+    /// Make stage `i` the one the mouse runs now (0x8100's setCurrentDpiIndex): RAM only. A
+    /// rewritten profile keeps the mouse on the stage slot it was on, whatever the default says.
+    /// Returns whether the mouse took it.
+    fn set_stage(&mut self, i: u8) -> Result<bool> {
+        let Some(fi) = self.onboard.as_ref().map(|o| o.feature) else { return Ok(false) };
+        if self.stage_index == Some(false) {
+            return Ok(false);
+        }
+        match self.t.exchange(fi, ob::func::SET_DPI_INDEX, &[i], REPLY_TIMEOUT) {
+            Ok(_) => Ok(true),
+            Err(Fail::Refused(why)) => {
+                eprintln!("the mouse refused to switch DPI stage: {why}");
+                self.stage_index = Some(false);
+                Ok(false)
+            }
+            Err(Fail::Silent) => Ok(false),
+            Err(Fail::Lost(e)) => Err(e),
+        }
+    }
+
+    /// The DPI the sensor runs now.
     fn live_dpi(&mut self) -> Result<Option<u32>> {
         let ext = self.t.feature(feature::EXTENDED_DPI)?;
         let r = if ext != 0 {
@@ -681,8 +785,8 @@ impl Connected {
         Ok(ob::dpi_limits_for_sensor(ob::dpi_limits(format), &options))
     }
 
-    /// What the UI shows and may change, from the profile in use and the DPI the sensor runs.
-    fn show(&mut self, board: &Board, live_dpi: Option<u32>) -> Result<()> {
+    /// What the UI shows and may change, from the profile in use and what the mouse runs.
+    fn show(&mut self, board: &Board, live: Live) -> Result<()> {
         let mut caps = board.read().capabilities.clone().unwrap_or_default();
         let Some(o) = &self.onboard else {
             board.set(|s| s.settings = Some(Settings::default()));
@@ -714,8 +818,11 @@ impl Connected {
                     let v = spare.find(|v| !used.contains(v)).unwrap_or(l.min);
                     stages.push(DpiStage { dpi: v, color: NO_LIGHT.into() });
                 }
-                let in_use = live_dpi
-                    .and_then(|d| used.iter().position(|u| *u == d))
+                let in_use = live
+                    .stage
+                    .map(|i| i as usize)
+                    .filter(|i| *i < used.len())
+                    .or_else(|| live.dpi.and_then(|d| used.iter().position(|u| *u == d)))
                     .or(profile.default_index.map(|i| i as usize).filter(|i| *i < used.len()))
                     .unwrap_or(0);
                 settings.dpi_stage_count = Some(used.len() as u8);
@@ -752,7 +859,7 @@ impl Connected {
                 o.bytes = bytes;
             }
         }
-        let live = self.live_dpi()?;
+        let live = self.live()?;
         self.show(board, live)?;
         let s = board.read().clone();
         if s.profile != before {
@@ -769,23 +876,37 @@ impl Driver for Connected {
         self.t.lost
     }
 
-    /// On its cable the mouse is always there. Through the receiver, it's pinged (the root
-    /// feature's function 1): the receiver refuses for a mouse it can't reach.
+    /// On its cable the mouse is always there. Through the receiver it's pinged (the root
+    /// feature's function 1), which the receiver refuses for a mouse it can't reach. Once asleep,
+    /// it isn't asked again until it's used: asking a sleeping Superlight caught or woke it, and
+    /// each wake read it whole, which kept it from sleeping.
     fn online(&mut self) -> Result<bool> {
         if self.wired {
             return Ok(true);
         }
+        if let (Some(t), Some(port)) = (self.asleep_since, &self.port)
+            && !crate::mice::input::since(port, t)
+        {
+            return Ok(false);
+        }
         match self.t.exchange(0x00, 0x10, &[0, 0, 0x5A], PROBE_TIMEOUT) {
-            Ok(_) => Ok(true),
+            Ok(_) => {
+                self.asleep_since = None;
+                Ok(true)
+            }
             Err(Fail::Lost(e)) => Err(e),
-            Err(_) => Ok(false),
+            Err(_) => {
+                // Used but not answering yet (still linking): the next use asks again.
+                self.asleep_since = Some(Instant::now());
+                Ok(false)
+            }
         }
     }
 
     fn load(&mut self, board: &Board) -> Result<()> {
         let firmware = firmware(&mut self.t)?;
         self.onboard = self.read_onboard()?;
-        let live = self.live_dpi()?;
+        let live = self.live()?;
         board.set(|s| {
             s.online = true;
             s.firmware = firmware;
@@ -890,6 +1011,7 @@ impl Driver for Connected {
         let profile = ob::decode(&before, format);
         let current = board.read().settings.clone().unwrap_or_default();
         let mut bytes = before.clone();
+        let mut in_use = None;
 
         if new.stages.is_some() || new.dpi_stage_count.is_some() || new.dpi_stage.is_some() {
             let slots = new.stages.clone().or(current.stages).unwrap_or_default();
@@ -915,7 +1037,9 @@ impl Driver for Connected {
                 };
                 stages.push(Stage { x: s.dpi, y, lod });
             }
+            // The stage in use is the one it starts on, too.
             let plan = Plan { stages, default_index: new.dpi_stage.or(current.dpi_stage).unwrap_or(0) };
+            in_use = Some(plan.default_index);
             let write_lod = !self.usb.is_some_and(|u| NO_LOD_WRITES.contains(&u));
             bytes = ob::encode_stages(&bytes, format, &plan, self.dpi_limits(format)?, write_lod)
                 .map_err(|e| anyhow!(e))?;
@@ -951,7 +1075,13 @@ impl Driver for Connected {
         if let Some(o) = self.onboard.as_mut() {
             o.bytes = bytes;
         }
-        let live = self.live_dpi()?;
+        // The mouse stays on the stage slot it was on: move it to the one in use.
+        if let Some(i) = in_use
+            && self.current_stage()? != Some(i)
+        {
+            self.set_stage(i)?;
+        }
+        let live = self.live()?;
         self.show(board, live)
     }
 
@@ -968,7 +1098,7 @@ impl Driver for Connected {
             o.sector = sector;
             o.bytes = bytes;
         }
-        let live = self.live_dpi()?;
+        let live = self.live()?;
         self.show(board, live)?;
         board.publish(Some(DeviceEvent::Profile { index }));
         Ok(())

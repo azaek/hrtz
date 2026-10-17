@@ -37,11 +37,8 @@ pub fn port_of(hid_path: &str) -> Option<UsbPort> {
         let paths = strings(|ty, buf, len| unsafe {
             CM_Get_DevNode_PropertyW(node, &DEVPKEY_Device_LocationPaths, ty, buf, len, 0)
         });
-        if let Some(path) =
-            paths.into_iter().find(|p| p.starts_with("PCIROOT") && p.contains("#USB(") && !p.contains("#USBMI("))
-        {
-            let hubs = path.matches("#USB(").count().saturating_sub(1).min(u8::MAX as usize) as u8;
-            return Some(UsbPort { path, hubs });
+        if let Some(port) = port_from(&paths) {
+            return Some(port);
         }
         let mut parent = 0u32;
         if unsafe { CM_Get_Parent(&mut parent, node, 0) } != CR_SUCCESS {
@@ -50,6 +47,19 @@ pub fn port_of(hid_path: &str) -> Option<UsbPort> {
         node = parent;
     }
     None
+}
+
+/// The port, from one device node's location paths: none from a USB interface's node. Windows can
+/// give an interface a second path that reads like a device behind a hub (a LIGHTSPEED receiver's
+/// first interface: `…#USB(8)#USBMI(0)` and `…#USB(8)#USB(8)`), so a node with any `#USBMI(` path
+/// is passed over whole.
+fn port_from(paths: &[String]) -> Option<UsbPort> {
+    if paths.iter().any(|p| p.contains("#USBMI(")) {
+        return None;
+    }
+    let path = paths.iter().find(|p| p.starts_with("PCIROOT") && p.contains("#USB("))?.clone();
+    let hubs = path.matches("#USB(").count().saturating_sub(1).min(u8::MAX as usize) as u8;
+    Some(UsbPort { path, hubs })
 }
 
 fn wide(s: &str) -> Vec<u16> {
@@ -73,6 +83,29 @@ fn strings(get: impl Fn(*mut DEVPROPTYPE, Option<*mut u8>, *mut u32) -> CONFIGRE
 
 #[cfg(test)]
 mod tests {
+    use super::{UsbPort, port_from};
+
+    #[test]
+    fn an_interfaces_node_is_passed_over_for_its_devices() {
+        let strs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        // A LIGHTSPEED receiver's mouse interface, as Windows names it on this PC.
+        let interface = strs(&[
+            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USBMI(0)",
+            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(8)",
+            "ACPI(_SB_)#ACPI(PC00)#ACPI(XHCI)#ACPI(RHUB)#ACPI(HS08)#USBMI(0)",
+        ]);
+        assert_eq!(port_from(&interface), None);
+        let device =
+            strs(&["PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)", "ACPI(_SB_)#ACPI(PC00)#ACPI(XHCI)#ACPI(RHUB)#ACPI(HS08)"]);
+        assert_eq!(
+            port_from(&device),
+            Some(UsbPort { path: "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)".into(), hubs: 0 })
+        );
+        let behind_a_hub = strs(&["PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(10)#USB(1)"]);
+        assert_eq!(port_from(&behind_a_hub).map(|p| p.hubs), Some(1));
+        assert_eq!(port_from(&strs(&["ACPI(_SB_)#ACPI(PC00)"])), None);
+    }
+
     /// What the device tree gives for a HID collection named in `HID_INSTANCE`, such as
     /// `HID\VID_3554&PID_F527&MI_01&COL01\7&8D75429&0&0000` (Device Manager, Details, Device instance
     /// path). Reads Windows' records only; nothing goes to the device.
@@ -82,5 +115,38 @@ mod tests {
         let id = std::env::var("HID_INSTANCE").expect("HID_INSTANCE");
         let path = format!(r"\\?\{}#{{4d1e55b2-f16f-11cf-88cb-001111000030}}", id.replace('\\', "#"));
         println!("{path}\n  {:?}", super::port_of(&path));
+    }
+
+    /// Each node up from a HID interface (`HID_PATH`), with its location paths: why two interfaces
+    /// of one receiver can read as different ports. Windows' records only.
+    #[test]
+    #[ignore]
+    fn walk_up() {
+        use super::*;
+        let path = std::env::var("HID_PATH").expect("HID_PATH");
+        let iface = wide(&path);
+        let id = strings(|ty, buf, len| unsafe {
+            CM_Get_Device_Interface_PropertyW(PCWSTR(iface.as_ptr()), &DEVPKEY_Device_InstanceId, ty, buf, len, 0)
+        });
+        let id = wide(&id[0]);
+        let mut node = 0u32;
+        assert_eq!(unsafe { CM_Locate_DevNodeW(&mut node, PCWSTR(id.as_ptr()), CM_LOCATE_DEVNODE_NORMAL) }, CR_SUCCESS);
+        for _ in 0..8 {
+            let me = strings(|ty, buf, len| unsafe {
+                CM_Get_DevNode_PropertyW(node, &DEVPKEY_Device_InstanceId, ty, buf, len, 0)
+            });
+            let paths = strings(|ty, buf, len| unsafe {
+                CM_Get_DevNode_PropertyW(node, &DEVPKEY_Device_LocationPaths, ty, buf, len, 0)
+            });
+            println!(
+                "{me:?}
+  {paths:?}"
+            );
+            let mut parent = 0u32;
+            if unsafe { CM_Get_Parent(&mut parent, node, 0) } != CR_SUCCESS {
+                break;
+            }
+            node = parent;
+        }
     }
 }

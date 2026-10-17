@@ -21,6 +21,10 @@ pub mod func {
     pub const ADDR_WRITE: u8 = 0x60;
     pub const WRITE: u8 = 0x70;
     pub const WRITE_END: u8 = 0x80;
+    /// The stage the mouse runs now, and setting it: RAM only, no flash write. Not in OpenMouse;
+    /// from libratbag's HID++ 2.0 code (MIT), to be seen answered on each mouse.
+    pub const GET_DPI_INDEX: u8 = 0xB0;
+    pub const SET_DPI_INDEX: u8 = 0xC0;
 }
 
 /// getMode: the mouse runs its onboard profile, or software drives it live (host mode, which

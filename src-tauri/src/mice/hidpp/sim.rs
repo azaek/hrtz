@@ -44,7 +44,13 @@ pub struct SimMouse {
     pub battery: Battery,
     /// 0x2202 and 0x8061, as the Superlight 2; else 0x2201 and 0x8060, as the first.
     pub extended: bool,
-    pub live_dpi: u16,
+    /// The stage slot it runs. A rewrite of the profile in use keeps the slot, as the user's
+    /// Superlight did (2026-10-18): the DPI is whatever that slot holds now.
+    pub stage: u8,
+    /// It answers 0x8100's DPI index functions.
+    pub dpi_index: bool,
+    /// The USB port it's on, as raw input would say.
+    pub port: Option<String>,
     /// 0x8061's rate index on each link.
     pub rate: u8,
     /// getInfo's parameters.
@@ -88,7 +94,9 @@ impl SimMouse {
             name: "PRO X Wireless",
             battery: Battery::Unified { percent: 44, status: 0 },
             extended: false,
-            live_dpi: 1600,
+            stage: 0,
+            dpi_index: true,
+            port: None,
             rate: 3,
             info: fixtures::superlight_info(),
             sectors,
@@ -127,7 +135,6 @@ impl SimMouse {
             name: "PRO X SUPERLIGHT 2",
             battery: Battery::Unified { percent: 72, status: 0 },
             extended: true,
-            live_dpi: 1600,
             info: fixtures::superlight2_info(),
             sectors,
             current: 3,
@@ -147,6 +154,12 @@ impl SimMouse {
             (feature::ADJUSTABLE_DPI, feature::REPORT_RATE)
         };
         vec![feature::ROOT, 0x0001, feature::FIRMWARE, feature::NAME, battery, dpi, rate, feature::ONBOARD_PROFILES]
+    }
+
+    /// The DPI it runs: what its stage slot holds in the profile in use.
+    pub fn live_dpi(&self) -> u16 {
+        let profile = ob::decode(&self.sectors[&self.current], self.info[1]);
+        profile.stages.get(self.stage as usize).or(profile.stages.first()).map_or(0, |s| s.x as u16)
     }
 
     #[cfg(test)]
@@ -250,7 +263,7 @@ impl SimMouse {
             // 100 to 25,600 in steps of 50, as a range.
             (feature::ADJUSTABLE_DPI, 0x10) => Ok(vec![0, 0x00, 0x64, 0xE0, 0x32, 0x64, 0x00, 0, 0]),
             (feature::ADJUSTABLE_DPI, 0x20) => {
-                let [hi, lo] = self.live_dpi.to_be_bytes();
+                let [hi, lo] = self.live_dpi().to_be_bytes();
                 Ok(vec![0, hi, lo, 0x03, 0x20])
             }
             // 100 to 32,000 in steps of 50, on page 0.
@@ -263,7 +276,7 @@ impl SimMouse {
                 Ok(v)
             }
             (feature::EXTENDED_DPI, 0x50) => {
-                let [hi, lo] = self.live_dpi.to_be_bytes();
+                let [hi, lo] = self.live_dpi().to_be_bytes();
                 Ok(vec![0, hi, lo, 0, 0, hi, lo, 0, 0, 2])
             }
             // 1, 2, 4 and 8 ms.
@@ -289,13 +302,21 @@ impl SimMouse {
             func::GET_MODE => Ok(vec![self.mode]),
             func::GET_CURRENT => Ok(self.current.to_be_bytes().to_vec()),
             func::SET_CURRENT if sector != 0 && self.sectors.contains_key(&sector) => {
-                self.current = sector;
-                // The mouse runs the profile from its default stage.
-                let profile = ob::decode(&self.sectors[&sector], self.info[1]);
-                let default = profile.default_index.unwrap_or(0) as usize;
-                if let Some(stage) = profile.stages.get(default) {
-                    self.live_dpi = stage.x as u16;
+                // Another profile starts on its default stage; the same one keeps its slot.
+                if sector != self.current {
+                    let profile = ob::decode(&self.sectors[&sector], self.info[1]);
+                    self.stage = profile.default_index.unwrap_or(0);
                 }
+                self.current = sector;
+                Ok(vec![])
+            }
+            func::GET_DPI_INDEX if self.dpi_index => Ok(vec![self.stage]),
+            func::SET_DPI_INDEX if self.dpi_index => {
+                let count = ob::decode(&self.sectors[&self.current], self.info[1]).stages.len();
+                if params.first().is_none_or(|i| *i as usize >= count) {
+                    return Err(0x02);
+                }
+                self.stage = params[0];
                 Ok(vec![])
             }
             func::READ => {
@@ -405,13 +426,19 @@ impl Finder for SimFinder {
         if self.mouse.lock().unplugged {
             bail!("no Logitech receiver found");
         }
+        let (product_id, port) = {
+            let m = self.mouse.lock();
+            (m.product_id, m.port.clone())
+        };
+        #[cfg(not(windows))]
+        let _ = port;
         let opened = Opened {
             family: self.family,
             link: Box::new(SimLink(self.mouse.clone())),
             long_only: false,
-            product_id: self.mouse.lock().product_id,
+            product_id,
             #[cfg(windows)]
-            port: None,
+            port: port.map(|path| crate::usb::UsbPort { path, hubs: 0 }),
         };
         connect(opened, board, &mut self.last)
     }

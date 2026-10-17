@@ -994,7 +994,9 @@ fn follow_primary(app: &AppHandle, ctx: &Ctx) {
             .filter(|s| s.connected)
             .filter_map(|s| Some((s.port.as_ref()?.path.clone(), s.key.clone()?)))
             .collect();
-        let watch = at.len() >= 2;
+        // Two mice to tell apart, or one that's told awake by being used.
+        let watch = at.len() >= 2
+            || states.iter().any(|s| s.connected && s.capabilities.as_ref().is_some_and(|c| c.wake_by_input));
         meter::set_mice(at);
         let _ = app.run_on_main_thread(move || meter::set_watch(watch));
     }

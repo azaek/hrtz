@@ -186,6 +186,9 @@ pub struct Capabilities {
     pub factory_reset: bool,
     /// Its whole memory can be read and written back, for backups.
     pub backups: bool,
+    /// Asleep, it isn't asked whether it woke: hrtz waits to see it used (raw input on its port),
+    /// so raw input is followed while it's connected.
+    pub wake_by_input: bool,
 }
 
 impl Capabilities {
