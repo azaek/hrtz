@@ -22,8 +22,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU8, AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -124,8 +124,12 @@ pub struct MeterSample {
     pub held: bool,
 }
 
+/// What a raw input device is: one of the mice hrtz knows (its key, when its port matched one),
+/// or not a mouse it follows (`None`).
+type Seen = Option<Option<Arc<str>>>;
+
 struct Counts {
-    devices: HashMap<isize, bool>,
+    devices: HashMap<isize, Seen>,
     last: Option<Instant>,
     moving_time: Duration,
     reports: u32,
@@ -146,7 +150,7 @@ struct Counts {
 
 impl Counts {
     /// Nothing counted yet, measured against the rate and DPI in use.
-    fn new(devices: HashMap<isize, bool>) -> Self {
+    fn new(devices: HashMap<isize, Seen>) -> Self {
         let hz = RATE.load(Ordering::SeqCst);
         Self {
             devices,
@@ -221,6 +225,13 @@ static FOREGROUND: AtomicBool = AtomicBool::new(true);
 static TRACKING: AtomicBool = AtomicBool::new(false);
 /// Double clicks are counted over days, in the background too.
 static CLICKS: AtomicBool = AtomicBool::new(false);
+/// Two mice or more are connected: input is followed to tell which one is in use.
+static WATCH: AtomicBool = AtomicBool::new(false);
+/// The mice connected now, by where they're plugged in: (USB port path, key).
+static MICE: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+/// The mouse last moved, and who's told when that changes.
+static IN_USE: Mutex<Option<Arc<str>>> = Mutex::new(None);
+static ON_IN_USE: OnceLock<Box<dyn Fn(String) + Send + Sync>> = OnceLock::new();
 /// The polling rate stutters are measured against.
 static RATE: AtomicU32 = AtomicU32::new(1000);
 /// The DPI in use, to turn counts into centimetres for the pad.
@@ -443,19 +454,28 @@ fn handle(now: Instant, raw: &RAWINPUT) {
     let running = RUNNING.load(Ordering::Relaxed);
     let tracking = TRACKING.load(Ordering::Relaxed);
     let counting = CLICKS.load(Ordering::Relaxed);
-    if !(running || tracking || counting) || raw.header.dwType != RIM_TYPEMOUSE.0 {
+    let watching = WATCH.load(Ordering::Relaxed);
+    if !(running || tracking || counting || watching) || raw.header.dwType != RIM_TYPEMOUSE.0 {
         return;
     }
     let Some(c) = COUNTS.get() else { return };
     let mut c = c.lock();
-    let key = raw.header.hDevice.0 as isize;
-    if !*c.devices.entry(key).or_insert_with(|| is_zaopin(raw.header.hDevice)) {
+    let handle = raw.header.hDevice.0 as isize;
+    let Some(mouse) = c.devices.entry(handle).or_insert_with(|| mouse_of(raw.header.hDevice)).clone() else {
         return;
-    }
+    };
     let m = unsafe { raw.data.mouse };
     let (dx, dy) = if m.usFlags.0 & MOUSE_MOVE_ABSOLUTE.0 == 0 { (m.lLastX, m.lLastY) } else { (0, 0) };
     let flags = unsafe { m.Anonymous.Anonymous.usButtonFlags };
     let data = unsafe { m.Anonymous.Anonymous.usButtonData } as i16;
+    if let Some(key) = mouse
+        && (dx != 0 || dy != 0 || flags != 0)
+    {
+        moved(key);
+    }
+    if !(running || tracking || counting) {
+        return;
+    }
     if running {
         c.record(now, dx, dy, flags, data);
     }
@@ -526,6 +546,41 @@ pub fn set_hold(on: bool, seq: Option<u64>) {
     }
 }
 
+/// Something wants raw input: a test, pad tracking, the click log, or telling mice apart.
+fn listening() -> bool {
+    TRACKING.load(Ordering::SeqCst)
+        || RUNNING.load(Ordering::SeqCst)
+        || CLICKS.load(Ordering::SeqCst)
+        || WATCH.load(Ordering::SeqCst)
+}
+
+/// The mice connected now, by USB port, so each report can be put down to one: the hub's states,
+/// as (port path, key). Devices are looked up again when it changes.
+pub fn set_mice(mice: Vec<(String, String)>) {
+    let mut known = MICE.lock();
+    if *known == mice {
+        return;
+    }
+    *known = mice;
+    drop(known);
+    if let Some(c) = COUNTS.get() {
+        c.lock().devices.clear();
+    }
+}
+
+/// Follow input to tell connected mice apart (two or more connected). Must run on the window's
+/// thread.
+pub fn set_watch(on: bool) {
+    if WATCH.swap(on, Ordering::SeqCst) != on {
+        register();
+    }
+}
+
+/// Who's told the key of the mouse in use, when it changes: on the input thread, so quickly.
+pub fn on_in_use(f: impl Fn(String) + Send + Sync + 'static) {
+    let _ = ON_IN_USE.set(Box::new(f));
+}
+
 /// Register raw mouse input for what's on, on the reader thread (or the main window).
 fn register() {
     if ON_MAIN.load(Ordering::SeqCst) {
@@ -548,7 +603,7 @@ fn register_on(hwnd: isize) {
     if hwnd == 0 {
         return;
     }
-    let on = TRACKING.load(Ordering::SeqCst) || RUNNING.load(Ordering::SeqCst) || CLICKS.load(Ordering::SeqCst);
+    let on = listening();
     let dev = RAWINPUTDEVICE {
         usUsagePage: 0x01,
         usUsage: 0x02,
@@ -692,15 +747,37 @@ pub fn save_pad() {
     }
 }
 
-fn is_zaopin(handle: HANDLE) -> bool {
+/// What a raw input device is: one of the connected mice (by its USB port), else a Zaopin not met
+/// yet (by its vendor), else not one hrtz follows.
+fn mouse_of(handle: HANDLE) -> Seen {
     let mut len = 0u32;
-    unsafe {
+    let name = unsafe {
         GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, None, &mut len);
         let mut buf = vec![0u16; len as usize + 1];
         if GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, Some(buf.as_mut_ptr().cast()), &mut len) == u32::MAX {
-            return false;
+            return None;
         }
-        String::from_utf16_lossy(&buf).to_ascii_lowercase().contains("vid_3554")
+        String::from_utf16_lossy(&buf[..len as usize]).trim_end_matches('\0').to_string()
+    };
+    let port = crate::usb::port_of(&name).map(|p| p.path);
+    if let Some(key) =
+        port.and_then(|path| MICE.lock().iter().find(|(p, _)| *p == path).map(|(_, k)| Arc::<str>::from(k.as_str())))
+    {
+        return Some(Some(key));
+    }
+    name.to_ascii_lowercase().contains("vid_3554").then_some(None)
+}
+
+/// Mouse `key` moved: it's the one in use. Whoever asked is told when that changes.
+fn moved(key: Arc<str>) {
+    let mut in_use = IN_USE.lock();
+    if in_use.as_deref() == Some(&*key) {
+        return;
+    }
+    *in_use = Some(key.clone());
+    drop(in_use);
+    if let Some(f) = ON_IN_USE.get() {
+        f(key.to_string());
     }
 }
 
@@ -758,9 +835,7 @@ impl Counts {
 
 /// The main window's raw input, when it reads it (`HRTZ_RAW_INPUT=window`).
 unsafe extern "system" fn subclass(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _data: usize) -> LRESULT {
-    if msg == WM_INPUT
-        && (RUNNING.load(Ordering::Relaxed) || TRACKING.load(Ordering::Relaxed) || CLICKS.load(Ordering::Relaxed))
-    {
+    if msg == WM_INPUT && listening() {
         let mut raw = RAWINPUT::default();
         let mut size = std::mem::size_of::<RAWINPUT>() as u32;
         let got = unsafe {

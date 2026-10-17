@@ -215,7 +215,8 @@ impl Worker {
     }
 
     /// Use mouse `key`'s battery estimate and log. The files from before several mice (one
-    /// estimate, one log) become the first Zaopin's.
+    /// estimate, one log) are copied to the first Zaopin's: left in place, an older hrtz still
+    /// finds them.
     pub(crate) fn battery_of(&mut self, key: &str) {
         let Some(dir) = self.data_dir.clone() else { return };
         if self.battery_key.as_deref() == Some(key) {
@@ -224,8 +225,8 @@ impl Worker {
         let (estimate, log) = battery_files(&dir, key);
         if key.starts_with("compx/") && !estimate.exists() && !log.exists() {
             let _ = std::fs::create_dir_all(dir.join("battery"));
-            let _ = std::fs::rename(dir.join("battery.json"), &estimate);
-            let _ = std::fs::rename(dir.join("battery_log.jsonl"), &log);
+            let _ = std::fs::copy(dir.join("battery.json"), &estimate);
+            let _ = std::fs::copy(dir.join("battery_log.jsonl"), &log);
         }
         let saved = std::fs::read(&estimate).ok().and_then(|b| serde_json::from_slice::<Saved>(&b).ok());
         self.battery = Estimator::new(saved);

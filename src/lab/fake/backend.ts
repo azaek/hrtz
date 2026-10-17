@@ -690,7 +690,7 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       pushPrefs(args.prefs as Prefs);
       return null;
     case "app_status":
-      return { foregroundExe: null, vendorAppRunning: false, hudShowing: false };
+      return { foregroundExe: null, inUse: fake.device.key ?? null, vendorAppRunning: false, hudShowing: false };
     case "apply_settings":
       await wait(250);
       pushDevice({ settings: args.settings as Settings });

@@ -23,12 +23,14 @@ struct Conn {
 
 pub struct Hub {
     conns: RwLock<Vec<Conn>>,
+    /// The mouse last moved, by key, as raw input tells it.
+    in_use: RwLock<Option<String>>,
 }
 
 impl Hub {
     /// A hub with nothing found yet; `run` starts looking.
     pub fn new() -> Arc<Self> {
-        Arc::new(Self { conns: RwLock::new(Vec::new()) })
+        Arc::new(Self { conns: RwLock::new(Vec::new()), in_use: RwLock::new(None) })
     }
 
     /// Start looking, once whoever `notify` tells is ready to hear. `data_dir` keeps each mouse's
@@ -89,14 +91,30 @@ impl Hub {
         self.conns.read().iter().map(|c| c.engine.snapshot()).collect()
     }
 
-    /// The mouse the tray, the HUD and the pop-ups follow: one awake, else one connected, else the
-    /// first found. (Which one is being moved comes later: PLAN-mice.md, 3.10.)
+    /// The mouse in your hand: the last one moved. Returns whether that changed.
+    pub fn set_in_use(&self, key: &str) -> bool {
+        let mut in_use = self.in_use.write();
+        if in_use.as_deref() == Some(key) {
+            return false;
+        }
+        *in_use = Some(key.to_string());
+        true
+    }
+
+    pub fn in_use(&self) -> Option<String> {
+        self.in_use.read().clone()
+    }
+
+    /// The mouse the tray, the HUD and the pop-ups follow: the one in use while it's connected,
+    /// else one awake, else one connected, else the first found (PLAN-mice.md, 3.10).
     pub fn primary(&self) -> Option<Engine> {
+        let in_use = self.in_use.read().clone();
         let conns = self.conns.read();
         let pick = |f: &dyn Fn(&DeviceState) -> bool| {
             conns.iter().find(|c| f(&c.engine.state.read())).map(|c| c.engine.clone())
         };
-        pick(&|s| s.connected && s.online && s.key.is_some())
+        pick(&|s| s.connected && s.key.is_some() && s.key == in_use)
+            .or_else(|| pick(&|s| s.connected && s.online && s.key.is_some()))
             .or_else(|| pick(&|s| s.connected && s.key.is_some()))
             .or_else(|| conns.first().map(|c| c.engine.clone()))
     }
@@ -145,6 +163,10 @@ mod tests {
         until(|| connected("sim/7-4") && connected("sim/7-3"));
         assert_eq!(hub.states().len(), 2);
         assert_eq!(hub.primary_state().key.as_deref(), Some("sim/7-4"), "the first found, awake");
+        // The mouse moved last is followed, and only told once.
+        assert!(hub.set_in_use("sim/7-3"));
+        assert!(!hub.set_in_use("sim/7-3"));
+        assert_eq!(hub.primary_state().key.as_deref(), Some("sim/7-3"));
 
         // A command reaches the mouse it names.
         hub.engine("sim/7-3").unwrap().call(|w| w.set_long_range(true)).unwrap();
@@ -156,5 +178,6 @@ mod tests {
         until(|| hub.states().len() == 1);
         until(|| heard.lock().iter().any(|(s, _)| s.key.as_deref() == Some("sim/7-3") && !s.connected));
         assert!(hub.engine("sim/7-3").is_none());
+        assert_eq!(hub.primary_state().key.as_deref(), Some("sim/7-4"), "the one in use went: another one");
     }
 }

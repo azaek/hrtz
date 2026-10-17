@@ -46,6 +46,8 @@ const OSD_H: f64 = 76.0;
 #[serde(rename_all = "camelCase")]
 struct AppStatus {
     foreground_exe: Option<String>,
+    /// The mouse in your hand (its key): the tray, the HUD and the pop-ups follow it.
+    in_use: Option<String>,
     vendor_app_running: bool,
     /// The HUD's window is on screen now.
     hud_showing: bool,
@@ -90,6 +92,7 @@ struct Ctx {
 fn status_of(ctx: &Ctx) -> AppStatus {
     let mut s = ctx.status.read().clone();
     s.hud_showing = ctx.hud.showing();
+    s.in_use = ctx.hub.primary_state().key;
     s
 }
 
@@ -880,22 +883,7 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
     let prefs = ctx.prefs.read().clone();
 
     meet(app, &ctx, s);
-    // The tray, the HUD and pad tracking follow the primary mouse.
-    if let Some(primary) = ctx.hub.primary() {
-        let p = primary.snapshot();
-        // Pad tracking turns sensor counts into centimetres at the DPI in use, and reads pauses
-        // differently when the sensor keeps tracking as the mouse rises.
-        #[cfg(windows)]
-        if let Some(st) = &p.settings {
-            meter::set_dpi(st.dpi().unwrap_or(0));
-            if let Some(lod) = st.lod {
-                meter::set_lift_off(lod != mice::model::Lod::Low);
-            }
-        }
-        refresh_tray(&ctx, &p);
-        ctx.hud.device(&p);
-        ctx.hud.log(primary.log.clone());
-    }
+    follow_primary(app, &ctx);
     first_meeting(app, &ctx, s);
     let mouse = mouse_prefs(&ctx, s);
 
@@ -933,6 +921,41 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
         Some(e) if prefs.osd => show_osd(app, &ctx, &e, &prefs, &mouse),
         _ => {}
     }
+}
+
+/// The tray, the HUD and pad tracking follow the primary mouse (the one in use). The meter is told
+/// where every connected mouse is, so input can be put down to one, and follows input while two or
+/// more are connected.
+fn follow_primary(app: &AppHandle, ctx: &Ctx) {
+    #[cfg(windows)]
+    {
+        let states = ctx.hub.states();
+        let at: Vec<(String, String)> = states
+            .iter()
+            .filter(|s| s.connected)
+            .filter_map(|s| Some((s.port.as_ref()?.path.clone(), s.key.clone()?)))
+            .collect();
+        let watch = at.len() >= 2;
+        meter::set_mice(at);
+        let _ = app.run_on_main_thread(move || meter::set_watch(watch));
+    }
+    let Some(primary) = ctx.hub.primary() else { return };
+    let p = primary.snapshot();
+    // Pad tracking turns sensor counts into centimetres at the DPI in use, and reads pauses
+    // differently when the sensor keeps tracking as the mouse rises.
+    #[cfg(windows)]
+    if let Some(st) = &p.settings {
+        meter::set_dpi(st.dpi().unwrap_or(0));
+        if let Some(lod) = st.lod {
+            meter::set_lift_off(lod != mice::model::Lod::Low);
+        }
+    }
+    refresh_tray(ctx, &p);
+    ctx.hud.device(&p);
+    ctx.hud.log(primary.log.clone());
+    let known = ctx.known.read();
+    let prefs = p.key.as_deref().map(|k| known.prefs(k)).unwrap_or_default();
+    ctx.hud.mouse(&prefs, known.rule_exes());
 }
 
 /// The first time hrtz meets a mouse (no backup of its model yet), it saves one as it found it,
@@ -1359,6 +1382,21 @@ pub fn run() {
                 families.push(Box::new(sim));
             }
             hub.run(families, Arc::new(move |s, e| on_device_change(&notify_handle, s, e)), Some(data_dir.clone()));
+            // The mouse moved last is the one in use: the tray, the HUD and the pop-ups go to it.
+            #[cfg(windows)]
+            {
+                let in_use_handle = handle.clone();
+                meter::on_in_use(move |key| {
+                    let app = in_use_handle.clone();
+                    thread::spawn(move || {
+                        let Some(ctx) = app.try_state::<Arc<Ctx>>() else { return };
+                        if ctx.hub.set_in_use(&key) {
+                            follow_primary(&app, &ctx);
+                            let _ = app.emit("app-status", status_of(&ctx));
+                        }
+                    });
+                });
+            }
 
             WebviewWindowBuilder::new(app, "osd", WebviewUrl::App("index.html".into()))
                 .title("hrtz OSD")

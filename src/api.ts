@@ -318,6 +318,8 @@ export interface Restored {
 
 export interface AppStatus {
   foregroundExe: string | null;
+  /** The mouse in your hand (its key): the tray, the HUD and the pop-ups follow it. */
+  inUse?: string | null;
   vendorAppRunning: boolean;
   /** The HUD window is visible now. */
   hudShowing: boolean;

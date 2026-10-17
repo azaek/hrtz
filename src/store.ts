@@ -55,11 +55,12 @@ export function toast(text: string, tone: Toast["tone"] = "info") {
   setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), tone === "error" ? 6000 : 3000);
 }
 
-/** The mouse to show, as the app picks its primary one: awake, else connected, else any. (Picking
- *  one yourself comes with the switcher.) */
-function shown(devices: Record<string, DeviceState>): DeviceState | null {
+/** The mouse to show, as the app picks its primary one: the one in use, else one awake, else one
+ *  connected, else any. (Picking one yourself comes with the switcher.) */
+function shown(devices: Record<string, DeviceState>, inUse = state.status.inUse): DeviceState | null {
   const all = Object.values(devices);
-  return all.find((d) => d.connected && d.online) ?? all.find((d) => d.connected) ?? all[0] ?? null;
+  const used = inUse ? devices[inUse] : undefined;
+  return (used?.connected ? used : undefined) ?? all.find((d) => d.connected && d.online) ?? all.find((d) => d.connected) ?? all[0] ?? null;
 }
 
 /** Put a mouse's state in, and show the one to show; commands follow it. */
@@ -83,7 +84,15 @@ export async function init() {
     on.state(setDevice),
     on.prefs((prefs) => set({ prefs })),
     on.mice((mice) => set({ mice })),
-    on.status((status) => set({ status })),
+    on.status((status) => {
+      set({ status });
+      // The mouse in use changed: show it.
+      const device = shown(state.devices);
+      if (device !== state.device) {
+        showMouse(device?.key ?? null);
+        set({ device });
+      }
+    }),
     on.progress((progress) => set({ progress: progress[0] >= progress[1] ? null : progress })),
   ]);
   const [states, prefs, status, mice] = await Promise.all([api.states(), api.prefs(), api.appStatus(), api.mice()]);

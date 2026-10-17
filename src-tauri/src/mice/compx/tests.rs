@@ -411,7 +411,7 @@ fn a_setting_the_mouse_lacks_is_left_out_of_what_the_ui_gets() {
 }
 
 #[test]
-fn the_first_zaopin_takes_over_the_battery_files_from_before_several_mice() {
+fn the_first_zaopin_gets_a_copy_of_the_battery_files_from_before_several_mice() {
     let dir = std::env::temp_dir().join(format!("hrtz-battery-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -424,8 +424,8 @@ fn the_first_zaopin_takes_over_the_battery_files_from_before_several_mice() {
     let mut w = Worker::new(Box::new(SimFinder(mouse)), state, notify, Some(dir.clone()), log.clone());
     w.housekeeping();
     let (estimate, own_log) = crate::mice::engine::battery_files(&dir, "compx/7-4");
-    assert!(estimate.exists() && own_log.exists(), "moved under the mouse's key");
-    assert!(!dir.join("battery.json").exists() && !dir.join("battery_log.jsonl").exists());
+    assert!(estimate.exists() && own_log.exists(), "copied under the mouse's key");
+    assert!(dir.join("battery.json").exists(), "and left in place for an older hrtz");
     assert!(!log.lock().entries().is_empty(), "and this mouse's readings go to its own log");
     std::fs::remove_dir_all(&dir).unwrap();
 }
