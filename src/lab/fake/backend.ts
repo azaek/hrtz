@@ -1,6 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { AutoReason, BackupMeta, ButtonAction, ButtonEvent, ConnStats, DeviceState, GameSensitivity, MeterSample, PadView, PointerSettings, Prefs, RunningApp, Settings, Stroke, WheelEvent } from "@/api";
+import { currentDpi, topRate, type AutoReason, type BackupMeta, type ButtonAction, type ButtonEvent, type ConnStats, type DeviceState, type GameSensitivity, type MeterSample, type PadView, type PointerSettings, type Prefs, type RunningApp, type Settings, type Stroke, type WheelEvent } from "@/api";
 
 /** This PC's data (src/lab/data), read through a glob: it's git-ignored, so a fresh clone has none
  *  and still type-checks. Without it the lab says how to make it. */
@@ -40,7 +40,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** The dumps went through serde_json's sorted maps, which put `button` before `kind`. The app's
  *  own replies put `kind` first, and the app compares actions by their JSON, so put it back. A dump
  *  from before "Sleep after" (2026-10-17) gets the 10 s the mouse comes with. */
-const kindFirst = (s: Settings): Settings => ({ ...s, sleepS: s.sleepS ?? 10, buttons: s.buttons.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) });
+const kindFirst = (s: Settings): Settings => ({ ...s, sleepS: s.sleepS ?? 10, buttons: s.buttons?.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) });
 const device = deviceJson as unknown as DeviceState;
 
 export const real = {
@@ -162,10 +162,10 @@ const pending = { buttons: [] as ButtonEvent[], wheel: [] as WheelEvent[], count
 
 /** Browser buttons (0 left, 1 middle, 2 right) in raw input's order (0 left, 1 right, 2 middle). */
 const RAW_BUTTON = [0, 2, 1, 3, 4];
-const DPI = () => fake.device.settings?.stages[fake.device.settings.dpiStage]?.dpi ?? 1600;
+const DPI = () => currentDpi(fake.device.settings) ?? 1600;
 const counts = (cm: number) => (cm / 2.54) * DPI();
 const countsPerS = (mps: number) => (mps / 0.0254) * DPI();
-const setHz = () => Math.min(fake.device.settings?.pollingHz ?? 1000, fake.device.capabilities?.maxPollingHz ?? 8000);
+const setHz = () => Math.min(fake.device.settings?.pollingHz ?? 1000, topRate(fake.device.capabilities) ?? 8000);
 
 /**
  * The world around the mouse, as the lab's panel sets it: where the receiver is, and what the

@@ -23,38 +23,84 @@ export interface DpiStage {
   color: string;
 }
 
+/** What the mouse holds now. A setting this mouse doesn't have is missing, and its card isn't shown.
+ *  Sent back whole to change something; a missing setting stays as the mouse has it. */
 export interface Settings {
-  pollingHz: number;
-  dpiStageCount: number;
-  dpiStage: number;
-  stages: DpiStage[];
-  lod: Lod;
-  sensorMode: SensorMode;
-  debounceMs: number;
+  pollingHz?: number;
+  /** How many stages the DPI button cycles through. */
+  dpiStageCount?: number;
+  /** 0-based index of the stage in use. */
+  dpiStage?: number;
+  /** Every stage slot the mouse has, used or not. */
+  stages?: DpiStage[];
+  lod?: Lod;
+  sensorMode?: SensorMode;
+  debounceMs?: number;
+  motionSync?: boolean;
+  angleSnapping?: boolean;
+  rippleControl?: boolean;
+  peakTimeoutEnabled?: boolean;
+  peakTimeoutS?: number;
+  /** Seconds without movement before the mouse sleeps (flash 0xBB). */
+  sleepS?: number;
+  /** What each button does, by the mouse's own button index. */
+  buttons?: ButtonAction[];
+}
+
+/** What the mouse can do, with its real limits. A feature it lacks is missing (or false), so its
+ *  card is left out, and app features that need it step aside for this mouse. */
+export interface Capabilities {
+  /** Connected by USB cable rather than a receiver. */
+  wired: boolean;
+  dpi?: {
+    min: number;
+    max: number;
+    step: number;
+    /** Stage slots; the DPI button cycles through the first `dpiStageCount`. */
+    maxStages: number;
+    /** Each stage has a colour for the mouse's light. */
+    colors: boolean;
+  };
+  /** The rates this connection carries, lowest first. The mouse may hold a higher one, set for its
+   *  other connection. */
+  polling?: { rates: number[] };
+  /** Lift-off distances offered, lowest first. */
+  lod?: Lod[];
+  sensorMode?: {
+    modes: SensorMode[];
+    /** The mouse runs Corded at this rate and above, whatever is set. */
+    cordedFromHz?: number;
+    /** On its cable, the mouse always runs Corded. */
+    cordedWhenWired: boolean;
+  };
+  debounceMs?: { min: number; max: number };
   motionSync: boolean;
   angleSnapping: boolean;
   rippleControl: boolean;
-  peakTimeoutEnabled: boolean;
-  peakTimeoutS: number;
-  /** Seconds without movement before the mouse sleeps (flash 0xBB). */
-  sleepS: number;
-  buttons: ButtonAction[];
+  peakTimeoutsS?: number[];
+  /** "Sleep after" choices: only where the sleep timer has been measured on the model. */
+  sleepTimesS?: number[];
+  /** The buttons that physically exist: the mouse's index for each, and its name. */
+  buttons?: [number, string][];
+  /** How many onboard profiles. */
+  profiles?: number;
+  battery: boolean;
+  longRange: boolean;
+  pairing: boolean;
+  factoryReset: boolean;
+  /** Its whole memory can be read and written back, for backups. */
+  backups: boolean;
 }
 
-export interface Capabilities {
-  maxDpi: number;
-  dpiStep: number;
-  /** Connected by USB cable rather than a receiver. */
-  wired: boolean;
-  /** Highest rate this connection carries. */
-  maxPollingHz: number;
-  pollingHz: number[];
-  peakTimeoutsS: number[];
-  /** "Sleep after" choices; empty where the sleep timer hasn't been measured on the model. */
-  sleepTimesS: number[];
-  lowLod: boolean;
-  buttons: [number, string][];
+/** The highest polling rate this connection carries. */
+export function topRate(caps: Capabilities | null | undefined): number | undefined {
+  const rates = caps?.polling?.rates;
+  return rates?.[rates.length - 1];
 }
+
+/** The DPI of the stage in use. */
+export const currentDpi = (s: Settings | null | undefined): number | undefined =>
+  s?.dpiStage === undefined ? undefined : s.stages?.[s.dpiStage]?.dpi;
 
 export interface Battery {
   /** Smoothed estimate shown in the UI. */

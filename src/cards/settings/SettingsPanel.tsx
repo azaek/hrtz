@@ -65,7 +65,10 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const report = (form: ReportForm) => void reportUrl(form, device).then(openUrl).catch((e) => toast(message(e), "error"));
   // A mouse hrtz recognises but hasn't been tried on: its owner's report is what makes it supported.
   const untested = device?.connected && !TESTED_MIDS.has(device.mid) ? device.model : null;
-  const wired = !!device?.capabilities?.wired;
+  const caps = device?.capabilities;
+  const wired = !!caps?.wired;
+  // A row this mouse can't use is left out; with no mouse they all show, waiting for one.
+  const can = (feature: "longRange" | "pairing" | "factoryReset" | "backups") => !caps || caps[feature];
   const noLongRange = !device?.connected || device.longRange === null || wired;
   const facts = device?.connected
     ? [`Firmware ${device.firmware ?? "unknown until it wakes"}`, LINK_NAME[device.deviceType] ?? `Type ${device.deviceType}`, `CID ${device.cid} · MID ${device.mid}`].join(" · ")
@@ -138,54 +141,60 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       </Group>
 
       <Group title="Mouse">
-        <SettingCard
-          icon={<Wifi120Regular />}
-          title="Long-range mode"
-          description={
-            wired
-              ? "Wireless only. Unplug the cable to change it."
-              : noLongRange
-                ? "Available when the mouse is awake and wireless."
-                : "A stronger signal with less interference. Uses more battery."
-          }
-        >
-          <Switch
-            checked={!!device?.longRange}
-            disabled={!device?.online || noLongRange || busy}
-            aria-label="Long-range mode"
-            onChange={(_, d) => run(() => api.setLongRange(d.checked))}
-          />
-        </SettingCard>
-        <SettingCard
-          icon={<PlugConnected20Regular />}
-          title="Pair a mouse"
-          description={
-            wired
-              ? "Wireless only. Unplug the cable first."
-              : !device?.connected
-                ? "Plug in the receiver first."
-                : pairing !== null
-                  ? `Hold the left, right and middle buttons together until the light flashes yellow. ${pairing} s left.`
-                  : paired === true
-                    ? "Paired. The mouse will connect shortly."
-                    : paired === false
-                      ? "No mouse found in 30 seconds. Turn the mouse on and try again."
-                      : "For a new receiver or a mouse that won't connect. Searches for 30 seconds."
-          }
-        >
-          <Button disabled={wired || !device?.connected || busy} onClick={() => void pair()}>
-            {pairing !== null ? "Pairing…" : "Pair"}
-          </Button>
-        </SettingCard>
+        {can("longRange") && (
+          <SettingCard
+            icon={<Wifi120Regular />}
+            title="Long-range mode"
+            description={
+              wired
+                ? "Wireless only. Unplug the cable to change it."
+                : noLongRange
+                  ? "Available when the mouse is awake and wireless."
+                  : "A stronger signal with less interference. Uses more battery."
+            }
+          >
+            <Switch
+              checked={!!device?.longRange}
+              disabled={!device?.online || noLongRange || busy}
+              aria-label="Long-range mode"
+              onChange={(_, d) => run(() => api.setLongRange(d.checked))}
+            />
+          </SettingCard>
+        )}
+        {can("pairing") && (
+          <SettingCard
+            icon={<PlugConnected20Regular />}
+            title="Pair a mouse"
+            description={
+              wired
+                ? "Wireless only. Unplug the cable first."
+                : !device?.connected
+                  ? "Plug in the receiver first."
+                  : pairing !== null
+                    ? `Hold the left, right and middle buttons together until the light flashes yellow. ${pairing} s left.`
+                    : paired === true
+                      ? "Paired. The mouse will connect shortly."
+                      : paired === false
+                        ? "No mouse found in 30 seconds. Turn the mouse on and try again."
+                        : "For a new receiver or a mouse that won't connect. Searches for 30 seconds."
+            }
+          >
+            <Button disabled={wired || !device?.connected || busy} onClick={() => void pair()}>
+              {pairing !== null ? "Pairing…" : "Pair"}
+            </Button>
+          </SettingCard>
+        )}
         <SettingCard icon={<Info20Regular />} title={device?.model ?? "No mouse connected"} description={facts ?? "Plug in the receiver to see its details."} />
-        <SettingCard icon={<ArrowRotateClockwise20Regular />} title="Restore factory settings" description="Resets DPI, polling, buttons and macros to factory defaults.">
-          <Button disabled={!device?.online || busy} onClick={() => setConfirmReset(true)}>
-            Restore
-          </Button>
-        </SettingCard>
+        {can("factoryReset") && (
+          <SettingCard icon={<ArrowRotateClockwise20Regular />} title="Restore factory settings" description="Resets DPI, polling, buttons and macros to factory defaults.">
+            <Button disabled={!device?.online || busy} onClick={() => setConfirmReset(true)}>
+              Restore
+            </Button>
+          </SettingCard>
+        )}
       </Group>
 
-      <BackupsPanel />
+      {can("backups") && <BackupsPanel />}
 
       {SHARING_READY && (
         <Group title="Privacy">

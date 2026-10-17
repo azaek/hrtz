@@ -33,7 +33,7 @@ import { LabPage } from "./pages/Lab";
 import { BatteryPage } from "./pages/Battery";
 import { HudPage } from "./pages/Hud";
 import { SettingsPage } from "./pages/SettingsPage";
-import type { DeviceState } from "./api";
+import { topRate, type Capabilities, type DeviceState } from "./api";
 import { LINK_NAME } from "./links";
 import { MODEL_ART } from "./models";
 import { BatteryIcon } from "./BatteryIcon";
@@ -43,6 +43,13 @@ import { TitleBar } from "./TitleBar";
 import { SidebarFooter } from "./SidebarFooter";
 
 export type PageId = "sensor" | "buttons" | "profiles" | "battery" | "hud" | "lab" | "settings";
+
+/** What a page needs from the mouse; the navigation leaves it out for a mouse without it. The
+ *  rest work for any mouse, or with none. */
+const NEEDS: Partial<Record<PageId, (caps: Capabilities) => boolean>> = {
+  buttons: (c) => !!c.buttons?.length,
+  profiles: (c) => !!c.profiles,
+};
 
 const PAGES: { id: PageId; label: string; icon: ReactElement }[] = [
   { id: "sensor", label: "Sensor", icon: <TopSpeed20Regular /> },
@@ -208,8 +215,9 @@ const rateBadge = (hz: number) => (hz >= 1000 ? `${hz / 1000}K` : `${hz} Hz`);
 function RateBadge({ d }: { d: DeviceState }) {
   const s = useStyles();
   const restore = useStore((st) => st.prefs?.batterySaverRestore ?? null);
-  if (!d.settings) return null;
-  const hz = Math.min(d.settings.pollingHz, d.capabilities?.maxPollingHz ?? d.settings.pollingHz);
+  const set = d.settings?.pollingHz;
+  if (set === undefined) return null;
+  const hz = Math.min(set, topRate(d.capabilities) ?? set);
   const saving = restore !== null && restore !== hz;
   const label = saving
     ? `Lowered to ${hz.toLocaleString("en-US")} Hz by battery saver. Back to ${restore.toLocaleString("en-US")} Hz when charged.`
@@ -389,7 +397,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
             e.preventDefault();
           }}
         >
-          {PAGES.map((p) => (
+          {PAGES.filter((p) => !device?.capabilities || (NEEDS[p.id]?.(device.capabilities) ?? true)).map((p) => (
             <NavRow key={p.id} icon={p.icon} label={p.label} selected={page === p.id} onClick={() => setPage(p.id)} />
           ))}
         </div>

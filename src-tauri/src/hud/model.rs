@@ -145,17 +145,19 @@ impl Facts {
         };
         let battery = s.battery.as_ref().map(|b| (b.level, b.charging));
         // The battery log keys life by the rate set, as the Battery page does.
-        let time_left_h = match (battery, st) {
-            (Some((level, false)), Some(st)) => life_h(st.polling_hz).map(|h| h * level as f64 / 100.0),
+        let time_left_h = match (battery, st.and_then(|x| x.polling_hz)) {
+            (Some((level, false)), Some(hz)) => life_h(hz).map(|h| h * level as f64 / 100.0),
             _ => None,
         };
         Self {
             link,
             long_range: s.long_range == Some(true),
             battery,
-            polling_hz: st.map(|x| caps.map_or(x.polling_hz, |c| x.polling_hz.min(c.max_polling_hz))),
+            polling_hz: st
+                .and_then(|x| x.polling_hz)
+                .map(|hz| caps.and_then(|c| c.top_rate()).map_or(hz, |top| hz.min(top))),
             saver: prefs.battery_saver_restore.is_some(),
-            dpi: st.map(|x| (x.stages.get(x.dpi_stage as usize).map_or(0, |d| d.dpi), x.dpi_stage, x.dpi_stage_count)),
+            dpi: st.and_then(|x| Some((x.dpi()?, x.dpi_stage?, x.dpi_stage_count?))),
             profile: s
                 .profile
                 .map(|i| prefs.profile_names.get(i as usize).cloned().unwrap_or_else(|| format!("Profile {}", i + 1))),
@@ -604,12 +606,12 @@ mod tests {
     #[test]
     fn facts_come_from_the_device_state_and_prefs() {
         let mut caps = models::capabilities(4, 1); // a 4K receiver
-        caps.buttons.clear();
+        caps.buttons = None;
         let st = Settings {
-            polling_hz: 8000,
-            dpi_stage_count: 4,
-            dpi_stage: 1,
-            stages: [400, 800, 1600, 3200].iter().map(|&dpi| DpiStage { dpi, color: "#ffffff".into() }).collect(),
+            polling_hz: Some(8000),
+            dpi_stage_count: Some(4),
+            dpi_stage: Some(1),
+            stages: Some([400, 800, 1600, 3200].iter().map(|&dpi| DpiStage { dpi, color: "#ffffff".into() }).collect()),
             ..image::decode(&[0xFF; crate::mice::compx::protocol::FLASH_SIZE])
         };
         let s = DeviceState {

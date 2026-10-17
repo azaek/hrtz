@@ -229,7 +229,7 @@ impl Worker {
                 level: b.level,
                 mv: b.millivolts,
                 charging: b.charging,
-                hz: s.settings.as_ref().map_or(0, |x| x.polling_hz),
+                hz: s.settings.as_ref().and_then(|x| x.polling_hz).unwrap_or(0),
                 awake: s.online,
             }
         };

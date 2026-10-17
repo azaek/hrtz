@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Body1Strong, Button, Caption1, Link } from "@fluentui/react-components";
-import type { CaptureScreen, ConnStats, MeterSample } from "@/api";
+import { topRate, type CaptureScreen, type ConnStats, type MeterSample } from "@/api";
 import { StepCard } from "@/kit";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
@@ -67,7 +67,7 @@ export function ConnectionCheck({ onResult }: TestProps) {
   }, [cap.closed]);
 
   const start = () => {
-    const hz = Math.min(device.settings?.pollingHz ?? 1000, device.capabilities?.maxPollingHz ?? 8000);
+    const hz = Math.min(device.settings?.pollingHz ?? 1000, topRate(device.capabilities) ?? 8000);
     cap.start(screenFor(hz, false, null, null, null));
     c.start();
   };

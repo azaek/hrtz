@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { Switch } from "@fluentui/react-components";
 import { ArrowBidirectionalUpDown20Regular, ArrowStepOver20Regular, CursorClick20Regular, DataLine20Regular, Map20Regular, Ruler20Regular, TopSpeed20Regular } from "@fluentui/react-icons";
-import { api, type PadCalibration } from "@/api";
+import { api, currentDpi, type PadCalibration } from "@/api";
 import { savePrefs, useStore } from "@/store";
 import { ClickCheck } from "./ClickCheck";
 import { ConnectionCheck } from "./ConnectionCheck";
@@ -167,8 +167,7 @@ export function PadSwitch({ calibrated }: { calibrated: boolean }) {
 /** A test's own body, running while it's shown. */
 export function TestBody({ id, onResult }: { id: TestId; onResult: (r: TestResult | null) => void }) {
   const device = useStore((x) => x.device!);
-  const s = device.settings!;
-  const dpi = s.stages[s.dpiStage]?.dpi ?? 1600;
+  const dpi = currentDpi(device.settings) ?? 1600;
   switch (id) {
     case "connection":
       return <ConnectionCheck onResult={onResult} />;

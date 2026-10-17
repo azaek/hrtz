@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Button, Caption1, Link } from "@fluentui/react-components";
-import type { CaptureScreen } from "@/api";
+import { currentDpi, type CaptureScreen } from "@/api";
 import { StepCard } from "@/kit";
 import { useStore } from "@/store";
 import { Motion, useCapture, useHold } from "./parts";
@@ -57,7 +57,7 @@ const FIRST: Going = { part: "off", phase: "settle", ticks: 0, travel: 0, x: 0, 
  * game-mode checks since 2026-10-17 (DECISIONS.md, "Lab page's new tests").
  */
 export function TrackingCheck({ onResult }: TestProps) {
-  const dpi = useStore((x) => (x.device?.settings ? (x.device.settings.stages[x.device.settings.dpiStage]?.dpi ?? 1600) : 1600));
+  const dpi = useStore((x) => currentDpi(x.device?.settings) ?? 1600);
   const online = useStore((x) => !!x.device?.online);
   const t = useTrackingCheck(dpi);
   const cap = useCapture();

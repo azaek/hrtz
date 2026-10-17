@@ -1,6 +1,6 @@
 import { Dropdown, Option, Switch } from "@fluentui/react-components";
 import { BatterySaver20Regular, BatteryWarning20Regular, WeatherMoon20Regular } from "@fluentui/react-icons";
-import type { Prefs } from "@/api";
+import { topRate, type Prefs } from "@/api";
 import { Choice, SettingCard } from "@/components";
 import { NumberStepper } from "@/kit";
 import { hzText } from "@/rates";
@@ -16,11 +16,12 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
   const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
   // Only the rates below what this connection tops out at: a 4K receiver can drop to 2,000 Hz,
   // a 2K one to 1,000.
-  const rates = caps ? caps.pollingHz.filter((hz) => hz < caps.maxPollingHz) : [];
+  const top = topRate(caps);
+  const rates = top !== undefined ? (caps?.polling?.rates ?? []).filter((hz) => hz < top) : [];
   const lowered = prefs.batterySaverRestore;
   // A connection that tops out at 1,000 Hz has nothing worth lowering: the saver only exists for
-  // the high rates that cost the battery.
-  const showSaver = !(caps && !caps.wired && caps.maxPollingHz <= 1000 && !lowered);
+  // the high rates that cost the battery. It needs a mouse with a battery and a polling rate.
+  const showSaver = !caps || (!!caps.polling && caps.battery && !(!caps.wired && (top ?? 0) <= 1000 && !lowered));
   // One line: the level and rate are in the controls beside it.
   const saverText = caps?.wired
     ? "Not needed while wired."
@@ -33,7 +34,8 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
   // The sleep timer (flash 0xBB) was measured on a Z1 PRO MAX (2026-10-17); other models offer none.
   const sleepTimes = caps?.sleepTimesS ?? [];
   // A value set elsewhere stays one of the choices, so it shows as chosen.
-  const sleepChoices = s && !sleepTimes.includes(s.sleepS) ? [...sleepTimes, s.sleepS].sort((a, b) => a - b) : sleepTimes;
+  const sleepS = s?.sleepS;
+  const sleepChoices = sleepS !== undefined && !sleepTimes.includes(sleepS) ? [...sleepTimes, sleepS].sort((a, b) => a - b) : sleepTimes;
   return (
     <>
       {showSaver && (
@@ -59,7 +61,7 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
           <Switch checked={prefs.batterySaver} disabled={caps?.wired} onChange={(_, d) => set({ batterySaver: d.checked })} aria-label="Battery saver" />
         </SettingCard>
       )}
-      {s && sleepTimes.length > 0 && !caps?.wired && (
+      {s && sleepS !== undefined && sleepTimes.length > 0 && !caps?.wired && (
         <SettingCard
           icon={<WeatherMoon20Regular />}
           title="Sleep after"
@@ -67,7 +69,7 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
         >
           <Choice
             label="Sleep after"
-            value={s.sleepS}
+            value={sleepS}
             disabled={!device?.online}
             options={sleepChoices.map((t) => ({ value: t, label: shortTime(t) }))}
             onChange={(t) => void commit({ ...s, sleepS: t })}

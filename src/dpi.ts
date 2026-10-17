@@ -2,7 +2,7 @@
 
 /** A mouse's DPI range and step, from its capabilities. */
 export type DpiRange = { min: number; max: number; step: number };
-export const dpiRange = (caps: { maxDpi: number; dpiStep: number }): DpiRange => ({ min: caps.dpiStep, max: caps.maxDpi, step: caps.dpiStep });
+export const dpiRange = (dpi: DpiRange): DpiRange => ({ min: dpi.min, max: dpi.max, step: dpi.step });
 
 /** The values players use most. Drags settle on them. */
 export const COMMON_DPI = [400, 800, 1600, 3200, 6400];

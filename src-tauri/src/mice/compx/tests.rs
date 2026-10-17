@@ -132,7 +132,7 @@ fn falling_asleep_is_noticed() {
 #[test]
 fn the_dpi_button_reads_four_bytes_and_says_the_new_dpi() {
     let mut r = Rig::connected(SimMouse::default());
-    assert_eq!(r.settings().dpi_stage, 1);
+    assert_eq!(r.settings().dpi_stage, Some(1));
     let (req, seen) = r.mark();
     {
         let mut m = r.mouse.lock();
@@ -141,7 +141,7 @@ fn the_dpi_button_reads_four_bytes_and_says_the_new_dpi() {
     }
     r.w.drain_unsolicited();
     let s = r.settings();
-    assert_eq!(s.dpi_stage, 2);
+    assert_eq!(s.dpi_stage, Some(2));
     assert_eq!(r.mouse.lock().reads_since(req), vec![(0x02, 4)]);
     let events = r.events_since(seen);
     assert!(matches!(events[..], [DeviceEvent::Dpi { stage: 2, dpi: 1600 }]), "{events:?}");
@@ -157,7 +157,7 @@ fn a_polling_change_on_the_mouse_reads_two_bytes() {
         m.status(status::POLLING);
     }
     r.w.drain_unsolicited();
-    assert_eq!(r.settings().polling_hz, 125);
+    assert_eq!(r.settings().polling_hz, Some(125));
     assert_eq!(r.mouse.lock().reads_since(req), vec![(0x00, 2)]);
     assert!(matches!(r.events_since(seen)[..], [DeviceEvent::Polling { hz: 125 }]));
 }
@@ -190,7 +190,7 @@ fn a_profile_switch_on_the_mouse_loads_that_profile() {
     }
     r.w.drain_unsolicited();
     assert_eq!(r.state().profile, Some(2));
-    assert_eq!(r.settings().polling_hz, 125);
+    assert_eq!(r.settings().polling_hz, Some(125));
     assert!(matches!(r.events_since(seen)[..], [DeviceEvent::Profile { index: 2 }]));
     assert_eq!(r.mouse.lock().reads_since(req).iter().map(|x| x.1).sum::<usize>(), LOADED_REGION);
 }
@@ -212,7 +212,7 @@ fn switching_profile_pops_up_once_with_its_settings_and_skips_the_echo() {
     assert_eq!(reads[split..].iter().map(|x| x.1).sum::<usize>(), LOADED_REGION - p::CONFIG_REGION);
     // The pop-up already has the new profile's settings.
     let popped = r.seen.lock()[seen..].iter().find(|x| matches!(x.1, Some(DeviceEvent::Profile { index: 1 }))).cloned();
-    assert_eq!(popped.and_then(|x| x.0.settings).map(|s| s.polling_hz), Some(125));
+    assert_eq!(popped.and_then(|x| x.0.settings).and_then(|s| s.polling_hz), Some(125));
     // The mouse's echo of the switch is checked, not loaded again, and doesn't pop up again.
     let (req, _) = r.mark();
     r.w.drain_unsolicited();
@@ -225,8 +225,8 @@ fn switching_profile_pops_up_once_with_its_settings_and_skips_the_echo() {
 fn applying_writes_only_what_changed() {
     let mut r = Rig::connected(SimMouse::default());
     let mut next = r.settings();
-    next.polling_hz = 125;
-    next.stages[0].dpi = 3200;
+    next.polling_hz = Some(125);
+    next.stages.as_mut().unwrap()[0].dpi = 3200;
     let (req, _) = r.mark();
     let applied = r.w.apply_settings(&next).unwrap();
     assert_eq!(applied, next);
@@ -242,7 +242,7 @@ fn applying_writes_only_what_changed() {
 fn applying_refuses_what_the_mouse_cant_do_and_writes_nothing() {
     let mut r = Rig::connected(SimMouse::default());
     let mut next = r.settings();
-    next.stages[0].dpi = 30_050;
+    next.stages.as_mut().unwrap()[0].dpi = 30_050;
     let (req, _) = r.mark();
     let e = r.w.apply_settings(&next).unwrap_err().to_string();
     assert!(e.contains("multiple of 50"), "{e}");
@@ -254,7 +254,7 @@ fn a_write_the_mouse_refuses_is_an_error() {
     let mut r = Rig::connected(SimMouse::default());
     r.mouse.lock().reject_write_at = Some(0x00);
     let mut next = r.settings();
-    next.polling_hz = 125;
+    next.polling_hz = Some(125);
     let e = r.w.apply_settings(&next).unwrap_err().to_string();
     assert!(e.contains("rejected a write at 0x0000"), "{e}");
 }
@@ -302,7 +302,7 @@ fn restoring_writes_the_differences_and_checks_each() {
     let written = r.w.write_image(&current, &target).unwrap();
     assert_eq!(written, 2);
     assert_eq!(r.mouse.lock().image(), &target[..]);
-    assert_eq!(r.settings().polling_hz, 125);
+    assert_eq!(r.settings().polling_hz, Some(125));
 }
 
 #[test]
@@ -351,7 +351,7 @@ fn a_factory_reset_reads_the_mouse_again() {
     let mut m = SimMouse::default();
     m.profiles[0] = image_at_125();
     let mut r = Rig::connected(m);
-    assert_eq!(r.settings().polling_hz, 125);
+    assert_eq!(r.settings().polling_hz, Some(125));
     let (req, _) = r.mark();
     r.w.factory_reset().unwrap();
     assert!(r.mouse.lock().commands_since(req).contains(&cmd::FACTORY_RESET));
@@ -389,4 +389,23 @@ fn the_engine_finds_the_mouse_and_runs_calls_on_its_thread() {
     engine.call(|w| w.set_long_range(true)).unwrap();
     assert!(mouse.lock().long_range);
     assert_eq!(engine.snapshot().long_range, Some(true));
+}
+
+#[test]
+fn applying_only_some_settings_leaves_the_rest_as_they_are() {
+    // The battery saver sends only the rate.
+    let mut r = Rig::connected(SimMouse::default());
+    let before = r.settings();
+    let (req, _) = r.mark();
+    let applied = r.w.apply_settings(&Settings { polling_hz: Some(125), ..Default::default() }).unwrap();
+    assert_eq!(applied, Settings { polling_hz: Some(125), ..before });
+    assert!(r.mouse.lock().writes_since(req).iter().all(|a| (0x00..0x02).contains(a)));
+}
+
+#[test]
+fn a_setting_the_mouse_lacks_is_left_out_of_what_the_ui_gets() {
+    let s = Settings { polling_hz: Some(1000), ..Default::default() };
+    assert_eq!(serde_json::to_value(&s).unwrap(), serde_json::json!({ "pollingHz": 1000 }));
+    let back: Settings = serde_json::from_value(serde_json::json!({ "pollingHz": 1000 })).unwrap();
+    assert_eq!(back, s);
 }

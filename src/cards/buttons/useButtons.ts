@@ -13,6 +13,8 @@ const UNDO_MS = 6000;
  * recorded, so picking it only marks the button as waiting for keys.
  */
 export function useButtons(s: Settings, physical: [number, string][]) {
+  // Shown only for a mouse with buttons, so these are there.
+  const buttons = s.buttons ?? [];
   const [note, setNote] = useState<{ text: string; warn?: boolean } | null>(null);
   const [undo, setUndo] = useState<{ text: string; prev: ButtonAction[] } | null>(null);
   const [waiting, setWaiting] = useState<number | null>(null);
@@ -21,12 +23,12 @@ export function useButtons(s: Settings, physical: [number, string][]) {
 
   const nameOf = (i: number) => physical.find(([b]) => b === i)?.[1] ?? `Button ${i + 1}`;
   const write = (buttons: ButtonAction[], undoText: string) => {
-    setUndo({ text: undoText, prev: s.buttons });
+    setUndo({ text: undoText, prev: buttons });
     clearTimeout(timer.current ?? 0);
     timer.current = window.setTimeout(() => setUndo(null), UNDO_MS);
     commit({ ...s, buttons });
   };
-  const onlyLeft = (i: number) => isLeftClick(s.buttons[i]) && physical.filter(([b]) => isLeftClick(s.buttons[b])).length === 1;
+  const onlyLeft = (i: number) => isLeftClick(buttons[i]) && physical.filter(([b]) => isLeftClick(buttons[b])).length === 1;
 
   const set = (i: number, a: ButtonAction) => {
     if (a.kind === "keys" && !a.modifiers && !a.keys.length) {
@@ -34,24 +36,24 @@ export function useButtons(s: Settings, physical: [number, string][]) {
       return;
     }
     setWaiting(null);
-    if (sameAction(s.buttons[i], a)) return;
+    if (sameAction(buttons[i], a)) return;
     if (onlyLeft(i) && !isLeftClick(a)) {
       setNote({ text: `${nameOf(i)} is your only left click. Set another button to Left click first.`, warn: true });
       return;
     }
     setNote(null);
     write(
-      s.buttons.map((b, j) => (j === i ? a : b)),
+      buttons.map((b, j) => (j === i ? a : b)),
       `${nameOf(i)} is set to ${actionLabel(a)}`,
     );
   };
 
-  const isDefault = physical.every(([i]) => !DEFAULT_ACTIONS[i] || sameAction(s.buttons[i], DEFAULT_ACTIONS[i]));
+  const isDefault = physical.every(([i]) => !DEFAULT_ACTIONS[i] || sameAction(buttons[i], DEFAULT_ACTIONS[i]));
   const restore = () => {
     setWaiting(null);
     setNote(null);
     write(
-      s.buttons.map((b, i) => (physical.some(([p]) => p === i) && DEFAULT_ACTIONS[i] ? DEFAULT_ACTIONS[i] : b)),
+      buttons.map((b, i) => (physical.some(([p]) => p === i) && DEFAULT_ACTIONS[i] ? DEFAULT_ACTIONS[i] : b)),
       "Default buttons restored",
     );
   };
@@ -62,6 +64,6 @@ export function useButtons(s: Settings, physical: [number, string][]) {
   };
 
   /** What a button's editor shows: its action, or an empty key combination while it waits for keys. */
-  const shown = (i: number): ButtonAction => (waiting === i ? { kind: "keys", modifiers: 0, keys: [] } : s.buttons[i]);
+  const shown = (i: number): ButtonAction => (waiting === i ? { kind: "keys", modifiers: 0, keys: [] } : buttons[i]);
   return { set, shown, waiting, cancelWaiting: () => setWaiting(null), onlyLeft, note, undo, revert, isDefault, restore };
 }

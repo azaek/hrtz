@@ -101,15 +101,15 @@ export function DpiCheck({ dpi, onResult }: { dpi: number } & TestProps) {
   // The setting that lands closest to the DPI you meant, in the mouse's own steps.
   const settings = device?.settings;
   const caps = device?.capabilities;
-  const step = caps?.dpiStep ?? 50;
+  const step = caps?.dpi?.step ?? 50;
   let fix: { to: number; real: number } | null = null;
-  if (all !== null && runs.length >= 3 && Math.abs(off!) >= FINE && settings && caps) {
+  if (all !== null && runs.length >= 3 && Math.abs(off!) >= FINE && settings && caps?.dpi) {
     const ratio = all / dpi;
-    const to = Math.min(caps.maxDpi, Math.max(step, Math.round(dpi / ratio / step) * step));
+    const to = Math.min(caps.dpi.max, Math.max(caps.dpi.min, Math.round(dpi / ratio / step) * step));
     if (to !== dpi) fix = { to, real: to * ratio };
   }
   const apply = () => {
-    if (!fix || !settings) return;
+    if (!fix || !settings?.stages) return;
     const stages = settings.stages.map((st, i) => (i === settings.dpiStage ? { ...st, dpi: fix!.to } : st));
     setCorrected({ from: dpi, to: fix.to });
     commit({ ...settings, stages });

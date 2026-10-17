@@ -40,8 +40,12 @@ const sorted = (list: Stage[]) => [...list].sort((a, b) => a.dpi - b.dpi);
  * written once, when it ends, so the mouse's memory isn't rewritten for every tick.
  */
 export function useStages(s: Settings, range: DpiRange) {
-  const [stages, setStages] = useState<Stage[]>(() => reconcile([], s.stages.slice(0, s.dpiStageCount)));
-  const [selectedId, setSelectedId] = useState<number>(() => stages[s.dpiStage]?.id ?? stages[0]?.id);
+  // Shown only for a mouse with DPI stages, so these are there.
+  const slots = s.stages ?? [];
+  const count = s.dpiStageCount ?? slots.length;
+  const inUse = s.dpiStage ?? 0;
+  const [stages, setStages] = useState<Stage[]>(() => reconcile([], slots.slice(0, count)));
+  const [selectedId, setSelectedId] = useState<number>(() => stages[inUse]?.id ?? stages[0]?.id);
   const [note, setNote] = useState<Note>(null);
   const [removed, setRemoved] = useState<{ stage: Stage; index: number; wasActive: boolean } | null>(null);
   const dragFrom = useRef<Stage[] | null>(null);
@@ -50,7 +54,7 @@ export function useStages(s: Settings, range: DpiRange) {
   // Follow the mouse (a DPI-button press, another write, a profile switch), except mid-drag.
   useEffect(() => {
     if (dragFrom.current) return;
-    setStages((prev) => reconcile(prev, s.stages.slice(0, s.dpiStageCount)));
+    setStages((prev) => reconcile(prev, slots.slice(0, count)));
   }, [s.stages, s.dpiStageCount]);
   useEffect(() => {
     if (!removed) return;
@@ -59,7 +63,7 @@ export function useStages(s: Settings, range: DpiRange) {
   }, [removed]);
   useEffect(() => setNote(null), [selectedId]);
 
-  const activeId = stages[clamp(s.dpiStage, 0, stages.length - 1)]?.id;
+  const activeId = stages[clamp(inUse, 0, stages.length - 1)]?.id;
   const selected = stages.find((x) => x.id === selectedId) ?? stages[0];
 
   /** Put `list` on the mouse. Stages past the count keep their values; `parked` goes first among
@@ -67,9 +71,9 @@ export function useStages(s: Settings, range: DpiRange) {
   const write = (list: Stage[], active = activeId, parked?: Stage) => {
     setStages(list);
     const visible: DpiStage[] = list.map(({ dpi, color }) => ({ dpi, color }));
-    const hidden = s.stages.slice(s.dpiStageCount);
-    const all = [...visible, ...(parked ? [{ dpi: parked.dpi, color: parked.color }] : []), ...hidden].slice(0, s.stages.length);
-    while (all.length < s.stages.length) all.push(s.stages[all.length]);
+    const hidden = slots.slice(count);
+    const all = [...visible, ...(parked ? [{ dpi: parked.dpi, color: parked.color }] : []), ...hidden].slice(0, slots.length);
+    while (all.length < slots.length) all.push(slots[all.length]);
     const index = list.findIndex((x) => x.id === active);
     void commit({ ...s, stages: all, dpiStageCount: list.length, dpiStage: Math.max(0, index) });
   };

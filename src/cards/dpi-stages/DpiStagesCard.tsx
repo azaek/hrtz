@@ -13,7 +13,6 @@ import { Tape } from "./Tape";
 import { useStages } from "./useStages";
 
 /** The mouse holds up to eight stages. */
-const MAX_STAGES = 8;
 
 /** The first of your listed games whose settings file gives its sensitivity, for eDPI. */
 function useGameSens() {
@@ -40,8 +39,10 @@ function useGameSens() {
  * row and drag its tape. The rows settle back into order when a value changes, if they were in
  * order. Decided in the DPI card lab (DECISIONS.md, "DPI stages card").
  */
+/** Shown only for a mouse with DPI stages (`caps.dpi`). */
 export function DpiStagesCard({ s, caps }: { s: Settings; caps: Capabilities }) {
-  const range = dpiRange(caps);
+  const limits = caps.dpi!;
+  const range = dpiRange(limits);
   const e = useStages(s, range);
   const sens = useGameSens();
   const count = e.stages.length;
@@ -67,7 +68,7 @@ export function DpiStagesCard({ s, caps }: { s: Settings; caps: Capabilities }) 
             return (
               <CardListRow key={x.id} onFocusCapture={() => e.setSelectedId(x.id)} onPointerDown={() => e.setSelectedId(x.id)}>
                 <span className="w-4 text-center text-xs text-muted-foreground tabular-nums">{n}</span>
-                <ColorMenu color={x.color} label={`Stage ${n} light`} palette={LED_PALETTE} onChange={(hex) => e.setColour(x.id, hex)} />
+                {limits.colors && <ColorMenu color={x.color} label={`Stage ${n} light`} palette={LED_PALETTE} onChange={(hex) => e.setColour(x.id, hex)} />}
                 <DpiField className="w-36" value={x.dpi} range={range} label={`Stage ${n} DPI`} taken={e.taken(x.id)} onChange={(v) => e.setValue(x.id, v)} onNote={e.setNote} />
                 <HoverSwap
                   rest={sens ? `eDPI ${fmtDpi(Math.round(x.dpi * sens.sens))} in ${sens.game}` : null}
@@ -99,7 +100,7 @@ export function DpiStagesCard({ s, caps }: { s: Settings; caps: Capabilities }) 
         </CardList>
       }
     >
-      {count < MAX_STAGES && (
+      {count < limits.maxStages && (
         <FluentButton icon={<Add16Regular />} onClick={e.add}>
           Add stage
         </FluentButton>

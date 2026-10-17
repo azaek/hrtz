@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { type ConnStats, type DeviceState, type GapPattern, type MeterSample } from "@/api";
+import { topRate, type ConnStats, type DeviceState, type GapPattern, type MeterSample } from "@/api";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
 
@@ -40,8 +40,9 @@ export type Check = { n: number; at: number; runs: ConnRun[] };
 export function setupOf(d: DeviceState | null): Setup | null {
   const s = d?.settings;
   const c = d?.capabilities;
-  if (!d || !s || !c) return null;
-  return { hz: Math.min(s.pollingHz, c.maxPollingHz), motionSync: s.motionSync, port: d.port?.path ?? null, hubs: d.port?.hubs ?? 0, wired: c.wired };
+  if (!d || !s || !c || s.pollingHz === undefined) return null;
+  const hz = Math.min(s.pollingHz, topRate(c) ?? s.pollingHz);
+  return { hz, motionSync: !!s.motionSync, port: d.port?.path ?? null, hubs: d.port?.hubs ?? 0, wired: c.wired };
 }
 
 // ---- Checks, kept for the session, so one before a change and one after can be compared --------

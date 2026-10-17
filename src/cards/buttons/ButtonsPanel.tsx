@@ -18,11 +18,13 @@ const muted = { color: "var(--colorNeutralForeground3)" };
  * list. Decided in the Buttons lab (DECISIONS.md, "Buttons page").
  */
 export function ButtonsPanel({ s, caps, art, online }: { s: Settings; caps: Capabilities; art: ModelArt | undefined; online: boolean }) {
-  const physical = caps.buttons;
+  // Shown only for a mouse with buttons, so these are there.
+  const physical = caps.buttons ?? [];
+  const actions = s.buttons ?? [];
   const e = useButtons(s, physical);
   const [lit, setLit] = useState<number | null>(null);
   // Opens on the first button you can change (not the only left click).
-  const [sel, setSelState] = useState(() => physical.find(([i]) => !e.onlyLeft(i))?.[0] ?? physical[0][0]);
+  const [sel, setSelState] = useState(() => physical.find(([i]) => !e.onlyLeft(i))?.[0] ?? physical[0]?.[0] ?? 0);
   // Leaving a button that's waiting for keys leaves it as it was.
   const pick = (i: number) => (e.cancelWaiting(), setSelState(i));
 
@@ -79,7 +81,7 @@ export function ButtonsPanel({ s, caps, art, online }: { s: Settings; caps: Capa
                   <span className="flex min-w-0 flex-col">
                     <Body1>{nm}</Body1>
                     <Caption1 className="truncate" style={muted}>
-                      {i === DPI_BUTTON ? `Underneath · ${shortLabel(s.buttons[i])}` : shortLabel(s.buttons[i])}
+                      {i === DPI_BUTTON ? `Underneath · ${shortLabel(actions[i])}` : shortLabel(actions[i])}
                     </Caption1>
                   </span>
                 </button>
@@ -94,7 +96,7 @@ export function ButtonsPanel({ s, caps, art, online }: { s: Settings; caps: Capa
             strong
             lead={<Chip n={n} lit />}
             title={name}
-            description={onlyLeft ? "Your only left click, so it can't be reassigned." : shortLabel(s.buttons[sel])}
+            description={onlyLeft ? "Your only left click, so it can't be reassigned." : shortLabel(actions[sel])}
           />
           <div className="px-4">
             <TileChoice
@@ -109,7 +111,7 @@ export function ButtonsPanel({ s, caps, art, online }: { s: Settings; caps: Capa
             <FunctionOptions
               key={sel}
               action={shown}
-              maxDpi={caps.maxDpi}
+              maxDpi={caps.dpi?.max ?? 12800}
               disabled={off || onlyLeft}
               onChange={(a) => e.set(sel, a)}
               recordNow={e.waiting === sel}

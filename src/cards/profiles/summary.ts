@@ -1,4 +1,4 @@
-import type { Capabilities, ProfileSnapshot, Settings } from "@/api";
+import { currentDpi, type Capabilities, type ProfileSnapshot, type Settings } from "@/api";
 import { DEFAULT_ACTIONS, sameAction } from "@/cards/buttons/functions";
 import { fmtDpi } from "@/dpi";
 import { hzText } from "@/rates";
@@ -12,9 +12,9 @@ export type Summary = { dpi: number; stages: number; hz: number; buttonsChanged:
  */
 export function summaryOf(i: number, inUse: number | null, live: Settings | null, snaps: (ProfileSnapshot | null)[] | undefined, mid: number, caps: Capabilities | null): Summary | null {
   const physical = caps?.buttons ?? [];
-  const changed = (buttons: Settings["buttons"]) => physical.filter(([b]) => DEFAULT_ACTIONS[b] && !sameAction(buttons[b], DEFAULT_ACTIONS[b])).length;
+  const changed = (buttons: Settings["buttons"] = []) => physical.filter(([b]) => DEFAULT_ACTIONS[b] && !sameAction(buttons[b], DEFAULT_ACTIONS[b])).length;
   if (i === inUse && live) {
-    return { dpi: live.stages[live.dpiStage]?.dpi ?? 0, stages: live.dpiStageCount, hz: live.pollingHz, buttonsChanged: changed(live.buttons) };
+    return { dpi: currentDpi(live) ?? 0, stages: live.dpiStageCount ?? 0, hz: live.pollingHz ?? 0, buttonsChanged: changed(live.buttons) };
   }
   const s = snaps?.[i];
   if (!s || s.mid !== mid) return null;

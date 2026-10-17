@@ -55,16 +55,17 @@ pub struct ProfileSnapshot {
 }
 
 impl ProfileSnapshot {
-    /// `physical` is the flash indices of the buttons the model has.
-    pub fn of(mid: u8, s: &Settings, physical: &[(u8, String)]) -> Self {
+    /// `physical` is the flash indices of the buttons the model has. None for a mouse without DPI
+    /// stages or a polling rate, which has nothing for the Profiles page to sum up.
+    pub fn of(mid: u8, s: &Settings, physical: &[(u8, String)]) -> Option<Self> {
         let n = physical.iter().map(|(i, _)| *i as usize + 1).max().unwrap_or(0);
-        Self {
+        Some(Self {
             mid,
-            dpi: s.stages.get(s.dpi_stage as usize).map_or(0, |x| x.dpi),
-            stages: s.dpi_stage_count,
-            polling_hz: s.polling_hz,
-            buttons: s.buttons.iter().take(n).cloned().collect(),
-        }
+            dpi: s.dpi()?,
+            stages: s.dpi_stage_count?,
+            polling_hz: s.polling_hz?,
+            buttons: s.buttons.as_deref().unwrap_or(&[]).iter().take(n).cloned().collect(),
+        })
     }
 }
 

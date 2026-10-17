@@ -236,15 +236,14 @@ impl Compx {
             self.refresh_settings(board);
             let s = board.read().settings.clone();
             if let Some(s) = s {
-                let dpi = s.stages.get(s.dpi_stage as usize).map_or(0, |st| st.dpi);
-                board.publish(Some(DeviceEvent::Dpi { stage: s.dpi_stage, dpi }));
+                board.publish(Some(DeviceEvent::Dpi { stage: s.dpi_stage.unwrap_or(0), dpi: s.dpi().unwrap_or(0) }));
             }
         }
         if bits & status::POLLING != 0 {
             let r = self.read_flash(0x00, 2)?;
             self.image[0x00..0x02].copy_from_slice(&r);
             self.refresh_settings(board);
-            let hz = board.read().settings.as_ref().map_or(0, |s| s.polling_hz);
+            let hz = board.read().settings.as_ref().and_then(|s| s.polling_hz).unwrap_or(0);
             board.publish(Some(DeviceEvent::Polling { hz }));
         }
         Ok(Follow {
@@ -306,7 +305,7 @@ impl Driver for Compx {
 
     fn apply(&mut self, board: &Board, new: &Settings) -> Result<()> {
         let caps = board.read().capabilities.clone().ok_or_else(|| anyhow!("unknown device"))?;
-        image::validate(new, &image::decode(&self.image), &caps).map_err(|e| anyhow!(e))?;
+        image::validate(new, &self.image, &caps).map_err(|e| anyhow!(e))?;
         let target = image::encode(new, &self.image);
         for (addr, bytes) in image::diff(&self.image, &target, p::MAX_CHUNK) {
             self.write_flash(addr, &bytes)?;

@@ -99,43 +99,135 @@ pub enum ScrollDirection {
     Right,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
+/// What the mouse holds now. A setting this mouse doesn't have is `None`, and its card isn't shown.
+/// Sent back whole to change something; `None` there leaves that setting as it is.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    pub polling_hz: u32,
-    pub dpi_stage_count: u8,
-    /// 0-based index of the active stage.
-    pub dpi_stage: u8,
-    pub stages: Vec<DpiStage>,
-    pub lod: Lod,
-    pub sensor_mode: SensorMode,
-    pub debounce_ms: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub polling_hz: Option<u32>,
+    /// How many DPI stages the DPI button cycles through.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dpi_stage_count: Option<u8>,
+    /// 0-based index of the stage in use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dpi_stage: Option<u8>,
+    /// Every stage slot the mouse has, used or not.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stages: Option<Vec<DpiStage>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lod: Option<Lod>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensor_mode: Option<SensorMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debounce_ms: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motion_sync: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub angle_snapping: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ripple_control: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peak_timeout_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peak_timeout_s: Option<u32>,
+    /// Seconds without movement before the mouse sleeps (not in the vendor app).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sleep_s: Option<u32>,
+    /// What each button does, by the mouse's own button index.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub buttons: Option<Vec<ButtonAction>>,
+}
+
+impl Settings {
+    /// The DPI of the stage in use.
+    pub fn dpi(&self) -> Option<u32> {
+        self.stages.as_ref()?.get(self.dpi_stage? as usize).map(|s| s.dpi)
+    }
+}
+
+/// What the mouse can do, with its real limits. A feature it lacks is `None` (or `false`), so the
+/// UI leaves its card out, and app features that need it step aside for this mouse.
+#[derive(Serialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Capabilities {
+    /// Connected by USB cable rather than a receiver.
+    pub wired: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dpi: Option<DpiCaps>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub polling: Option<PollingCaps>,
+    /// Lift-off distances offered, lowest first.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lod: Option<Vec<Lod>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensor_mode: Option<SensorModeCaps>,
+    /// Debounce, in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debounce_ms: Option<Range>,
     pub motion_sync: bool,
     pub angle_snapping: bool,
     pub ripple_control: bool,
-    pub peak_timeout_enabled: bool,
-    pub peak_timeout_s: u32,
-    /// Seconds without movement before the mouse sleeps (not in the vendor app).
-    pub sleep_s: u32,
-    pub buttons: Vec<ButtonAction>,
+    /// Peak performance's timeouts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peak_timeouts_s: Option<Vec<u32>>,
+    /// "Sleep after" choices: only where the sleep timer has been measured, a Z1 PRO MAX so far.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sleep_times_s: Option<Vec<u32>>,
+    /// The buttons that physically exist: the mouse's index for each, and its name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub buttons: Option<Vec<(u8, String)>>,
+    /// How many onboard profiles.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profiles: Option<u8>,
+    pub battery: bool,
+    pub long_range: bool,
+    pub pairing: bool,
+    pub factory_reset: bool,
+    /// Its whole memory can be read and written back, for backups.
+    pub backups: bool,
 }
 
-/// Device-specific limits the UI needs.
-#[derive(Serialize, Clone, Debug)]
+impl Capabilities {
+    /// The highest polling rate this connection carries.
+    pub fn top_rate(&self) -> Option<u32> {
+        self.polling.as_ref()?.rates.last().copied()
+    }
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct Capabilities {
-    pub max_dpi: u32,
-    pub dpi_step: u32,
-    /// Connected by USB cable rather than a receiver.
-    pub wired: bool,
-    /// Highest rate this connection carries; the flash may hold a higher one for the other link.
-    pub max_polling_hz: u32,
-    pub polling_hz: Vec<u32>,
-    pub peak_timeouts_s: Vec<u32>,
-    /// "Sleep after" choices: only where the sleep timer has been measured, a Z1 PRO MAX so far.
-    pub sleep_times_s: Vec<u32>,
-    /// 0.7 mm lift-off is only offered on PAW3950 models.
-    pub low_lod: bool,
-    /// Flash indices of buttons that physically exist, with their names.
-    pub buttons: Vec<(u8, String)>,
+pub struct DpiCaps {
+    pub min: u32,
+    pub max: u32,
+    pub step: u32,
+    /// Stage slots; the DPI button cycles through the first `dpi_stage_count`.
+    pub max_stages: u8,
+    /// Each stage has a colour for the mouse's light.
+    pub colors: bool,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PollingCaps {
+    /// The rates this connection carries, lowest first. The mouse may hold a higher one, set for
+    /// its other connection.
+    pub rates: Vec<u32>,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SensorModeCaps {
+    pub modes: Vec<SensorMode>,
+    /// The mouse runs Corded at this rate and above, whatever is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub corded_from_hz: Option<u32>,
+    /// On its cable, the mouse always runs Corded.
+    pub corded_when_wired: bool,
+}
+
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Range {
+    pub min: u32,
+    pub max: u32,
 }

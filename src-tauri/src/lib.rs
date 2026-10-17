@@ -566,20 +566,23 @@ fn battery_history(ctx: State<'_, Arc<Ctx>>, days: u32) -> Vec<battery_log::Entr
 /// charging (or the saver is turned off). Each change is written to the mouse's memory, so this
 /// switches about twice a charge, never back and forth.
 fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &Prefs) {
-    let (Some(b), Some(st), Some(caps)) = (&s.battery, &s.settings, &s.capabilities) else { return };
-    if !s.online || caps.wired || ctx.saver_busy.load(Ordering::SeqCst) {
+    let (Some(b), Some(hz), Some(caps)) = (&s.battery, s.settings.as_ref().and_then(|x| x.polling_hz), &s.capabilities)
+    else {
+        return;
+    };
+    if !s.online || caps.wired || caps.polling.is_none() || ctx.saver_busy.load(Ordering::SeqCst) {
         return;
     }
-    let Some((target, restore)) = prefs.saver_step(b.level, b.charging, st.polling_hz) else { return };
+    let Some((target, restore)) = prefs.saver_step(b.level, b.charging, hz) else { return };
     let lowering = restore.is_some() && target.is_some();
-    let (from, level, model) = (st.polling_hz, b.level, s.model.clone().unwrap_or_default());
-    let mut next = st.clone();
+    let (from, level, model) = (hz, b.level, s.model.clone().unwrap_or_default());
     let (app, ctx) = (app.clone(), ctx.clone());
     ctx.saver_busy.store(true, Ordering::SeqCst);
     thread::spawn(move || {
         let applied = match target {
             Some(hz) => {
-                next.polling_hz = hz;
+                // Only the rate: the rest stays as the mouse has it.
+                let next = Settings { polling_hz: Some(hz), ..Default::default() };
                 ctx.engine.call(move |w| w.apply_settings(&next)).map(|_| ())
             }
             None => Ok(()),
@@ -626,11 +629,11 @@ fn test_popup(app: AppHandle, ctx: State<'_, Arc<Ctx>>, kind: String) -> CmdResu
     let st = s.settings.as_ref();
     let model = s.model.clone().unwrap_or_else(|| "mouse".into());
     let level = s.battery.as_ref().map_or(15, |b| b.level);
-    let hz = st.map_or(8000, |x| x.polling_hz);
+    let hz = st.and_then(|x| x.polling_hz).unwrap_or(8000);
     let event = match kind.as_str() {
         "dpi" => Some(DeviceEvent::Dpi {
-            stage: st.map_or(0, |x| x.dpi_stage),
-            dpi: st.and_then(|x| x.stages.get(x.dpi_stage as usize)).map_or(1600, |x| x.dpi),
+            stage: st.and_then(|x| x.dpi_stage).unwrap_or(0),
+            dpi: st.and_then(|x| x.dpi()).unwrap_or(1600),
         }),
         "polling" => Some(DeviceEvent::Polling { hz }),
         "profile" => Some(DeviceEvent::Profile { index: s.profile.unwrap_or(0) }),
@@ -759,7 +762,7 @@ fn tooltip(s: &DeviceState) -> String {
     match (&s.battery, s.connected, s.online) {
         (_, false, _) => "hrtz: no mouse connected".into(),
         (Some(b), true, true) => {
-            let hz = s.settings.as_ref().map(|x| format!(" · {} Hz", x.polling_hz)).unwrap_or_default();
+            let hz = s.settings.as_ref().and_then(|x| x.polling_hz).map(|hz| format!(" · {hz} Hz")).unwrap_or_default();
             let charging = if b.charging { " charging" } else { "" };
             format!("{model}: {}%{charging}{hz}", b.level)
         }
@@ -776,8 +779,10 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
     // differently when the sensor keeps tracking as the mouse rises.
     #[cfg(windows)]
     if let Some(st) = &s.settings {
-        meter::set_dpi(st.stages.get(st.dpi_stage as usize).map_or(0, |x| x.dpi));
-        meter::set_lift_off(st.lod != mice::model::Lod::Low);
+        meter::set_dpi(st.dpi().unwrap_or(0));
+        if let Some(lod) = st.lod {
+            meter::set_lift_off(lod != mice::model::Lod::Low);
+        }
     }
 
     refresh_tray(&ctx, s);
@@ -786,13 +791,13 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
 
     // Remember what the profile in use holds: the mouse reports only that one, and the Profiles
     // page shows the rest from these.
-    if let (true, Some(i), Some(st), Some(caps)) = (s.online, s.profile, &s.settings, &s.capabilities) {
-        let snap = ProfileSnapshot::of(s.mid, st, &caps.buttons);
-        if prefs.profile_snapshots.get(i as usize).is_some_and(|x| x.as_ref() != Some(&snap)) {
-            let mut next = ctx.prefs.read().clone();
-            if next.note_profile(i, snap) {
-                commit_prefs(app, &ctx, next);
-            }
+    if let (true, Some(i), Some(st), Some(caps)) = (s.online, s.profile, &s.settings, &s.capabilities)
+        && let Some(snap) = ProfileSnapshot::of(s.mid, st, caps.buttons.as_deref().unwrap_or(&[]))
+        && prefs.profile_snapshots.get(i as usize).is_some_and(|x| x.as_ref() != Some(&snap))
+    {
+        let mut next = ctx.prefs.read().clone();
+        if next.note_profile(i, snap) {
+            commit_prefs(app, &ctx, next);
         }
     }
 

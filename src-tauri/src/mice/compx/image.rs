@@ -6,6 +6,85 @@ use crate::mice::model::{
     ButtonAction, Capabilities, DpiAction, DpiStage, Lod, MouseButton, ScrollDirection, SensorMode, Settings,
 };
 
+/// The settings as the codec works on them: every value present, as the image holds them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Fields {
+    polling_hz: u32,
+    dpi_stage_count: u8,
+    dpi_stage: u8,
+    stages: Vec<DpiStage>,
+    lod: Lod,
+    sensor_mode: SensorMode,
+    debounce_ms: u8,
+    motion_sync: bool,
+    angle_snapping: bool,
+    ripple_control: bool,
+    peak_timeout_enabled: bool,
+    peak_timeout_s: u32,
+    sleep_s: u32,
+    buttons: Vec<ButtonAction>,
+}
+
+impl Fields {
+    /// These, with what `new` gives in place of each.
+    fn with(&self, new: &Settings) -> Fields {
+        Fields {
+            polling_hz: new.polling_hz.unwrap_or(self.polling_hz),
+            dpi_stage_count: new.dpi_stage_count.unwrap_or(self.dpi_stage_count),
+            dpi_stage: new.dpi_stage.unwrap_or(self.dpi_stage),
+            stages: new.stages.clone().unwrap_or_else(|| self.stages.clone()),
+            lod: new.lod.unwrap_or(self.lod),
+            sensor_mode: new.sensor_mode.unwrap_or(self.sensor_mode),
+            debounce_ms: new.debounce_ms.unwrap_or(self.debounce_ms),
+            motion_sync: new.motion_sync.unwrap_or(self.motion_sync),
+            angle_snapping: new.angle_snapping.unwrap_or(self.angle_snapping),
+            ripple_control: new.ripple_control.unwrap_or(self.ripple_control),
+            peak_timeout_enabled: new.peak_timeout_enabled.unwrap_or(self.peak_timeout_enabled),
+            peak_timeout_s: new.peak_timeout_s.unwrap_or(self.peak_timeout_s),
+            sleep_s: new.sleep_s.unwrap_or(self.sleep_s),
+            buttons: new.buttons.clone().unwrap_or_else(|| self.buttons.clone()),
+        }
+    }
+}
+
+impl From<Fields> for Settings {
+    /// A Zaopin has every setting.
+    fn from(f: Fields) -> Self {
+        Settings {
+            polling_hz: Some(f.polling_hz),
+            dpi_stage_count: Some(f.dpi_stage_count),
+            dpi_stage: Some(f.dpi_stage),
+            stages: Some(f.stages),
+            lod: Some(f.lod),
+            sensor_mode: Some(f.sensor_mode),
+            debounce_ms: Some(f.debounce_ms),
+            motion_sync: Some(f.motion_sync),
+            angle_snapping: Some(f.angle_snapping),
+            ripple_control: Some(f.ripple_control),
+            peak_timeout_enabled: Some(f.peak_timeout_enabled),
+            peak_timeout_s: Some(f.peak_timeout_s),
+            sleep_s: Some(f.sleep_s),
+            buttons: Some(f.buttons),
+        }
+    }
+}
+
+/// The settings `f` holds.
+pub fn decode(f: &[u8]) -> Settings {
+    decode_fields(f).into()
+}
+
+/// Check `new` against the mouse's limits; a setting it leaves out keeps what `image` holds.
+pub fn validate(new: &Settings, image: &[u8], caps: &Capabilities) -> Result<(), String> {
+    let old = decode_fields(image);
+    validate_fields(&old.with(new), &old, caps)
+}
+
+/// Write every setting `new` gives into a copy of `image`.
+pub fn encode(new: &Settings, image: &[u8]) -> Vec<u8> {
+    encode_fields(&decode_fields(image).with(new), image)
+}
+
 pub(crate) const POLLING: [(u32, u8); 7] =
     [(125, 8), (250, 4), (500, 2), (1000, 1), (2000, 0x10), (4000, 0x20), (8000, 0x40)];
 pub const PEAK_TIMEOUTS_S: [u32; 6] = [30, 60, 120, 300, 600, 900];
@@ -68,7 +147,7 @@ fn polling_hz(code: u8) -> Option<u32> {
     POLLING.iter().find(|p| p.1 == code).map(|p| p.0)
 }
 
-pub fn decode(f: &[u8]) -> Settings {
+fn decode_fields(f: &[u8]) -> Fields {
     assert!(f.len() >= CONFIG_REGION.max(addr::SHORTCUTS + BUTTON_SLOTS * addr::SHORTCUT_LEN));
     let stage_count = pair(f, addr::STAGE_COUNT).filter(|n| (1..=8).contains(n)).unwrap_or(6);
     let stages = (0..MAX_STAGES)
@@ -80,7 +159,7 @@ pub fn decode(f: &[u8]) -> Settings {
             DpiStage { dpi, color: format!("#{:02X}{:02X}{:02X}", color[0], color[1], color[2]) }
         })
         .collect();
-    Settings {
+    Fields {
         polling_hz: pair(f, addr::POLLING).and_then(polling_hz).unwrap_or(1000),
         dpi_stage_count: stage_count,
         dpi_stage: pair(f, addr::STAGE).filter(|s| *s < stage_count).unwrap_or(0),
@@ -226,9 +305,10 @@ fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction) {
 }
 
 /// Validate `s` against device limits, returning a human-readable reason on failure.
-pub fn validate(s: &Settings, old: &Settings, caps: &Capabilities) -> Result<(), String> {
+fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), String> {
     // A rate above this link's limit may already be stored for the other link; keeping it is fine.
-    if s.polling_hz != old.polling_hz && !caps.polling_hz.contains(&s.polling_hz) {
+    let rates = caps.polling.as_ref().map_or(&[][..], |p| &p.rates[..]);
+    if s.polling_hz != old.polling_hz && !rates.contains(&s.polling_hz) {
         return Err(format!("{} Hz is not supported by this receiver", s.polling_hz));
     }
     if !(1..=MAX_STAGES as u8).contains(&s.dpi_stage_count) || s.dpi_stage >= s.dpi_stage_count {
@@ -237,9 +317,13 @@ pub fn validate(s: &Settings, old: &Settings, caps: &Capabilities) -> Result<(),
     if s.stages.len() != MAX_STAGES || s.buttons.len() != BUTTON_SLOTS {
         return Err("settings are incomplete".into());
     }
+    let dpi = caps.dpi.as_ref().ok_or("this mouse has no DPI stages")?;
     for st in &s.stages {
-        if st.dpi < 50 || st.dpi > caps.max_dpi || st.dpi % 50 != 0 {
-            return Err(format!("{} DPI must be a multiple of 50 between 50 and {}", st.dpi, caps.max_dpi));
+        if st.dpi < dpi.min || st.dpi > dpi.max || st.dpi % dpi.step != 0 {
+            return Err(format!(
+                "{} DPI must be a multiple of {} between {} and {}",
+                st.dpi, dpi.step, dpi.min, dpi.max
+            ));
         }
         parse_color(&st.color).ok_or_else(|| format!("{} is not a #RRGGBB colour", st.color))?;
     }
@@ -272,9 +356,9 @@ fn parse_color(c: &str) -> Option<[u8; 3]> {
 }
 
 /// Write every modelled field of `s` into a copy of `image`.
-pub fn encode(s: &Settings, image: &[u8]) -> Vec<u8> {
+fn encode_fields(s: &Fields, image: &[u8]) -> Vec<u8> {
     let mut f = image.to_vec();
-    let old = decode(image);
+    let old = decode_fields(image);
     // Only fields the caller changed are written, so invalid-but-untouched bytes stay as they are.
     let mut pair_if = |changed: bool, a: usize, v: u8| {
         if changed {
@@ -420,7 +504,7 @@ mod tests {
 
     #[test]
     fn decodes_a_z1_pro_max_image() {
-        let s = decode(&FIXTURE);
+        let s = decode_fields(&FIXTURE);
         assert_eq!(s.polling_hz, 4000);
         assert_eq!(s.dpi_stage_count, 4);
         assert_eq!(s.dpi_stage, 1);
@@ -448,25 +532,25 @@ mod tests {
 
     #[test]
     fn unchanged_settings_encode_to_identical_image() {
-        let s = decode(&FIXTURE);
-        assert!(diff(&FIXTURE, &encode(&s, &FIXTURE), 10).is_empty());
+        let s = decode_fields(&FIXTURE);
+        assert!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10).is_empty());
     }
 
     #[test]
     fn single_change_produces_single_write() {
-        let mut s = decode(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE);
         s.debounce_ms = 4;
-        let d = diff(&FIXTURE, &encode(&s, &FIXTURE), 10);
+        let d = diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10);
         assert_eq!(d, vec![(0xA9, vec![4, 0x51])]);
     }
 
     #[test]
     fn sleep_after_writes_its_own_pair() {
-        let mut s = decode(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE);
         s.sleep_s = 30;
-        assert_eq!(diff(&FIXTURE, &encode(&s, &FIXTURE), 10), vec![(0xBB, vec![30, 0x37])]);
+        assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10), vec![(0xBB, vec![30, 0x37])]);
         s.sleep_s = 120;
-        assert_eq!(diff(&FIXTURE, &encode(&s, &FIXTURE), 10), vec![(0xBB, vec![120, 0xDD])]);
+        assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10), vec![(0xBB, vec![120, 0xDD])]);
     }
 
     #[test]
@@ -479,20 +563,20 @@ mod tests {
 
     #[test]
     fn key_combo_round_trips() {
-        let mut s = decode(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE);
         // Ctrl + Shift + Esc
         s.buttons[3] = ButtonAction::Keys { modifiers: 0x03, keys: vec![41] };
-        let img = encode(&s, &FIXTURE);
-        assert_eq!(decode(&img).buttons[3], s.buttons[3]);
+        let img = encode_fields(&s, &FIXTURE);
+        assert_eq!(decode_fields(&img).buttons[3], s.buttons[3]);
         let slot = shortcut_slot(3);
         assert_eq!(img[slot], 6);
     }
 
     #[test]
     fn media_key_round_trips() {
-        let mut s = decode(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE);
         s.buttons[4] = ButtonAction::Media { usage: 0x00CD };
-        let img = encode(&s, &FIXTURE);
-        assert_eq!(decode(&img).buttons[4], s.buttons[4]);
+        let img = encode_fields(&s, &FIXTURE);
+        assert_eq!(decode_fields(&img).buttons[4], s.buttons[4]);
     }
 }

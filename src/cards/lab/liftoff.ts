@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Lod, MeterSample, Settings } from "@/api";
-import { api } from "@/api";
+import { api, currentDpi } from "@/api";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
 import { cmOf, mm, mmOf } from "./tracking";
@@ -38,10 +38,6 @@ export type LodResult = {
 const fresh = (lod: Lod): LodResult => ({ lod, returns: 0, slides: 0, leak: 0, slideMs: 0, stalls: 0, slidBack: 0 });
 
 /** Lift-off distances this mouse offers, lowest first. */
-export function lodsOf(lowLod: boolean): Lod[] {
-  return lowLod ? ["0.7mm", "1mm", "2mm"] : ["1mm", "2mm"];
-}
-
 export const stallsPerMinute = (r: LodResult) => (r.slideMs > 0 ? (r.stalls / r.slideMs) * 60_000 : 0);
 export const leakPerLift = (r: LodResult, dpi: number) => (r.returns ? mmOf(r.leak, dpi) / r.returns : 0);
 /** The sensor kept track on the slides. */
@@ -119,8 +115,9 @@ export function useLiftOff() {
   const device = useStore((x) => x.device);
   const busy = useStore((x) => x.busy);
   const settings = device?.settings ?? null;
-  const dpi = settings ? (settings.stages[settings.dpiStage]?.dpi ?? 1600) : 1600;
-  const lods = lodsOf(!!device?.capabilities?.lowLod);
+  const dpi = currentDpi(settings) ?? 1600;
+  // The mouse's own lift-off settings, lowest first.
+  const lods = device?.capabilities?.lod ?? [];
   const [state, setState] = useState(kept);
   const [view, setView] = useState<{ lod: Lod | null; i: number; ready: boolean; count: number }>({ lod: null, i: 0, ready: false, count: 0 });
   const run = useRef<Run | null>(null);
@@ -211,7 +208,7 @@ export function useLiftOff() {
 
   /** From the lowest setting up, from scratch. */
   const start = () => {
-    if (!settings) return;
+    if (!settings?.lod || !lods.length) return;
     save({ tried: [], done: false });
     run.current = { lods, i: 0, original: run.current?.original ?? settings.lod, ready: false, dir: null };
     set(lods[0]);
