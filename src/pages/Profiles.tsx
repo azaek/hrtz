@@ -1,7 +1,8 @@
 import { ProfilesPanel } from "@/cards/profiles/ProfilesPanel";
-import { useStore } from "@/store";
+import { useMouse, useStore } from "@/store";
 
 export function ProfilesPage() {
   const prefs = useStore((x) => x.prefs);
-  return prefs ? <ProfilesPanel prefs={prefs} /> : null;
+  const mouse = useMouse();
+  return prefs && mouse ? <ProfilesPanel prefs={prefs} mouse={mouse} /> : null;
 }

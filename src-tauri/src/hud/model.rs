@@ -7,7 +7,7 @@
 //! mark while the mouse doesn't answer.
 
 use crate::mice::DeviceState;
-use crate::store::{HudFields, HudShow, Prefs};
+use crate::store::{HudFields, HudShow, MousePrefs, Prefs};
 
 /// How long a tab stays up after its value changes, and after a game comes to the front.
 pub const SHOW_MS: u64 = 3000;
@@ -133,7 +133,13 @@ pub struct Facts {
 
 impl Facts {
     /// `life_h` is the hours a full charge lasts at a polling rate, from the battery log.
-    pub fn of(s: &DeviceState, prefs: &Prefs, vendor_app: bool, life_h: impl Fn(u32) -> Option<f64>) -> Self {
+    pub fn of(
+        s: &DeviceState,
+        prefs: &Prefs,
+        mouse: &MousePrefs,
+        vendor_app: bool,
+        life_h: impl Fn(u32) -> Option<f64>,
+    ) -> Self {
         let st = s.settings.as_ref();
         let caps = s.capabilities.as_ref();
         let wired = caps.is_some_and(|c| c.wired);
@@ -156,11 +162,9 @@ impl Facts {
             polling_hz: st
                 .and_then(|x| x.polling_hz)
                 .map(|hz| caps.and_then(|c| c.top_rate()).map_or(hz, |top| hz.min(top))),
-            saver: prefs.battery_saver_restore.is_some(),
+            saver: mouse.battery_saver_restore.is_some(),
             dpi: st.and_then(|x| Some((x.dpi()?, x.dpi_stage?, x.dpi_stage_count?))),
-            profile: s
-                .profile
-                .map(|i| prefs.profile_names.get(i as usize).cloned().unwrap_or_else(|| format!("Profile {}", i + 1))),
+            profile: s.profile.map(|i| mouse.profile_name(i)),
             time_left_h,
             low_at: prefs.low_battery_percent,
             vendor_app,
@@ -177,7 +181,7 @@ impl Facts {
             polling_hz: Some(8000),
             saver: false,
             dpi: Some((1600, 0, 1)),
-            profile: Some(prefs.profile_names[0].clone()),
+            profile: Some("Profile 1".into()),
             time_left_h: Some(6.5),
             low_at: prefs.low_battery_percent,
             vendor_app: false,
@@ -624,16 +628,17 @@ mod tests {
             capabilities: Some(caps),
             ..DeviceState::default()
         };
-        let p = Prefs { battery_saver_restore: Some(8000), ..prefs() };
-        let f = Facts::of(&s, &p, true, |hz| (hz == 8000).then_some(12.0));
+        let p = prefs();
+        let m = MousePrefs { battery_saver_restore: Some(8000), ..MousePrefs::default() };
+        let f = Facts::of(&s, &p, &m, true, |hz| (hz == 8000).then_some(12.0));
         assert_eq!(f.polling_hz, Some(4000), "capped at what the receiver carries");
         assert_eq!(f.dpi, Some((800, 1, 4)));
         assert_eq!(f.profile.as_deref(), Some("Profile 3"));
         assert!((f.time_left_h.unwrap() - 9.6).abs() < 1e-9);
         assert!(f.saver && f.vendor_app && f.link == Link::Receiver);
-        let asleep = Facts::of(&DeviceState { online: false, ..s.clone() }, &p, false, |_| None);
+        let asleep = Facts::of(&DeviceState { online: false, ..s.clone() }, &p, &m, false, |_| None);
         assert_eq!(asleep.link, Link::Away);
-        assert_eq!(Facts::of(&DeviceState::default(), &p, false, |_| None).link, Link::NoReceiver);
+        assert_eq!(Facts::of(&DeviceState::default(), &p, &m, false, |_| None).link, Link::NoReceiver);
     }
 
     fn scene(show: HudShow, now: u64) -> Scene {

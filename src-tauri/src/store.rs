@@ -75,11 +75,6 @@ pub struct Prefs {
     pub battery_alerts: bool,
     pub low_battery_percent: u8,
     pub osd: bool,
-    pub rules_enabled: bool,
-    /// Profile to return to when no rule matches; `None` leaves the profile alone.
-    pub default_profile: Option<u8>,
-    pub rules: Vec<AppRule>,
-    pub profile_names: [String; 4],
     pub tray_style: TrayStyle,
     /// Track where the mouse moves on the pad, in the background too.
     pub pad_tracking: bool,
@@ -90,21 +85,124 @@ pub struct Prefs {
     pub pad_games: Vec<PadGame>,
     /// Known games taken off the list, so they don't join again (exe names in lower case).
     pub pad_games_removed: Vec<String>,
+    /// The first-run window has been through (it sets startup, alerts and the saver).
+    pub welcomed: bool,
+    /// Agreed to share anonymous data that tunes the algorithms (lift detection, battery
+    /// estimates). Opt-in; nothing is sent until sharing exists, and it shows what goes first.
+    pub share_data: bool,
+    /// The in-game HUD (see `hud`).
+    pub hud: HudPrefs,
+}
+
+/// What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch
+/// them, and its battery saver. Filed in `mice.json` under the mouse's key (`KnownMice`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MousePrefs {
+    pub rules_enabled: bool,
+    /// Profile to return to when no rule matches; `None` leaves the profile alone.
+    pub default_profile: Option<u8>,
+    pub rules: Vec<AppRule>,
+    pub profile_names: Vec<String>,
+    /// What each profile held when last in use (see `ProfileSnapshot`).
+    pub profile_snapshots: Vec<Option<ProfileSnapshot>>,
     /// Lower the polling rate to `battery_saver_hz` at `battery_saver_below` percent, until charging.
     pub battery_saver: bool,
     pub battery_saver_below: u8,
     pub battery_saver_hz: u32,
     /// The rate to go back to, while the saver has it lowered.
     pub battery_saver_restore: Option<u32>,
-    /// The first-run window has been through (it sets startup, alerts and the saver).
-    pub welcomed: bool,
-    /// Agreed to share anonymous data that tunes the algorithms (lift detection, battery
-    /// estimates). Opt-in; nothing is sent until sharing exists, and it shows what goes first.
-    pub share_data: bool,
-    /// What each of the four profiles held when last in use (see `ProfileSnapshot`).
-    pub profile_snapshots: [Option<ProfileSnapshot>; 4],
-    /// The in-game HUD (see `hud`).
-    pub hud: HudPrefs,
+}
+
+impl Default for MousePrefs {
+    fn default() -> Self {
+        Self {
+            rules_enabled: true,
+            default_profile: None,
+            rules: Vec::new(),
+            profile_names: (1..=4).map(|i| format!("Profile {i}")).collect(),
+            profile_snapshots: vec![None; 4],
+            battery_saver: false,
+            battery_saver_below: 20,
+            battery_saver_hz: 1000,
+            battery_saver_restore: None,
+        }
+    }
+}
+
+impl MousePrefs {
+    /// Its fields as they were in `prefs.json`, from before several mice.
+    const FIELDS: [&str; 9] = [
+        "rulesEnabled",
+        "defaultProfile",
+        "rules",
+        "profileNames",
+        "profileSnapshots",
+        "batterySaver",
+        "batterySaverBelow",
+        "batterySaverHz",
+        "batterySaverRestore",
+    ];
+
+    /// Profile `index`'s name: the one given, else "Profile 2".
+    pub fn profile_name(&self, index: u8) -> String {
+        self.profile_names.get(index as usize).cloned().unwrap_or_else(|| format!("Profile {}", index + 1))
+    }
+
+    /// Remember what profile `index` holds while it's in use. Returns whether that changed.
+    pub fn note_profile(&mut self, index: u8, snap: ProfileSnapshot) -> bool {
+        let Some(slot) = self.profile_snapshots.get_mut(index as usize) else { return false };
+        if slot.as_ref() == Some(&snap) {
+            return false;
+        }
+        *slot = Some(snap);
+        true
+    }
+
+    /// Fill in the name and path of a rule typed in by hand, the first time its app is seen, so it
+    /// gets its icon and real name. Returns whether a rule changed.
+    pub fn fill_rule(&mut self, exe: &str, name: String, path: &str) -> bool {
+        let Some(r) = self.rules.iter_mut().find(|r| r.exe.eq_ignore_ascii_case(exe) && r.path.is_none()) else {
+            return false;
+        };
+        r.path = Some(path.to_string());
+        r.name.get_or_insert(name);
+        true
+    }
+
+    /// What the battery saver should do now: the polling rate to set, if any, and the rate to go
+    /// back to afterwards. `None` when nothing changes.
+    pub fn saver_step(&self, level: u8, charging: bool, hz: u32) -> Option<(Option<u32>, Option<u32>)> {
+        let step = match self.battery_saver_restore {
+            // Changed by hand (or with the mouse's button) while lowered: that choice stands.
+            Some(_) if hz != self.battery_saver_hz => (None, None),
+            Some(old) if charging || !self.battery_saver => (Some(old), None),
+            Some(old) => (None, Some(old)),
+            None if self.battery_saver
+                && !charging
+                && level <= self.battery_saver_below
+                && hz > self.battery_saver_hz =>
+            {
+                (Some(self.battery_saver_hz), Some(hz))
+            }
+            None => (None, None),
+        };
+        (step.0.is_some() || step.1 != self.battery_saver_restore).then_some(step)
+    }
+
+    /// The profile for an app coming into focus. A rule for a game `games.rs` knows covers all its
+    /// exes (Apex runs as r5apex.exe or r5apex_dx12.exe).
+    pub fn profile_for(&self, exe: &str) -> Option<u8> {
+        let game = crate::games::find(exe).map(|g| g.name);
+        self.rules
+            .iter()
+            .find(|r| {
+                r.exe.eq_ignore_ascii_case(exe)
+                    || (game.is_some() && crate::games::find(&r.exe).map(|g| g.name) == game)
+            })
+            .map(|r| r.profile)
+            .or(self.default_profile)
+    }
 }
 
 /// When the in-game HUD shows its tabs.
@@ -285,22 +383,13 @@ impl Default for Prefs {
             battery_alerts: true,
             low_battery_percent: 15,
             osd: true,
-            rules_enabled: true,
-            default_profile: None,
-            rules: Vec::new(),
-            profile_names: ["Profile 1", "Profile 2", "Profile 3", "Profile 4"].map(String::from),
             tray_style: TrayStyle::default(),
             pad_tracking: false,
             click_history: true,
             pad_games: Vec::new(),
             pad_games_removed: Vec::new(),
-            battery_saver: false,
-            battery_saver_below: 20,
-            battery_saver_hz: 1000,
-            battery_saver_restore: None,
             welcomed: false,
             share_data: false,
-            profile_snapshots: Default::default(),
             hud: HudPrefs::default(),
         }
     }
@@ -308,11 +397,23 @@ impl Default for Prefs {
 
 impl Prefs {
     pub fn load(path: &Path) -> Self {
-        let Some(mut v) =
-            fs::read_to_string(path).ok().and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        Self::load_with_legacy(path).0
+    }
+
+    /// The prefs, and what a file from before several mice held for its one mouse (its rules,
+    /// profile names and battery saver), if it held any: the first Zaopin to connect takes it.
+    pub fn load_with_legacy(path: &Path) -> (Self, Option<MousePrefs>) {
+        let Some(v) = fs::read_to_string(path).ok().and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
         else {
-            return Self::default();
+            return (Self::default(), None);
         };
+        let old = v.as_object().is_some_and(|o| MousePrefs::FIELDS.iter().any(|f| o.contains_key(*f)));
+        let legacy = old.then(|| serde_json::from_value::<MousePrefs>(v.clone()).ok()).flatten();
+        (Self::from_value(v), legacy)
+    }
+
+    fn from_value(v: serde_json::Value) -> Self {
+        let mut v = v;
         if let Ok(p) = serde_json::from_value(v.clone()) {
             return p;
         }
@@ -338,27 +439,6 @@ impl Prefs {
         self.pad_games.iter().find(|g| g.exe.eq_ignore_ascii_case(exe))
     }
 
-    /// Remember what profile `index` holds while it's in use. Returns whether that changed.
-    pub fn note_profile(&mut self, index: u8, snap: ProfileSnapshot) -> bool {
-        let Some(slot) = self.profile_snapshots.get_mut(index as usize) else { return false };
-        if slot.as_ref() == Some(&snap) {
-            return false;
-        }
-        *slot = Some(snap);
-        true
-    }
-
-    /// Fill in the name and path of a rule typed in by hand, the first time its app is seen, so it
-    /// gets its icon and real name. Returns whether a rule changed.
-    pub fn fill_rule(&mut self, exe: &str, name: String, path: &str) -> bool {
-        let Some(r) = self.rules.iter_mut().find(|r| r.exe.eq_ignore_ascii_case(exe) && r.path.is_none()) else {
-            return false;
-        };
-        r.path = Some(path.to_string());
-        r.name.get_or_insert(name);
-        true
-    }
-
     /// Put a known game on the pad list the first time it's played, unless it was taken off.
     /// Returns whether the list changed.
     pub fn join_pad_game(&mut self, exe: &str, name: String, path: String) -> bool {
@@ -369,39 +449,133 @@ impl Prefs {
         self.pad_games.push(PadGame { exe: exe.to_string(), name, path });
         true
     }
+}
 
-    /// What the battery saver should do now: the polling rate to set, if any, and the rate to go
-    /// back to afterwards. `None` when nothing changes.
-    pub fn saver_step(&self, level: u8, charging: bool, hz: u32) -> Option<(Option<u32>, Option<u32>)> {
-        let step = match self.battery_saver_restore {
-            // Changed by hand (or with the mouse's button) while lowered: that choice stands.
-            Some(_) if hz != self.battery_saver_hz => (None, None),
-            Some(old) if charging || !self.battery_saver => (Some(old), None),
-            Some(old) => (None, Some(old)),
-            None if self.battery_saver
-                && !charging
-                && level <= self.battery_saver_below
-                && hz > self.battery_saver_hz =>
-            {
-                (Some(self.battery_saver_hz), Some(hz))
-            }
-            None => (None, None),
-        };
-        (step.0.is_some() || step.1 != self.battery_saver_restore).then_some(step)
+/// A mouse hrtz has met, and what it keeps for it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownMouse {
+    /// Stays the same across connections and restarts (`DeviceState::key`).
+    pub key: String,
+    pub model: String,
+    /// When it was first and last connected, in seconds since 1970.
+    pub first_seen: u64,
+    pub last_seen: u64,
+    #[serde(default)]
+    pub prefs: MousePrefs,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct MiceFile {
+    mice: Vec<KnownMouse>,
+    /// The one mouse's prefs from before several mice, until a Zaopin connects and takes them.
+    legacy: Option<MousePrefs>,
+}
+
+/// The mice hrtz has met (`mice.json`), each with its prefs.
+pub struct KnownMice {
+    path: Option<PathBuf>,
+    file: MiceFile,
+}
+
+impl KnownMice {
+    pub fn load(path: Option<PathBuf>) -> Self {
+        let file = path
+            .as_ref()
+            .and_then(|p| fs::read_to_string(p).ok())
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        Self { path, file }
     }
 
-    /// The profile for an app coming into focus. A rule for a game `games.rs` knows covers all its
-    /// exes (Apex runs as r5apex.exe or r5apex_dx12.exe).
-    pub fn profile_for(&self, exe: &str) -> Option<u8> {
-        let game = crate::games::find(exe).map(|g| g.name);
-        self.rules
-            .iter()
-            .find(|r| {
-                r.exe.eq_ignore_ascii_case(exe)
-                    || (game.is_some() && crate::games::find(&r.exe).map(|g| g.name) == game)
-            })
-            .map(|r| r.profile)
-            .or(self.default_profile)
+    pub fn save(&self) -> Result<()> {
+        let Some(path) = &self.path else { return Ok(()) };
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        let tmp = path.with_extension("json.tmp");
+        fs::write(&tmp, serde_json::to_vec_pretty(&self.file)?)?;
+        fs::rename(&tmp, path)?;
+        Ok(())
+    }
+
+    pub fn list(&self) -> &[KnownMouse] {
+        &self.file.mice
+    }
+
+    /// The mouse's prefs, or the defaults for one not met yet.
+    pub fn prefs(&self, key: &str) -> MousePrefs {
+        self.file.mice.iter().find(|m| m.key == key).map(|m| m.prefs.clone()).unwrap_or_default()
+    }
+
+    /// The mouse seen most recently.
+    pub fn last_seen(&self) -> Option<&KnownMouse> {
+        self.file.mice.iter().max_by_key(|m| m.last_seen)
+    }
+
+    /// Hold the prefs of the one mouse from before several mice, until a Zaopin takes them. Only
+    /// the first time: once mice are known, an old prefs file has nothing to give.
+    pub fn hold_legacy(&mut self, legacy: MousePrefs) -> bool {
+        if !self.file.mice.is_empty() || self.file.legacy.is_some() {
+            return false;
+        }
+        self.file.legacy = Some(legacy);
+        true
+    }
+
+    /// A mouse connected at `now`. A new one is noted, the first Zaopin with the prefs from before
+    /// several mice. Returns whether the list changed (beyond the time).
+    pub fn meet(&mut self, key: &str, model: &str, now: u64) -> bool {
+        if let Some(m) = self.file.mice.iter_mut().find(|m| m.key == key) {
+            m.last_seen = now;
+            if m.model != model {
+                m.model = model.to_string();
+                return true;
+            }
+            return false;
+        }
+        let prefs = if key.starts_with("compx/") { self.file.legacy.take() } else { None };
+        self.file.mice.push(KnownMouse {
+            key: key.to_string(),
+            model: model.to_string(),
+            first_seen: now,
+            last_seen: now,
+            prefs: prefs.unwrap_or_default(),
+        });
+        true
+    }
+
+    /// The mouse was there until `now`.
+    pub fn seen(&mut self, key: &str, now: u64) {
+        if let Some(m) = self.file.mice.iter_mut().find(|m| m.key == key) {
+            m.last_seen = now;
+        }
+    }
+
+    /// Change a known mouse's prefs. Returns whether anything changed.
+    pub fn set_prefs(&mut self, key: &str, prefs: MousePrefs) -> bool {
+        let Some(m) = self.file.mice.iter_mut().find(|m| m.key == key) else { return false };
+        if m.prefs == prefs {
+            return false;
+        }
+        m.prefs = prefs;
+        true
+    }
+
+    /// Fill in a rule typed in by hand, on every mouse that has one for this app (see
+    /// `MousePrefs::fill_rule`). Returns whether any changed.
+    pub fn fill_rule(&mut self, exe: &str, name: &str, path: &str) -> bool {
+        let mut changed = false;
+        for m in &mut self.file.mice {
+            changed |= m.prefs.fill_rule(exe, name.to_string(), path);
+        }
+        changed
+    }
+
+    /// Every app with a profile rule, on any mouse: the HUD counts them as games.
+    pub fn rule_exes(&self) -> Vec<String> {
+        self.file.mice.iter().flat_map(|m| m.prefs.rules.iter().map(|r| r.exe.to_lowercase())).collect()
     }
 }
 
@@ -674,9 +848,9 @@ mod tests {
 
     #[test]
     fn a_rule_for_a_known_game_covers_its_other_exes() {
-        let p = Prefs {
+        let p = MousePrefs {
             rules: vec![AppRule { exe: "r5apex.exe".into(), profile: 3, name: None, path: None }],
-            ..Prefs::default()
+            ..MousePrefs::default()
         };
         assert_eq!(p.profile_for("R5Apex_DX12.exe"), Some(3));
         assert_eq!(p.profile_for("cs2.exe"), None);
@@ -684,7 +858,7 @@ mod tests {
 
     #[test]
     fn profiles_are_remembered_and_typed_rules_filled_in() {
-        let mut p = Prefs::default();
+        let mut p = MousePrefs::default();
         let snap = ProfileSnapshot { mid: 4, dpi: 400, stages: 1, polling_hz: 8000, buttons: vec![] };
         assert!(p.note_profile(1, snap.clone()));
         assert!(!p.note_profile(1, snap.clone()), "unchanged");
@@ -699,7 +873,7 @@ mod tests {
 
     #[test]
     fn battery_saver_lowers_once_and_puts_the_rate_back_on_charge() {
-        let mut p = Prefs { battery_saver: true, ..Prefs::default() };
+        let mut p = MousePrefs { battery_saver: true, ..MousePrefs::default() };
         assert_eq!(p.saver_step(50, false, 8000), None);
         assert_eq!(p.saver_step(20, false, 8000), Some((Some(1000), Some(8000))));
         assert_eq!(p.saver_step(20, false, 1000), None, "already at or below the saver's rate");
@@ -802,7 +976,11 @@ mod tests {
 
     #[test]
     fn a_prefs_file_from_before_the_hud_loads_with_its_defaults() {
-        let old: Prefs = serde_json::from_str(
+        let dir = std::env::temp_dir().join(format!("hrtz-prefs-old-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("prefs.json");
+        std::fs::write(
+            &path,
             r#"{
                 "batteryAlerts": false,
                 "lowBatteryPercent": 20,
@@ -817,8 +995,38 @@ mod tests {
             }"#,
         )
         .unwrap();
+        let (old, legacy) = Prefs::load_with_legacy(&path);
         assert_eq!(old.hud, HudPrefs::default());
-        assert_eq!((old.low_battery_percent, old.default_profile, old.rules.len()), (20, Some(1), 1));
+        assert_eq!(old.low_battery_percent, 20);
+        // Its mouse's part comes out, for the first Zaopin to take.
+        let legacy = legacy.expect("the mouse's prefs");
+        assert_eq!((legacy.default_profile, legacy.rules.len()), (Some(1), 1));
+        assert_eq!(legacy.profile_names, ["A", "B", "C", "D"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_first_zaopin_takes_the_prefs_from_before_several_mice() {
+        let mut known = KnownMice::load(None);
+        let mut old = MousePrefs::default();
+        old.rules.push(AppRule { exe: "cs2.exe".into(), profile: 2, name: None, path: None });
+        assert!(known.hold_legacy(old.clone()));
+        assert!(known.meet("hidpp/4093/1234", "PRO X SUPERLIGHT", 10), "a new mouse");
+        assert_eq!(known.prefs("hidpp/4093/1234"), MousePrefs::default(), "not a Zaopin: starts afresh");
+        assert!(known.meet("compx/7-4", "Z1 PRO MAX", 20));
+        assert_eq!(known.prefs("compx/7-4"), old, "the Zaopin has them");
+        assert!(!known.meet("compx/7-4", "Z1 PRO MAX", 30), "met before");
+        assert_eq!(known.last_seen().map(|m| m.key.as_str()), Some("compx/7-4"));
+        assert!(!known.hold_legacy(MousePrefs::default()), "once mice are known, nothing more to hold");
+        assert!(known.fill_rule("CS2.exe", "Counter-Strike 2", r"C:\cs2.exe"));
+        assert_eq!(known.rule_exes(), ["cs2.exe"]);
+    }
+
+    #[test]
+    fn prefs_saved_now_leave_out_what_each_mouse_keeps() {
+        let v = serde_json::to_value(Prefs::default()).unwrap();
+        let o = v.as_object().unwrap();
+        assert!(MousePrefs::FIELDS.iter().all(|f| !o.contains_key(*f)));
     }
 
     #[test]
@@ -975,7 +1183,7 @@ mod tests {
 
     #[test]
     fn rule_lookup_is_case_insensitive_with_fallback() {
-        let p = Prefs {
+        let p = MousePrefs {
             rules: vec![AppRule { exe: "cs2.exe".into(), profile: 2, name: None, path: None }],
             default_profile: Some(0),
             ..Default::default()

@@ -40,7 +40,7 @@ use super::model::{self, DIM, Facts, Field, Link, Moments, Plan, Scene, Tab};
 use super::text::Gdi;
 use super::{Input, Report, Shared};
 use crate::mice::DeviceState;
-use crate::store::{HudShow, Prefs};
+use crate::store::{HudShow, MousePrefs, Prefs};
 
 /// Something was queued for the HUD.
 const WM_WAKE: u32 = WM_APP;
@@ -274,6 +274,9 @@ struct State {
     report: Box<dyn Fn(Report) + Send>,
     own_exe: String,
     prefs: Prefs,
+    mouse: MousePrefs,
+    /// Every app with a profile rule (exe in lower case): they count as games.
+    rule_exes: Vec<String>,
     device: DeviceState,
     vendor_app: bool,
     facts: Facts,
@@ -309,7 +312,8 @@ impl State {
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
             .unwrap_or_default();
         let device = DeviceState::default();
-        let facts = Facts::of(&device, &prefs, false, |_| None);
+        let mouse = MousePrefs::default();
+        let facts = Facts::of(&device, &prefs, &mouse, false, |_| None);
         Self {
             hwnd,
             clock: Instant::now(),
@@ -317,6 +321,8 @@ impl State {
             report,
             own_exe,
             prefs,
+            mouse,
+            rule_exes: Vec::new(),
             device,
             vendor_app: false,
             facts,
@@ -363,6 +369,11 @@ impl State {
                         self.test_at = None;
                     }
                 }
+                Input::Mouse(p, exes) => {
+                    self.mouse = *p;
+                    self.rule_exes = exes;
+                    self.refresh_facts(now);
+                }
                 Input::VendorApp(on) => {
                     self.vendor_app = on;
                     self.refresh_facts(now);
@@ -386,7 +397,7 @@ impl State {
 
     fn refresh_facts(&mut self, now: u64) {
         let shared = self.shared.clone();
-        let next = Facts::of(&self.device, &self.prefs, self.vendor_app, |hz| shared.life_h(hz));
+        let next = Facts::of(&self.device, &self.prefs, &self.mouse, self.vendor_app, |hz| shared.life_h(hz));
         self.moments.compare(&self.facts, &next, now);
         self.facts = next;
     }
@@ -397,7 +408,7 @@ impl State {
         crate::games::find(exe).is_some()
             || self.shared.installed.read().contains(&exe.to_lowercase())
             || self.prefs.pad_game(exe).is_some()
-            || self.prefs.rules.iter().any(|r| r.exe.eq_ignore_ascii_case(exe))
+            || self.rule_exes.iter().any(|r| r.eq_ignore_ascii_case(exe))
     }
 
     fn timer(&mut self, id: usize) {

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Body1, Button, Caption1, Switch } from "@fluentui/react-components";
 import { Add16Regular, Apps20Regular, ArrowRight16Regular, Delete16Regular, Rename16Regular, Stack20Regular } from "@fluentui/react-icons";
-import { api, type AppRule, type Prefs } from "@/api";
+import { api, type AppRule, type KnownMouse, type MousePrefs, type Prefs } from "@/api";
 import { AppIcon, Group, SettingCard } from "@/components";
 import { fmtDpi } from "@/dpi";
 import { AccentBadge, afterMenu, CardNote, MoreMenu, Pane, PaneFooter, PaneHeader, UndoNote, type MoreMenuItem } from "@/kit";
 import { hzText } from "@/rates";
-import { run, savePrefs, useStore } from "@/store";
+import { run, saveMousePrefs, useStore } from "@/store";
 import { AppPicker } from "./AppPicker";
 import { NameField } from "./NameField";
 import { summaryOf, summaryText, UNSEEN } from "./summary";
@@ -21,11 +21,13 @@ const truncate = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "no
  * whether it catches every other app. "Use this profile" is the one primary button. Decided in the
  * Profiles lab (DECISIONS.md, "Profiles page").
  */
-export function ProfilesPanel({ prefs }: { prefs: Prefs }) {
+export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMouse }) {
+  // The mouse's own: its profiles' names, the apps that switch them.
+  const m = mouse.prefs;
   const device = useStore((x) => x.device!);
   const busy = useStore((x) => x.busy);
   const foreground = useStore((x) => x.status.foregroundExe);
-  const r = useRules(prefs);
+  const r = useRules(mouse);
   const [sel, setSel] = useState(device.profile ?? 0);
   const [renaming, setRenaming] = useState(false);
 
@@ -37,15 +39,15 @@ export function ProfilesPanel({ prefs }: { prefs: Prefs }) {
     );
   }
 
-  const names = prefs.profileNames;
+  const names = m.profileNames;
   const name = names[sel];
-  const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
-  const rename = (v: string) => set({ profileNames: names.map((n, j) => (j === sel ? v : n)) as Prefs["profileNames"] });
-  const summary = (i: number) => summaryOf(i, device.profile, device.settings, prefs.profileSnapshots, device.mid, device.capabilities);
+  const set = (patch: Partial<MousePrefs>) => saveMousePrefs(mouse.key, { ...m, ...patch });
+  const rename = (v: string) => set({ profileNames: names.map((n, j) => (j === sel ? v : n)) });
+  const summary = (i: number) => summaryOf(i, device.profile, device.settings, m.profileSnapshots, device.mid, device.capabilities);
   const held = summary(sel);
-  const apps = prefs.rules.filter((x) => x.profile === sel);
+  const apps = m.rules.filter((x) => x.profile === sel);
   const isFocused = (x: AppRule) => !!foreground && x.exe.toLowerCase() === foreground.toLowerCase();
-  const focused = foreground ? prefs.rules.find(isFocused) : undefined;
+  const focused = foreground ? m.rules.find(isFocused) : undefined;
   const focusName = focused ? appName(focused) : foreground;
   const canUse = device.online && !busy;
 
@@ -62,14 +64,14 @@ export function ProfilesPanel({ prefs }: { prefs: Prefs }) {
           icon={<Apps20Regular />}
           title="Switch profiles by app"
           description={
-            prefs.rulesEnabled
+            m.rulesEnabled
               ? focusName
                 ? `Switches profile when an app comes into focus. Now in focus: ${focusName}.`
                 : "Switches profile when an app comes into focus."
               : "Profiles change only when you switch them."
           }
         >
-          <Switch checked={prefs.rulesEnabled} onChange={(_, d) => set({ rulesEnabled: d.checked })} aria-label="Switch profiles by app" />
+          <Switch checked={m.rulesEnabled} onChange={(_, d) => set({ rulesEnabled: d.checked })} aria-label="Switch profiles by app" />
         </SettingCard>
       </Group>
 
@@ -140,7 +142,7 @@ export function ProfilesPanel({ prefs }: { prefs: Prefs }) {
             <section className="flex flex-col gap-1 border-t pt-3 pb-3">
               <div className="flex items-center gap-3 px-4 pb-1">
                 <Body1 style={{ fontWeight: 600, flex: 1 }}>Apps that use this profile</Body1>
-                <AppPicker rules={prefs.rules} games={prefs.padGames} onPick={(a) => r.add(a, sel)}>
+                <AppPicker rules={m.rules} games={prefs.padGames} onPick={(a) => r.add(a, sel)}>
                   <Button icon={<Add16Regular />}>Add app</Button>
                 </AppPicker>
               </div>
@@ -161,14 +163,14 @@ export function ProfilesPanel({ prefs }: { prefs: Prefs }) {
                 <div className="flex min-w-0 flex-1 flex-col">
                   <Body1>Use for other apps</Body1>
                   <Caption1 style={muted}>
-                    {prefs.defaultProfile === null
+                    {m.defaultProfile === null
                       ? "Apps without a rule keep the current profile."
-                      : prefs.defaultProfile === sel
+                      : m.defaultProfile === sel
                         ? "Apps without a rule switch to this profile."
-                        : `${names[prefs.defaultProfile]} is the default now.`}
+                        : `${names[m.defaultProfile]} is the default now.`}
                   </Caption1>
                 </div>
-                <Switch checked={prefs.defaultProfile === sel} onChange={(_, d) => set({ defaultProfile: d.checked ? sel : null })} aria-label={`Use ${name} for any other app`} />
+                <Switch checked={m.defaultProfile === sel} onChange={(_, d) => set({ defaultProfile: d.checked ? sel : null })} aria-label={`Use ${name} for any other app`} />
               </div>
             </section>
 

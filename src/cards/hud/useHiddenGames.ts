@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type HudPrefs, type InstalledGame, type Prefs } from "@/api";
 import type { PickedApp } from "@/cards/profiles/AppPicker";
-import { savePrefs } from "@/store";
+import { savePrefs, useStore } from "@/store";
 
 /** How long Undo stays offered after a removal. */
 const UNDO_MS = 6000;
@@ -19,6 +19,8 @@ type Undo = { text: string; list: "hidden" | "blocked"; prev: HudPrefs };
  * the can't-show list comes back on its own if it still runs in exclusive fullscreen.
  */
 export function useHiddenGames(prefs: Prefs, hud: HudPrefs) {
+  // Apps with a profile rule, on any mouse, count as games.
+  const mice = useStore((x) => x.mice);
   const [installed, setInstalled] = useState<InstalledGame[]>([]);
   const [picked, setPicked] = useState<Record<string, Known>>({});
   const [icons, setIcons] = useState<Record<string, string | null>>({});
@@ -30,7 +32,7 @@ export function useHiddenGames(prefs: Prefs, hud: HudPrefs) {
   }, []);
 
   const known: Record<string, Known> = {};
-  for (const r of prefs.rules) known[r.exe.toLowerCase()] = { name: r.name ?? r.exe, exe: r.exe, path: r.path };
+  for (const m of mice) for (const r of m.prefs.rules) known[r.exe.toLowerCase()] = { name: r.name ?? r.exe, exe: r.exe, path: r.path };
   for (const g of prefs.padGames) known[g.exe.toLowerCase()] = { name: g.name, exe: g.exe, path: g.path };
   for (const g of installed) known[g.exe.toLowerCase()] = { name: g.name, exe: g.exe, path: g.path };
   Object.assign(known, picked);

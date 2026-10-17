@@ -1,6 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { currentDpi, topRate, type AutoReason, type BackupMeta, type ButtonAction, type ButtonEvent, type ConnStats, type DeviceState, type GameSensitivity, type MeterSample, type PadView, type PointerSettings, type Prefs, type RunningApp, type Settings, type Stroke, type WheelEvent } from "@/api";
+import { currentDpi, topRate, type AutoReason, type BackupMeta, type ButtonAction, type ButtonEvent, type ConnStats, type DeviceState, type GameSensitivity, type KnownMouse, type MeterSample, type PadView, type PointerSettings, type Prefs, type RunningApp, type Settings, type Stroke, type WheelEvent } from "@/api";
 
 /** This PC's data (src/lab/data), read through a glob: it's git-ignored, so a fresh clone has none
  *  and still type-checks. Without it the lab says how to make it. */
@@ -22,6 +22,8 @@ const padSimJson = data("pad-sim");
 const padYoursJson = data("pad-yours");
 const pointerJson = data("pointer");
 const prefsJson = data("prefs");
+/** Written by the dump since several mice (2026-10-18); before, the mouse's part was in the prefs. */
+const miceJson = DATA["../data/mice.json"] as KnownMouse[] | undefined;
 
 // Throwaway, like the labs: a stand-in for the Rust backend, so the real app runs in a browser
 // tab on this PC's own data (src/lab/data, written by the `dump_lab_*` tests). Commands answer
@@ -53,9 +55,27 @@ export const real = {
   } as DeviceState,
   prefs: (() => {
     const prefs = prefsJson as unknown as Prefs;
-    const snaps = prefs.profileSnapshots.map((x) => x && { ...x, buttons: x.buttons.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) });
     // A dump from before the click log (2026-10-17) counts, as the app does unless told not to.
-    return { ...prefs, clickHistory: prefs.clickHistory ?? true, profileSnapshots: snaps };
+    return { ...prefs, clickHistory: prefs.clickHistory ?? true };
+  })(),
+  /** This PC's Zaopin as hrtz knows it, its snapshots' actions with `kind` first. */
+  mice: (() => {
+    const mice: KnownMouse[] = miceJson ?? [
+      {
+        key: "compx/7-4",
+        model: "Z1 PRO MAX",
+        firstSeen: 0,
+        lastSeen: 0,
+        prefs: prefsJson as unknown as KnownMouse["prefs"],
+      },
+    ];
+    return mice.map((m) => ({
+      ...m,
+      prefs: {
+        ...m.prefs,
+        profileSnapshots: m.prefs.profileSnapshots.map((x) => x && { ...x, buttons: x.buttons.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) }),
+      },
+    }));
   })(),
   backups: (backupsJson as unknown as { meta: BackupMeta; settings: Settings }[]).map((b) => ({ ...b.meta, auto: b.meta.auto ?? null, settings: kindFirst(b.settings) })),
   apps: appsJson as { exe: string; name: string; path: string; icon: string | null }[],
@@ -78,6 +98,7 @@ for (const v of Object.values(real.padSim)) {
 export const fake = {
   device: clone(real.device),
   prefs: clone(real.prefs),
+  mice: clone(real.mice),
   backups: clone(real.backups) as Backup[],
   pointer: clone(real.pointer),
   /** Which pad record the lab shows: yours as saved (calibrated, nothing recorded), or the simulator's. */
@@ -652,6 +673,15 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
   switch (cmd) {
     case "get_state":
       return fake.device;
+    case "get_mice":
+      return clone(fake.mice);
+    case "set_mouse_prefs": {
+      const { key, prefs } = args as { key: string; prefs: KnownMouse["prefs"] };
+      fake.mice = fake.mice.map((m) => (m.key === key ? { ...m, prefs } : m));
+      void emit("mice", fake.mice);
+      changed();
+      return null;
+    }
     case "get_prefs":
       return fake.prefs;
     case "set_prefs":

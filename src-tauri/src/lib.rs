@@ -36,7 +36,7 @@ use tauri_plugin_opener::OpenerExt;
 
 use mice::model::Settings;
 use mice::{DeviceEvent, DeviceState, Engine};
-use store::{AutoReason, BackupDevice, BackupMeta, Backups, Prefs, ProfileSnapshot};
+use store::{AutoReason, BackupDevice, BackupMeta, Backups, KnownMice, KnownMouse, MousePrefs, Prefs, ProfileSnapshot};
 use tray::{TrayLevel, TrayStyle};
 
 const OSD_W: f64 = 280.0;
@@ -76,6 +76,10 @@ struct Ctx {
     hud: hud::Hud,
     /// Models (`mid`) checked this run for a first backup, so it's looked into once.
     met: Mutex<HashSet<u8>>,
+    /// The mice hrtz has met, with what it keeps for each (`mice.json`).
+    known: RwLock<KnownMice>,
+    /// The mouse connected now, so when it goes it's noted as last seen then.
+    connected_key: Mutex<Option<String>>,
 }
 
 /// The app's status with the HUD's part filled in.
@@ -94,6 +98,51 @@ fn commit_prefs(app: &AppHandle, ctx: &Ctx, prefs: Prefs) {
 }
 
 type CmdResult<T> = Result<T, String>;
+
+/// The connected mouse's prefs: its profile names, rules and battery saver. The defaults when no
+/// mouse is connected.
+fn mouse_prefs(ctx: &Ctx, s: &DeviceState) -> MousePrefs {
+    s.key.as_deref().map(|k| ctx.known.read().prefs(k)).unwrap_or_default()
+}
+
+/// Save the known mice after a change, and tell the window, the HUD and the tray.
+fn commit_mice(app: &AppHandle, ctx: &Ctx) {
+    let s = ctx.engine.snapshot();
+    {
+        let known = ctx.known.read();
+        let _ = known.save();
+        let _ = app.emit("mice", known.list().to_vec());
+        let prefs = s.key.as_deref().map(|k| known.prefs(k)).unwrap_or_default();
+        ctx.hud.mouse(&prefs, known.rule_exes());
+    }
+    refresh_tray(ctx, &s);
+}
+
+/// Change a mouse's prefs from the app's side: a profile snapshot, the battery saver.
+fn commit_mouse_prefs(app: &AppHandle, ctx: &Ctx, key: &str, prefs: MousePrefs) {
+    if ctx.known.write().set_prefs(key, prefs) {
+        commit_mice(app, ctx);
+    }
+}
+
+/// Note the mouse connected now, and when the one that was went.
+fn meet(app: &AppHandle, ctx: &Ctx, s: &DeviceState) {
+    let key = s.key.clone().filter(|_| s.connected);
+    let mut was = ctx.connected_key.lock();
+    if *was == key {
+        return;
+    }
+    let now = unix_now();
+    if let Some(old) = was.take() {
+        ctx.known.write().seen(&old, now);
+    }
+    was.clone_from(&key);
+    drop(was);
+    if let Some(key) = key {
+        ctx.known.write().meet(&key, s.model.as_deref().unwrap_or_default(), now);
+    }
+    commit_mice(app, ctx);
+}
 
 fn err(e: anyhow::Error) -> String {
     format!("{e:#}")
@@ -201,6 +250,20 @@ fn get_prefs(ctx: State<'_, Arc<Ctx>>) -> Prefs {
     ctx.prefs.read().clone()
 }
 
+/// The mice hrtz has met, each with its prefs.
+#[tauri::command]
+fn get_mice(ctx: State<'_, Arc<Ctx>>) -> Vec<KnownMouse> {
+    ctx.known.read().list().to_vec()
+}
+
+#[tauri::command]
+fn set_mouse_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, key: String, prefs: MousePrefs) -> CmdResult<()> {
+    if ctx.known.write().set_prefs(&key, prefs) {
+        commit_mice(&app, &ctx);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn set_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, prefs: Prefs) -> CmdResult<()> {
     prefs.save(&ctx.prefs_path).map_err(err)?;
@@ -215,11 +278,6 @@ fn set_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, prefs: Prefs) -> CmdResul
         let _ = app.run_on_main_thread(move || meter::set_clicks(on));
     }
     *ctx.prefs.write() = prefs.clone();
-    if let Some((_, items)) = ctx.tray.lock().as_ref() {
-        for (item, name) in items.iter().zip(&prefs.profile_names) {
-            let _ = item.set_text(name);
-        }
-    }
     refresh_tray(&ctx, &ctx.engine.snapshot());
     ctx.hud.prefs(&prefs);
     let _ = app.emit("prefs", prefs);
@@ -565,8 +623,9 @@ fn battery_history(ctx: State<'_, Arc<Ctx>>, days: u32) -> Vec<battery_log::Entr
 /// Lower the polling rate while the battery is low, and put back the rate you chose once it's
 /// charging (or the saver is turned off). Each change is written to the mouse's memory, so this
 /// switches about twice a charge, never back and forth.
-fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &Prefs) {
-    let (Some(b), Some(hz), Some(caps)) = (&s.battery, s.settings.as_ref().and_then(|x| x.polling_hz), &s.capabilities)
+fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &MousePrefs) {
+    let (Some(key), Some(b), Some(hz), Some(caps)) =
+        (&s.key, &s.battery, s.settings.as_ref().and_then(|x| x.polling_hz), &s.capabilities)
     else {
         return;
     };
@@ -576,7 +635,7 @@ fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &Prefs
     let Some((target, restore)) = prefs.saver_step(b.level, b.charging, hz) else { return };
     let lowering = restore.is_some() && target.is_some();
     let (from, level, model) = (hz, b.level, s.model.clone().unwrap_or_default());
-    let (app, ctx) = (app.clone(), ctx.clone());
+    let (app, ctx, key) = (app.clone(), ctx.clone(), key.clone());
     ctx.saver_busy.store(true, Ordering::SeqCst);
     thread::spawn(move || {
         let applied = match target {
@@ -589,9 +648,9 @@ fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &Prefs
         };
         match applied {
             Ok(()) => {
-                let mut p = ctx.prefs.read().clone();
+                let mut p = ctx.known.read().prefs(&key);
                 p.battery_saver_restore = restore;
-                commit_prefs(&app, &ctx, p);
+                commit_mouse_prefs(&app, &ctx, &key, p);
                 if lowering {
                     notify_saver(&app, level, target.unwrap_or(0), from, &model);
                 }
@@ -630,6 +689,7 @@ fn test_popup(app: AppHandle, ctx: State<'_, Arc<Ctx>>, kind: String) -> CmdResu
     let model = s.model.clone().unwrap_or_else(|| "mouse".into());
     let level = s.battery.as_ref().map_or(15, |b| b.level);
     let hz = st.and_then(|x| x.polling_hz).unwrap_or(8000);
+    let mouse = mouse_prefs(&ctx, &s);
     let event = match kind.as_str() {
         "dpi" => Some(DeviceEvent::Dpi {
             stage: st.and_then(|x| x.dpi_stage).unwrap_or(0),
@@ -644,9 +704,9 @@ fn test_popup(app: AppHandle, ctx: State<'_, Arc<Ctx>>, kind: String) -> CmdResu
         "battery-saver" => {
             notify_saver(
                 &app,
-                level.min(prefs.battery_saver_below),
-                prefs.battery_saver_hz,
-                hz.max(prefs.battery_saver_hz * 2),
+                level.min(mouse.battery_saver_below),
+                mouse.battery_saver_hz,
+                hz.max(mouse.battery_saver_hz * 2),
                 &model,
             );
             None
@@ -654,7 +714,7 @@ fn test_popup(app: AppHandle, ctx: State<'_, Arc<Ctx>>, kind: String) -> CmdResu
         other => return Err(format!("No pop-up called {other}")),
     };
     if let Some(e) = event {
-        show_osd(&app, &ctx, &e, &prefs);
+        show_osd(&app, &ctx, &e, &prefs, &mouse);
     }
     Ok(())
 }
@@ -750,7 +810,9 @@ fn refresh_tray(ctx: &Ctx, s: &DeviceState) {
             *last = Some(key);
         }
         let _ = tray.set_tooltip(Some(tooltip(s)));
+        let mouse = mouse_prefs(ctx, s);
         for (i, item) in items.iter().enumerate() {
+            let _ = item.set_text(mouse.profile_name(i as u8));
             let _ = item.set_checked(s.profile == Some(i as u8));
             let _ = item.set_enabled(s.online);
         }
@@ -785,19 +847,22 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
         }
     }
 
+    meet(app, &ctx, s);
     refresh_tray(&ctx, s);
     ctx.hud.device(s);
     first_meeting(app, &ctx, s);
+    let mouse = mouse_prefs(&ctx, s);
 
     // Remember what the profile in use holds: the mouse reports only that one, and the Profiles
     // page shows the rest from these.
-    if let (true, Some(i), Some(st), Some(caps)) = (s.online, s.profile, &s.settings, &s.capabilities)
+    if let (true, Some(key), Some(i), Some(st), Some(caps)) =
+        (s.online, &s.key, s.profile, &s.settings, &s.capabilities)
         && let Some(snap) = ProfileSnapshot::of(s.mid, st, caps.buttons.as_deref().unwrap_or(&[]))
-        && prefs.profile_snapshots.get(i as usize).is_some_and(|x| x.as_ref() != Some(&snap))
+        && mouse.profile_snapshots.get(i as usize).is_some_and(|x| x.as_ref() != Some(&snap))
     {
-        let mut next = ctx.prefs.read().clone();
+        let mut next = mouse.clone();
         if next.note_profile(i, snap) {
-            commit_prefs(app, &ctx, next);
+            commit_mouse_prefs(app, &ctx, key, next);
         }
     }
 
@@ -810,7 +875,7 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
             ctx.low_alerted.store(false, Ordering::SeqCst);
         }
     }
-    battery_saver(app, &ctx, s, &prefs);
+    battery_saver(app, &ctx, s, &mouse);
 
     match event {
         Some(DeviceEvent::Progress { done, total }) => {
@@ -819,7 +884,7 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
         Some(DeviceEvent::Pairing { seconds_left }) => {
             let _ = app.emit("pairing", seconds_left);
         }
-        Some(e) if prefs.osd => show_osd(app, &ctx, &e, &prefs),
+        Some(e) if prefs.osd => show_osd(app, &ctx, &e, &prefs, &mouse),
         _ => {}
     }
 }
@@ -855,7 +920,7 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
     });
 }
 
-fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs) {
+fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs, mouse: &MousePrefs) {
     // A profile switch brings its own DPI and polling rate: the pop-up says the profile, not all
     // three in a row.
     match e {
@@ -886,15 +951,9 @@ fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs) {
         DeviceEvent::Polling { hz } => {
             Osd { kind: "polling", title: format!("{} Hz", fmt_hz(*hz)), detail: "Polling rate".into() }
         }
-        DeviceEvent::Profile { index } => Osd {
-            kind: "profile",
-            title: prefs
-                .profile_names
-                .get(*index as usize)
-                .cloned()
-                .unwrap_or_else(|| format!("Profile {}", index + 1)),
-            detail: format!("Profile {}", index + 1),
-        },
+        DeviceEvent::Profile { index } => {
+            Osd { kind: "profile", title: mouse.profile_name(*index), detail: format!("Profile {}", index + 1) }
+        }
         DeviceEvent::Progress { .. } | DeviceEvent::Pairing { .. } => return,
     };
     if let Ok(Some(m)) = osd.primary_monitor() {
@@ -986,11 +1045,10 @@ fn watch_foreground(app: AppHandle) {
                 if path != last_path {
                     last_path = path.clone();
                     // A rule typed in by hand gets its app's name and icon once the app shows up.
-                    if let (Some(p), Some(e), false) = (&path, &exe, ours) {
-                        let mut prefs = ctx.prefs.read().clone();
-                        if prefs.fill_rule(e, win::app_name(p), p) {
-                            commit_prefs(&app, &ctx, prefs);
-                        }
+                    if let (Some(p), Some(e), false) = (&path, &exe, ours)
+                        && ctx.known.write().fill_rule(e, &win::app_name(p), p)
+                    {
+                        commit_mice(&app, &ctx);
                     }
                     if let (Some(p), Some(e), false) = (&path, &exe, ours)
                         && games::find(e).is_some()
@@ -1023,9 +1081,9 @@ fn watch_foreground(app: AppHandle) {
                 // Only an app that stays in front switches the profile, and only once: alt-tabbing
                 // through windows switches nothing.
                 let Some(settled) = focus.see(exe.as_deref(), Instant::now()) else { continue };
-                let prefs = ctx.prefs.read().clone();
-                if prefs.rules_enabled
-                    && let Some(want) = prefs.profile_for(&settled)
+                let mouse = mouse_prefs(&ctx, &ctx.engine.snapshot());
+                if mouse.rules_enabled
+                    && let Some(want) = mouse.profile_for(&settled)
                 {
                     let _ = ctx.profiles.send(want);
                 }
@@ -1099,9 +1157,10 @@ fn show_main(app: &AppHandle) {
 
 fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open hrtz", true, None::<&str>)?;
-    let names = ctx.prefs.read().profile_names.clone();
-    let profiles: Vec<CheckMenuItem<tauri::Wry>> = (0..4)
-        .map(|i| CheckMenuItem::with_id(app, format!("profile-{i}"), &names[i], false, false, None::<&str>))
+    // The last mouse's names until one connects; `refresh_tray` keeps them current after.
+    let names = ctx.known.read().last_seen().map(|m| m.prefs.clone()).unwrap_or_default();
+    let profiles: Vec<CheckMenuItem<tauri::Wry>> = (0..4u8)
+        .map(|i| CheckMenuItem::with_id(app, format!("profile-{i}"), names.profile_name(i), false, false, None::<&str>))
         .collect::<tauri::Result<_>>()?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
@@ -1182,13 +1241,28 @@ pub fn run() {
             let prefs_path = config_dir.join("prefs.json");
             let notify_handle = handle.clone();
             std::fs::create_dir_all(&data_dir)?;
+            // What a prefs file from before several mice held for its mouse is kept for the first
+            // Zaopin to connect, before the prefs are saved without it.
+            let (prefs, legacy) = Prefs::load_with_legacy(&prefs_path);
+            let mut known = KnownMice::load(Some(config_dir.join("mice.json")));
+            if let Some(legacy) = legacy {
+                if known.hold_legacy(legacy) {
+                    known.save()?;
+                }
+                // The file as it was, once, in case it's wanted by an older hrtz.
+                let before = config_dir.join("prefs.before-mice.json");
+                if !before.exists() {
+                    let _ = std::fs::copy(&prefs_path, before);
+                }
+                prefs.save(&prefs_path)?;
+            }
+            let last = known.last_seen().map(|m| m.key.clone());
             let engine = Engine::start(
                 Box::new(mice::compx::HidFinder::default()),
                 Arc::new(move |s, e| on_device_change(&notify_handle, s, e)),
-                Some(data_dir.join("battery.json")),
-                Some(data_dir.join("battery_log.jsonl")),
+                Some(data_dir.clone()),
+                last,
             );
-            let prefs = Prefs::load(&prefs_path);
             let hud = hud::Hud::new(&prefs, engine.log.clone());
             let (profiles, profile_asks) = std::sync::mpsc::channel();
             let ctx = Arc::new(Ctx {
@@ -1208,6 +1282,8 @@ pub fn run() {
                 tray_level: Mutex::new(None),
                 hud,
                 met: Mutex::new(HashSet::new()),
+                known: RwLock::new(known),
+                connected_key: Mutex::new(None),
             });
             build_tray(&handle, &ctx)?;
             app.manage(ctx.clone());
@@ -1216,6 +1292,11 @@ pub fn run() {
             let hud_handle = handle.clone();
             ctx.hud.start(move |r| on_hud_report(&hud_handle, r));
             ctx.hud.device(&ctx.engine.snapshot());
+            {
+                let known = ctx.known.read();
+                let last = known.last_seen().map(|m| m.prefs.clone()).unwrap_or_default();
+                ctx.hud.mouse(&last, known.rule_exes());
+            }
 
             WebviewWindowBuilder::new(app, "osd", WebviewUrl::App("index.html".into()))
                 .title("hrtz OSD")
@@ -1289,6 +1370,8 @@ pub fn run() {
             set_long_range,
             factory_reset,
             get_prefs,
+            get_mice,
+            set_mouse_prefs,
             set_prefs,
             list_backups,
             create_backup,
@@ -1381,8 +1464,9 @@ mod lab {
     use std::path::PathBuf;
 
     use crate::mice::compx::models;
-    use crate::mice::{Battery, DeviceState};
-    use crate::store::Backups;
+    use crate::mice::{self, Battery, DeviceState};
+    use crate::store::{Backups, KnownMice, Prefs};
+    use crate::unix_now;
 
     /// Real data for the page labs (`lab-labpage.html`, `lab-backups.html`): this PC's backups
     /// decoded, a device state built from the newest of them, the pointer settings, and the games'
@@ -1410,12 +1494,17 @@ mod lab {
         let newest = backups.list().first().map(|m| backups.settings(&m.id).unwrap()).expect("a backup");
         write("backups.json", serde_json::Value::Array(list));
 
-        // The battery's last reading, from the log the Battery page reads.
-        let log = std::fs::read_to_string(data.join("battery_log.jsonl")).unwrap();
+        // The battery's last reading, from the log the Battery page reads: the Zaopin's own, or
+        // the one from before several mice.
+        let (_, own_log) = mice::engine::battery_files(&data, "compx/7-4");
+        let log = std::fs::read_to_string(&own_log)
+            .or_else(|_| std::fs::read_to_string(data.join("battery_log.jsonl")))
+            .unwrap();
         let last: serde_json::Value = serde_json::from_str(log.lines().last().unwrap()).unwrap();
         let level = last["level"].as_u64().unwrap() as u8;
         let state = DeviceState {
             rev: 1,
+            key: Some("compx/7-4".into()),
             connected: true,
             online: true,
             model: Some(models::model_name(4).into()),
@@ -1438,9 +1527,16 @@ mod lab {
         };
         write("device.json", serde_json::to_value(&state).unwrap());
 
-        let prefs: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(data.join("prefs.json")).unwrap()).unwrap();
-        write("prefs.json", prefs);
+        let (prefs, legacy) = Prefs::load_with_legacy(&data.join("prefs.json"));
+        write("prefs.json", serde_json::to_value(&prefs).unwrap());
+        // The known mice; on a PC that hasn't run this version yet, the Zaopin with the prefs it
+        // would take over.
+        let mut known = KnownMice::load(Some(data.join("mice.json")));
+        if known.list().is_empty() {
+            known.hold_legacy(legacy.unwrap_or_default());
+            known.meet("compx/7-4", models::model_name(4), unix_now());
+        }
+        write("mice.json", serde_json::to_value(known.list()).unwrap());
         write("pointer.json", serde_json::to_value(crate::win::pointer_settings()).unwrap());
         let games: serde_json::Map<String, serde_json::Value> = ["VALORANT-Win64-Shipping.exe", "r5apex_dx12.exe"]
             .iter()

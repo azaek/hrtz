@@ -122,6 +122,8 @@ export interface UsbPort {
 export interface DeviceState {
   /** Goes up with every change; keep the copy with the highest. */
   rev: number;
+  /** Who the mouse is, the same across connections and restarts. Set once it's met. */
+  key?: string | null;
   connected: boolean;
   online: boolean;
   model: string | null;
@@ -175,10 +177,6 @@ export interface Prefs {
   batteryAlerts: boolean;
   lowBatteryPercent: number;
   osd: boolean;
-  rulesEnabled: boolean;
-  defaultProfile: number | null;
-  rules: AppRule[];
-  profileNames: [string, string, string, string];
   trayStyle: "percent" | "battery";
   /** Track where the mouse moves on the pad, in the background too. */
   padTracking: boolean;
@@ -188,20 +186,41 @@ export interface Prefs {
   padGames: PadGame[];
   /** Known games taken off the list, so they don't join again (exe names in lower case). */
   padGamesRemoved: string[];
+  /** The first-run window has been through. */
+  welcomed: boolean;
+  /** Agreed to share anonymous data that tunes the algorithms. Opt-in; nothing is sent yet. */
+  shareData: boolean;
+  /** The in-game HUD. */
+  hud: HudPrefs;
+}
+
+/** What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch
+ *  them, and its battery saver. */
+export interface MousePrefs {
+  rulesEnabled: boolean;
+  /** Profile to return to when no rule matches; null leaves the profile alone. */
+  defaultProfile: number | null;
+  rules: AppRule[];
+  profileNames: string[];
+  /** What each profile held when last in use. */
+  profileSnapshots: (ProfileSnapshot | null)[];
   /** Lower the polling rate to `batterySaverHz` at `batterySaverBelow` percent, until charging. */
   batterySaver: boolean;
   batterySaverBelow: number;
   batterySaverHz: number;
   /** The rate to go back to, while the saver has it lowered. */
   batterySaverRestore: number | null;
-  /** The first-run window has been through. */
-  welcomed: boolean;
-  /** Agreed to share anonymous data that tunes the algorithms. Opt-in; nothing is sent yet. */
-  shareData: boolean;
-  /** What each of the four profiles held when last in use. */
-  profileSnapshots: (ProfileSnapshot | null)[];
-  /** The in-game HUD. */
-  hud: HudPrefs;
+}
+
+/** A mouse hrtz has met, and what it keeps for it. */
+export interface KnownMouse {
+  /** Stays the same across connections and restarts (`DeviceState.key`). */
+  key: string;
+  model: string;
+  /** When it was first and last connected, in seconds since 1970. */
+  firstSeen: number;
+  lastSeen: number;
+  prefs: MousePrefs;
 }
 
 export type HudShow = "off" | "change" | "always";
@@ -541,6 +560,8 @@ export const api = {
   factoryReset: () => invoke<void>("factory_reset"),
   prefs: () => invoke<Prefs>("get_prefs"),
   setPrefs: (prefs: Prefs) => invoke<void>("set_prefs", { prefs }),
+  mice: () => invoke<KnownMouse[]>("get_mice"),
+  setMousePrefs: (key: string, prefs: MousePrefs) => invoke<void>("set_mouse_prefs", { key, prefs }),
   listBackups: () => invoke<BackupMeta[]>("list_backups"),
   createBackup: (note: string) => invoke<BackupMeta>("create_backup", { note }),
   /** Saves the mouse as it is first (an automatic backup), unless it already matches. */
@@ -610,6 +631,7 @@ export const on = {
   /** Seconds the receiver keeps looking for a mouse to pair with. */
   pairing: (f: (secondsLeft: number) => void) => listen<number>("pairing", (e) => f(e.payload)),
   prefs: (f: (p: Prefs) => void) => listen<Prefs>("prefs", (e) => f(e.payload)),
+  mice: (f: (m: KnownMouse[]) => void) => listen<KnownMouse[]>("mice", (e) => f(e.payload)),
   status: (f: (s: AppStatus) => void) => listen<AppStatus>("app-status", (e) => f(e.payload)),
   meter: (f: (s: MeterSample) => void) => listen<MeterSample>("meter", (e) => f(e.payload)),
   /** hrtz saved a backup by itself (meeting a mouse, factory settings). */

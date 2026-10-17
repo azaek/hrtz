@@ -1,10 +1,10 @@
 import { Dropdown, Option, Switch } from "@fluentui/react-components";
 import { BatterySaver20Regular, BatteryWarning20Regular, WeatherMoon20Regular } from "@fluentui/react-icons";
-import { topRate, type Prefs } from "@/api";
+import { topRate, type MousePrefs, type Prefs } from "@/api";
 import { Choice, SettingCard } from "@/components";
 import { NumberStepper } from "@/kit";
 import { hzText } from "@/rates";
-import { commit, savePrefs, useStore } from "@/store";
+import { commit, saveMousePrefs, savePrefs, useMouse, useStore } from "@/store";
 
 /** "10 s", "1 min". */
 const shortTime = (s: number) => (s < 60 ? `${s} s` : `${s / 60} min`);
@@ -14,20 +14,24 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
   const device = useStore((x) => x.device);
   const caps = device?.capabilities;
   const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
+  // The battery saver is the connected mouse's own.
+  const mouse = useMouse();
+  const saver = mouse?.prefs;
+  const setSaver = (patch: Partial<MousePrefs>) => mouse && saveMousePrefs(mouse.key, { ...mouse.prefs, ...patch });
   // Only the rates below what this connection tops out at: a 4K receiver can drop to 2,000 Hz,
   // a 2K one to 1,000.
   const top = topRate(caps);
   const rates = top !== undefined ? (caps?.polling?.rates ?? []).filter((hz) => hz < top) : [];
-  const lowered = prefs.batterySaverRestore;
+  const lowered = saver?.batterySaverRestore ?? null;
   // A connection that tops out at 1,000 Hz has nothing worth lowering: the saver only exists for
   // the high rates that cost the battery. It needs a mouse with a battery and a polling rate.
-  const showSaver = !caps || (!!caps.polling && caps.battery && !(!caps.wired && (top ?? 0) <= 1000 && !lowered));
+  const showSaver = !!saver && !!caps?.polling && caps.battery && !(!caps.wired && (top ?? 0) <= 1000 && !lowered);
   // One line: the level and rate are in the controls beside it.
   const saverText = caps?.wired
     ? "Not needed while wired."
     : lowered
       ? `Lowered from ${hzText(lowered)} until charged.`
-      : prefs.batterySaver
+      : saver?.batterySaver
         ? "Lowers the polling rate on low battery, until charged."
         : "Lowers the polling rate when the battery is low.";
   const s = device?.settings;
@@ -40,15 +44,15 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
     <>
       {showSaver && (
         <SettingCard icon={<BatterySaver20Regular />} title="Battery saver" description={saverText}>
-          {prefs.batterySaver && !caps?.wired && (
+          {saver?.batterySaver && !caps?.wired && (
             <div className="tw flex items-center gap-2">
-              <NumberStepper label="Battery level to start saving at" unit="%" min={5} max={50} step={5} value={prefs.batterySaverBelow} onChange={(v) => set({ batterySaverBelow: v })} />
+              <NumberStepper label="Battery level to start saving at" unit="%" min={5} max={50} step={5} value={saver.batterySaverBelow} onChange={(v) => setSaver({ batterySaverBelow: v })} />
               <Dropdown
                 aria-label="Polling rate while saving"
                 style={{ minWidth: 128 }}
-                value={hzText(prefs.batterySaverHz)}
-                selectedOptions={[String(prefs.batterySaverHz)]}
-                onOptionSelect={(_, d) => d.optionValue && set({ batterySaverHz: Number(d.optionValue) })}
+                value={hzText(saver.batterySaverHz)}
+                selectedOptions={[String(saver.batterySaverHz)]}
+                onOptionSelect={(_, d) => d.optionValue && setSaver({ batterySaverHz: Number(d.optionValue) })}
               >
                 {rates.map((hz) => (
                   <Option key={hz} value={String(hz)}>
@@ -58,7 +62,7 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
               </Dropdown>
             </div>
           )}
-          <Switch checked={prefs.batterySaver} disabled={caps?.wired} onChange={(_, d) => set({ batterySaver: d.checked })} aria-label="Battery saver" />
+          <Switch checked={!!saver?.batterySaver} disabled={caps?.wired} onChange={(_, d) => setSaver({ batterySaver: d.checked })} aria-label="Battery saver" />
         </SettingCard>
       )}
       {s && sleepS !== undefined && sleepTimes.length > 0 && !caps?.wired && (

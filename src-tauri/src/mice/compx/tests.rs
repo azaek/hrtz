@@ -409,3 +409,23 @@ fn a_setting_the_mouse_lacks_is_left_out_of_what_the_ui_gets() {
     let back: Settings = serde_json::from_value(serde_json::json!({ "pollingHz": 1000 })).unwrap();
     assert_eq!(back, s);
 }
+
+#[test]
+fn the_first_zaopin_takes_over_the_battery_files_from_before_several_mice() {
+    let dir = std::env::temp_dir().join(format!("hrtz-battery-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("battery.json"), r#"{"level":64,"at":1700000000}"#).unwrap();
+    std::fs::write(dir.join("battery_log.jsonl"), "").unwrap();
+    let mouse = Arc::new(Mutex::new(SimMouse::default()));
+    let notify: Notify = Arc::new(|_, _| {});
+    let state = Arc::new(RwLock::new(DeviceState::default()));
+    let log = Arc::new(Mutex::new(BatteryLog::load(None)));
+    let mut w = Worker::new(Box::new(SimFinder(mouse)), state, notify, Some(dir.clone()), log.clone());
+    w.housekeeping();
+    let (estimate, own_log) = crate::mice::engine::battery_files(&dir, "compx/7-4");
+    assert!(estimate.exists() && own_log.exists(), "moved under the mouse's key");
+    assert!(!dir.join("battery.json").exists() && !dir.join("battery_log.jsonl").exists());
+    assert!(!log.lock().entries().is_empty(), "and this mouse's readings go to its own log");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

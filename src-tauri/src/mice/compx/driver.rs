@@ -92,6 +92,7 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
     let (cid, mid, device_type) = (d[4], d[5], d[6]);
     board.set(|s| {
         *s = DeviceState {
+            key: Some(format!("compx/{cid}-{mid}")),
             connected: true,
             model: Some(models::model_name(mid).to_string()),
             cid,

@@ -27,7 +27,7 @@ use parking_lot::{Mutex, RwLock};
 
 use crate::battery_log::{self, BatteryLog};
 use crate::mice::DeviceState;
-use crate::store::{HudShow, Prefs};
+use crate::store::{HudShow, MousePrefs, Prefs};
 
 /// The battery log's life per rate is worked out again at most this often.
 const LIFE_EVERY: Duration = Duration::from_secs(5 * 60);
@@ -46,6 +46,8 @@ pub enum Report {
 enum Input {
     Device(Box<DeviceState>),
     Prefs(Box<Prefs>),
+    /// The connected mouse's prefs, and every app with a profile rule on any mouse.
+    Mouse(Box<MousePrefs>, Vec<String>),
     /// The path of the app in front, sent when it or its window changes.
     Foreground(Option<String>),
     VendorApp(bool),
@@ -164,6 +166,12 @@ impl Hud {
         }
         self.shared.enabled.store(on, Ordering::SeqCst);
         self.send(Input::Prefs(Box::new(p.clone())));
+    }
+
+    /// The connected mouse's prefs (its profile names, the battery saver), and every app with a
+    /// profile rule, on any mouse: those count as games.
+    pub fn mouse(&self, prefs: &MousePrefs, rule_exes: Vec<String>) {
+        self.send(Input::Mouse(Box::new(prefs.clone()), rule_exes));
     }
 
     pub fn foreground(&self, path: Option<String>) {

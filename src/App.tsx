@@ -24,7 +24,7 @@ import {
   Warning16Filled,
   WeatherMoon16Filled,
 } from "@fluentui/react-icons";
-import { init, useStore } from "./store";
+import { init, useMouse, useStore } from "./store";
 import { HeaderActionsSlot, NavRow, Notice, StatusPill, ToastBridge } from "./components";
 import { SensorPage } from "./pages/Sensor";
 import { ButtonsPage } from "./pages/Buttons";
@@ -214,7 +214,7 @@ const rateBadge = (hz: number) => (hz >= 1000 ? `${hz / 1000}K` : `${hz} Hz`);
  *  battery saver lowered it. */
 function RateBadge({ d }: { d: DeviceState }) {
   const s = useStyles();
-  const restore = useStore((st) => st.prefs?.batterySaverRestore ?? null);
+  const restore = useMouse()?.prefs.batterySaverRestore ?? null;
   const set = d.settings?.pollingHz;
   if (set === undefined) return null;
   const hz = Math.min(set, topRate(d.capabilities) ?? set);

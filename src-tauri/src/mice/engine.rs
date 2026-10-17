@@ -3,7 +3,7 @@
 //! publishes a `DeviceState` snapshot after every change. What's particular to a mouse's protocol
 //! is in its driver (`mice::compx` for Zaopin).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
@@ -43,6 +43,9 @@ pub struct DeviceState {
     /// Goes up with every change, so the UI can tell a stale copy from a fresh one: a reply and an
     /// event can arrive in either order.
     pub rev: u64,
+    /// Who the mouse is: the same across connections and restarts, so what hrtz keeps for it
+    /// (prefs, battery history, backups) is filed under it. Set once it's met.
+    pub key: Option<String>,
     /// A receiver or wired mouse answered the handshake.
     pub connected: bool,
     /// The mouse itself is awake and linked (always true when wired).
@@ -122,22 +125,18 @@ pub struct Engine {
 }
 
 impl Engine {
-    /// Start the thread, finding the mouse through `finder`. `battery_file` keeps the battery
-    /// estimate across restarts; `log_file` is the battery log.
-    pub fn start(
-        finder: Box<dyn Finder>,
-        notify: Notify,
-        battery_file: Option<PathBuf>,
-        log_file: Option<PathBuf>,
-    ) -> Self {
+    /// Start the thread, finding the mouse through `finder`. Each mouse's battery estimate and log
+    /// are kept in `data_dir` (`battery/`); until one is met, `last`'s are shown.
+    pub fn start(finder: Box<dyn Finder>, notify: Notify, data_dir: Option<PathBuf>, last: Option<String>) -> Self {
         let (tx, rx) = unbounded::<Job>();
         let state = Arc::new(RwLock::new(DeviceState::default()));
-        let log = Arc::new(Mutex::new(BatteryLog::load(log_file)));
+        let log = Arc::new(Mutex::new(BatteryLog::load(None)));
         let (shared, shared_log) = (state.clone(), log.clone());
         thread::Builder::new()
             .name("hrtz-device".into())
             .spawn(move || {
-                let mut w = Worker::new(finder, shared, notify, battery_file, shared_log);
+                let mut w = Worker::new(finder, shared, notify, data_dir, shared_log);
+                w.battery_of(last.as_deref());
                 let mut next_probe = Instant::now();
                 loop {
                     match rx.recv_timeout(Duration::from_millis(25)) {
@@ -180,6 +179,9 @@ pub struct Worker {
     battery: Estimator,
     battery_file: Option<PathBuf>,
     log: Arc<Mutex<BatteryLog>>,
+    /// Where each mouse's battery files go, and whose are loaded.
+    data_dir: Option<PathBuf>,
+    battery_key: Option<String>,
     /// Why the last connect attempt failed, so each reason is logged once.
     connect_error: Option<String>,
 }
@@ -189,24 +191,51 @@ impl Worker {
         finder: Box<dyn Finder>,
         state: Arc<RwLock<DeviceState>>,
         notify: Notify,
-        battery_file: Option<PathBuf>,
+        data_dir: Option<PathBuf>,
         log: Arc<Mutex<BatteryLog>>,
     ) -> Self {
-        let saved = battery_file
-            .as_ref()
-            .and_then(|f| std::fs::read(f).ok())
-            .and_then(|b| serde_json::from_slice::<Saved>(&b).ok());
         Self {
             finder,
             driver: None,
             loaded: false,
             board: Board { state, notify },
             last_battery_poll: Instant::now(),
-            battery: Estimator::new(saved),
-            battery_file,
+            battery: Estimator::new(None),
+            battery_file: None,
             log,
+            data_dir,
+            battery_key: None,
             connect_error: None,
         }
+    }
+
+    /// Use the battery estimate and log of mouse `key`: the one just met, or, before any, the last
+    /// one seen. The files from before several mice (one estimate, one log) become the first
+    /// Zaopin's, or are shown until a mouse is met when none is known yet.
+    pub(crate) fn battery_of(&mut self, key: Option<&str>) {
+        let Some(dir) = self.data_dir.clone() else { return };
+        if key.is_some() && key == self.battery_key.as_deref() {
+            return;
+        }
+        let (estimate, log) = match key {
+            Some(key) => {
+                let (estimate, log) = battery_files(&dir, key);
+                if key.starts_with("compx/") && !estimate.exists() && !log.exists() {
+                    let _ = std::fs::create_dir_all(dir.join("battery"));
+                    let _ = std::fs::rename(dir.join("battery.json"), &estimate);
+                    let _ = std::fs::rename(dir.join("battery_log.jsonl"), &log);
+                }
+                (estimate, log)
+            }
+            None => (dir.join("battery.json"), dir.join("battery_log.jsonl")),
+        };
+        let saved = std::fs::read(&estimate).ok().and_then(|b| serde_json::from_slice::<Saved>(&b).ok());
+        self.battery = Estimator::new(saved);
+        // Before a mouse is met, the files are only read: nothing is written to a mouse's history
+        // that isn't connected.
+        self.battery_file = key.map(|_| estimate);
+        *self.log.lock() = BatteryLog::load(Some(log));
+        self.battery_key = key.map(str::to_string);
     }
 
     /// Run `f` on the driver; if the connection was lost meanwhile, let go of it.
@@ -295,6 +324,8 @@ impl Worker {
         let driver = self.finder.find(&self.board)?;
         self.driver = Some(driver);
         self.loaded = false;
+        let key = self.board.read().key.clone();
+        self.battery_of(key.as_deref());
         if self.drive(|d, _| d.online())? {
             self.load()?;
         }
@@ -454,4 +485,11 @@ impl Worker {
             d.goodbye();
         }
     }
+}
+
+/// Mouse `key`'s battery estimate and log, in the data folder: `battery/compx-7-4.json` and `.jsonl`.
+pub fn battery_files(data_dir: &Path, key: &str) -> (PathBuf, PathBuf) {
+    let name: String = key.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+    let dir = data_dir.join("battery");
+    (dir.join(format!("{name}.json")), dir.join(format!("{name}.jsonl")))
 }
