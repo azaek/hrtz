@@ -9,6 +9,8 @@ pub mod installed;
 pub mod pad;
 pub mod protocol;
 pub mod settings;
+#[cfg(test)]
+mod sim;
 pub mod store;
 pub mod tray;
 
