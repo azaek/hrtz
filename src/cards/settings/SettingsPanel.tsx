@@ -37,6 +37,8 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const busy = useStore((x) => x.busy);
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const progress = useStore((x) => x.progress);
   const [previews, setPreviews] = useState<{ percent?: string; battery?: string; taskbar: "light" | "dark" } | null>(null);
   // Pairing: the seconds the receiver keeps looking, and how the last try went.
   const [pairing, setPairing] = useState<number | null>(null);
@@ -186,7 +188,17 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         )}
         <SettingCard icon={<Info20Regular />} title={device?.model ?? "No mouse connected"} description={facts ?? "Plug in the receiver to see its details."} />
         {can("factoryReset") && (
-          <SettingCard icon={<ArrowRotateClockwise20Regular />} title="Restore factory settings" description="Resets DPI, polling, buttons and macros to factory defaults.">
+          <SettingCard
+            icon={<ArrowRotateClockwise20Regular />}
+            title="Restore factory settings"
+            description={
+              !resetting
+                ? "Resets DPI, polling, buttons and macros to factory defaults."
+                : progress
+                  ? `Saving a backup first · ${Math.round((progress[0] / progress[1]) * 100)}%`
+                  : "Restoring factory settings…"
+            }
+          >
             <Button disabled={!device?.online || busy} onClick={() => setConfirmReset(true)}>
               Restore
             </Button>
@@ -243,7 +255,9 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
                 appearance="primary"
                 onClick={async () => {
                   setConfirmReset(false);
+                  setResetting(true);
                   await run(() => api.factoryReset(), "Factory settings restored");
+                  setResetting(false);
                 }}
               >
                 Restore factory settings

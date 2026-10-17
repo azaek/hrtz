@@ -99,6 +99,12 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     await wait(14_000);
   },
 };
+// Settings: a backup under way, its progress under the card (with ?scroll= to see it).
+SCENARIOS.backup = async () => {
+  (lab() as unknown as { fake: { flashMs: number } }).fake.flashMs = 20_000;
+  click("Back up now");
+  await wait(3000);
+};
 // Clicks "Check for updates", which dev builds don't do by themselves (with ?update=…).
 SCENARIOS.update = async () => {
   [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Check for updates"))?.click();

@@ -35,7 +35,7 @@ import {
 } from "@fluentui/react-icons";
 import type { PageId } from "@/App";
 import { BatteryIcon } from "@/BatteryIcon";
-import { DeviceProgress, HeaderActionsSlot, NavRow, StatusPill, ToastBridge } from "@/components";
+import { HeaderActionsSlot, NavRow, StatusPill, ToastBridge } from "@/components";
 import { BatteryPage } from "@/pages/Battery";
 import { ButtonsPage } from "@/pages/Buttons";
 import { HudPage } from "@/pages/Hud";
@@ -367,7 +367,6 @@ export function Shell() {
         </header>
         <div className={s.scroller}>
           <div className={s.page}>
-            <DeviceProgress />
             <Page />
           </div>
         </div>

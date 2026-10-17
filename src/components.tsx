@@ -6,7 +6,6 @@ import {
   Caption1,
   makeStyles,
   mergeClasses,
-  ProgressBar,
   Toast,
   ToastTitle,
   Toaster,
@@ -334,10 +333,4 @@ export function ToastBridge() {
     }
   }, [toasts, dispatchToast]);
   return <Toaster toasterId={toasterId} position="bottom-end" />;
-}
-
-export function DeviceProgress() {
-  const progress = useStore((s) => s.progress);
-  if (!progress) return null;
-  return <ProgressBar value={progress[0] / progress[1]} thickness="medium" />;
 }

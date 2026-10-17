@@ -14,7 +14,7 @@ import {
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api, type BackupMeta } from "@/api";
 import { Group, SettingCard } from "@/components";
-import { afterMenu, CardList, CardListRow, CardNote, MoreMenu, UndoNote, type MoreMenuItem } from "@/kit";
+import { afterMenu, CardList, CardListRow, CardNote, MoreMenu, ProgressLine, UndoNote, type MoreMenuItem } from "@/kit";
 import { run, useStore } from "@/store";
 import { changes } from "./changes";
 import { lineOf, nameOf, shortWhen } from "./names";
@@ -26,6 +26,8 @@ const truncate = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "no
 type Card = "yours" | "auto";
 /** What a restore just did, said under the card it was started from; Undo when hrtz saved first. */
 type Restored = { card: Card; text: string; saved: string | null };
+/** A backup or restore running, shown at the top of the card it was started from. */
+type Working = { card: Card; text: string };
 
 /**
  * Backups, a group on the Settings page: yours, kept until you delete them, and the ones hrtz saves
@@ -40,6 +42,17 @@ export function BackupsPanel() {
   const b = useBackups();
   const [naming, setNaming] = useState<string | null>(null);
   const [restored, setRestored] = useState<Restored | null>(null);
+  const [working, setWorking] = useState<Working | null>(null);
+  const progress = useStore((x) => x.progress);
+  /** Run `f`, its progress shown under `card` meanwhile. */
+  const showing = async <T,>(card: Card, text: string, f: () => Promise<T>): Promise<T> => {
+    setWorking({ card, text });
+    try {
+      return await f();
+    } finally {
+      setWorking(null);
+    }
+  };
 
   const online = !!device?.online;
   const can = online && !busy;
@@ -50,7 +63,7 @@ export function BackupsPanel() {
 
   const backUp = async () => {
     setRestored(null);
-    const m = await b.backUpNow();
+    const m = await showing("yours", "Backing up", b.backUpNow);
     if (m) setNaming(m.id);
   };
 
@@ -59,10 +72,10 @@ export function BackupsPanel() {
     const before = device?.settings;
     const buttons = device?.capabilities?.buttons;
     const then = await api.backupSettings(m.id).catch(() => null);
-    const r = await run(() => api.restoreBackup(m.id));
+    const name = nameOf(m);
+    const r = await showing(card, `Restoring ${name}`, () => run(() => api.restoreBackup(m.id)));
     if (!r) return;
     await b.refresh();
-    const name = nameOf(m);
     if (r.written === 0) return setRestored({ card, text: `The mouse already matches ${name}.`, saved: null });
     const c = before && then && buttons ? changes(before, then, buttons) : [];
     const what =
@@ -71,8 +84,9 @@ export function BackupsPanel() {
   };
   const undoRestore = async () => {
     const id = restored?.saved;
+    const card = restored?.card ?? "yours";
     setRestored(null);
-    if (id && (await run(() => api.undoRestore(id), "Restore undone")) !== undefined) await b.refresh();
+    if (id && (await showing(card, "Undoing the restore", () => run(() => api.undoRestore(id), "Restore undone"))) !== undefined) await b.refresh();
   };
 
   const exportOne = async (m: BackupMeta) => {
@@ -120,6 +134,13 @@ export function BackupsPanel() {
     );
   };
 
+  // Right under the card's header, near the button that started it.
+  const workingRow = working && (
+    <CardListRow>
+      <WorkingNote text={working.text} value={progress ? progress[0] / progress[1] : 0} />
+    </CardListRow>
+  );
+
   /** The line under a card: Undo for what was just done there, else a hint. */
   const footer = (card: Card, hint: string) => {
     if (b.gone && !!b.gone.auto === (card === "auto")) return <UndoNote onUndo={b.undo}>Deleted {nameOf(b.gone)}.</UndoNote>;
@@ -137,6 +158,7 @@ export function BackupsPanel() {
         description="Kept until you delete them."
         below={
           <CardList footer={footer("yours", "Restoring writes only what changed.")}>
+            {working?.card === "yours" && workingRow}
             {yours.map((m) => row(m, "yours"))}
             {list && yours.length === 0 && (
               <CardListRow>
@@ -163,7 +185,10 @@ export function BackupsPanel() {
         title="Automatic backups"
         description="Saved before a restore or factory reset, and when a mouse first connects. The last 10 are kept."
         below={
-          <CardList footer={auto.length || b.gone?.auto || restored?.card === "auto" ? footer("auto", "Name a backup to keep it permanently.") : undefined}>
+          <CardList
+            footer={auto.length || b.gone?.auto || restored?.card === "auto" ? footer("auto", "Name a backup to keep it permanently.") : undefined}
+          >
+            {working?.card === "auto" && workingRow}
             {auto.map((m) => row(m, "auto"))}
             {list && auto.length === 0 && (
               <CardListRow>
@@ -174,6 +199,18 @@ export function BackupsPanel() {
         }
       />
     </Group>
+  );
+}
+
+/** What's running, and how far it's got. */
+function WorkingNote({ text, value }: { text: string; value: number }) {
+  return (
+    <div role="status" className="flex flex-1 flex-col gap-2 py-1 text-xs text-muted-foreground">
+      <span className="tabular-nums">
+        {text} · {Math.round(value * 100)}%
+      </span>
+      <ProgressLine value={value} label={text} />
+    </div>
   );
 }
 

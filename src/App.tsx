@@ -25,7 +25,7 @@ import {
   WeatherMoon16Filled,
 } from "@fluentui/react-icons";
 import { init, useStore } from "./store";
-import { DeviceProgress, HeaderActionsSlot, NavRow, Notice, StatusPill, ToastBridge } from "./components";
+import { HeaderActionsSlot, NavRow, Notice, StatusPill, ToastBridge } from "./components";
 import { SensorPage } from "./pages/Sensor";
 import { ButtonsPage } from "./pages/Buttons";
 import { ProfilesPage } from "./pages/Profiles";
@@ -370,7 +370,6 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
                 Quit it from its tray icon. Both apps use the same channel and overwrite each other's changes.
               </Notice>
             )}
-            <DeviceProgress />
             <Page />
           </div>
         </div>
