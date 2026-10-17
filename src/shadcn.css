@@ -1,0 +1,166 @@
+/* shadcn/ui on Tailwind v4, for the parts of hrtz built from it (the DPI stages card so far, and
+ * the design labs). The rest of the app is Fluent, so this stylesheet keeps to itself:
+ *
+ * - No Tailwind preflight. Its global resets (list bullets, block SVGs, borders on everything)
+ *   would change the Fluent pages. Instead, a small reset applies inside `.tw`, the class on
+ *   every shadcn part and on their pop-ups (which render outside the part, at the end of <body>).
+ * - Utilities come only from the files that use them (@source below).
+ *
+ * Token names follow shadcn's manual setup so components added with the CLI just work. The dark
+ * palette sits over the window's Mica: surfaces are white at low alpha rather than opaque greys,
+ * the same layering the Fluent cards use. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "./lab";
+@source "./components/ui";
+@source "./cards";
+@source "./kit";
+@import "tw-animate-css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+/* shadcn's Base UI components style by `data-horizontal` / `data-vertical`; Base UI marks
+   orientation as `data-orientation`. Without these, slider tracks are 0px tall. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
+:root {
+  /* Fluent's control radius (4px), so shadcn controls sit with the Fluent ones. */
+  --radius: 0.25rem;
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0 / 70%);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0 0 0 / 4%);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0 0 0 / 5%);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0 0 0 / 5%);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0 0 0 / 8%);
+  --input: oklch(0 0 0 / 12%);
+  --ring: oklch(0.62 0 0);
+  /* The app's accent (Iris, states.json): marks the stage the mouse is using, nothing else. */
+  --brand: oklch(0.5 0.13 280);
+  --app-font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+.dark {
+  --background: oklch(0.235 0 0);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(1 0 0 / 5%);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.27 0 0);
+  --popover-foreground: oklch(0.96 0 0);
+  --primary: oklch(0.93 0 0);
+  --primary-foreground: oklch(0.2 0 0);
+  --secondary: oklch(1 0 0 / 7%);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(1 0 0 / 9%);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: oklch(1 0 0 / 8%);
+  --accent-foreground: oklch(0.96 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.6 0 0);
+  --brand: oklch(0.7 0.1 282);
+}
+
+/* Geist is shadcn's own face; Segoe UI Variable is the rest of the app's. */
+:root[data-font="geist"] {
+  --app-font: "Geist Variable", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+}
+
+@theme inline {
+  /* Fluent's radii: 4px for controls and menu items, 8px for flyouts and cards. */
+  --radius-sm: 2px;
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: 8px;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --font-sans: var(--app-font);
+}
+
+/* The part of Tailwind's preflight shadcn relies on, inside `.tw` only. */
+@layer base {
+  .tw {
+    font-family: var(--font-sans);
+    color: var(--foreground);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .tw,
+  .tw *,
+  .tw ::before,
+  .tw ::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+  }
+  .tw :where(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    background-color: transparent;
+    border-radius: 0;
+  }
+  .tw :where(ul, ol, menu) {
+    list-style: none;
+  }
+  .tw :where(svg, img) {
+    display: block;
+    vertical-align: middle;
+  }
+  .tw :where(input)::placeholder {
+    color: var(--muted-foreground);
+  }
+}
+
+/* Lab: the tape's needle pulses as it lands on a common value. `scale` composes with Tailwind's
+   `translate`, so the needle stays centred. */
+@keyframes needle-pulse {
+  40% {
+    scale: 1.9 1.12;
+  }
+}
+.needle-pulse {
+  animation: needle-pulse 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tw *,
+  .tw *::before,
+  .tw *::after {
+    /* Collapsed, not removed: Base UI unmounts popups when their exit animation ends. */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

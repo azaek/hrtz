@@ -1,0 +1,262 @@
+/* Window chrome only; component styling lives in makeStyles with Fluent tokens. */
+
+:root {
+  /* WinUI card fills for surfaces raised off the Mica backdrop. */
+  --card: rgb(255 255 255 / 0.7);
+  --card-stroke: rgb(0 0 0 / 0.06);
+  --card-hover: rgb(249 249 249 / 0.5);
+  /* WinUI SubtleFillColorSecondary / Tertiary */
+  --nav-hover: rgb(0 0 0 / 0.0373);
+  --nav-selected: rgb(0 0 0 / 0.0373);
+  --nav-pressed: rgb(0 0 0 / 0.0241);
+}
+
+:root[data-theme="dark"] {
+  --card: rgb(255 255 255 / 0.05);
+  --card-stroke: rgb(0 0 0 / 0.1);
+  --card-hover: rgb(255 255 255 / 0.08);
+  --nav-hover: rgb(255 255 255 / 0.0605);
+  --nav-selected: rgb(255 255 255 / 0.0605);
+  --nav-pressed: rgb(255 255 255 / 0.0419);
+}
+
+/* Windows 11-style scrollbars: a thin line that widens when you hover it, no arrows or track. */
+:root {
+  --scroll-idle: rgb(0 0 0 / 0.3);
+  --scroll-active: rgb(0 0 0 / 0.5);
+}
+
+:root[data-theme="dark"] {
+  --scroll-idle: rgb(255 255 255 / 0.28);
+  --scroll-active: rgb(255 255 255 / 0.5);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner,
+::-webkit-resizer {
+  background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 5px solid transparent;
+  border-radius: 999px;
+  background-color: var(--scroll-idle);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  border-width: 3px;
+  background-color: var(--scroll-active);
+}
+
+/* `#root > .provider` only: Fluent copies the provider's class onto its portal mount nodes, and a
+   full-height portal at z-index 1000000 swallows clicks over the whole window. */
+html,
+body,
+#root,
+#root > .provider {
+  height: 100%;
+  margin: 0;
+  background: transparent !important;
+}
+
+body {
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+
+/* Focus rings and selected looks live in states.css. */
+
+/* ---- WinUI ComboBox look for Fluent Dropdown / Combobox (as in Windows Settings and PowerToys) ----
+   Fluent renders listboxes in a portal outside the app root, so these are global. `html body` lifts
+   specificity just above Fluent's atomic classes without !important. */
+:root {
+  --control-fill: rgb(255 255 255 / 0.7);
+  --control-fill-hover: rgb(249 249 249 / 0.5);
+  --control-fill-pressed: rgb(249 249 249 / 0.3);
+  --flyout: #fcfcfc;
+  --flyout-stroke: rgb(0 0 0 / 0.0578);
+}
+
+:root[data-theme="dark"] {
+  --control-fill: rgb(255 255 255 / 0.0605);
+  --control-fill-hover: rgb(255 255 255 / 0.0837);
+  --control-fill-pressed: rgb(255 255 255 / 0.0326);
+  --flyout: #2c2c2c;
+  --flyout-stroke: rgb(0 0 0 / 0.2);
+}
+
+/* Same soft border as buttons (the theme's WinUI colorNeutralStroke1), in every state: Fluent
+   brightens the bottom edge on hover, press and focus. */
+html body .fui-Dropdown,
+html body .fui-Combobox {
+  min-height: 32px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  background-color: var(--control-fill);
+  transition: background-color 83ms linear;
+}
+
+html body .fui-Dropdown:hover,
+html body .fui-Combobox:hover,
+html body .fui-Dropdown:focus-within,
+html body .fui-Combobox:focus-within,
+html body .fui-Dropdown:active,
+html body .fui-Combobox:active {
+  border-color: var(--colorNeutralStroke1);
+}
+
+html body .fui-Dropdown:hover,
+html body .fui-Combobox:hover {
+  background-color: var(--control-fill-hover);
+}
+
+/* Open: the trigger sinks a step instead of lighting up an edge. */
+html body .fui-Dropdown:has([aria-expanded="true"]),
+html body .fui-Combobox:has([aria-expanded="true"]) {
+  background-color: var(--control-fill-pressed);
+}
+
+/* Fluent's accent underline; WinUI's ComboBox has none. */
+html body .fui-Dropdown::after,
+html body .fui-Combobox::after {
+  display: none;
+}
+
+html body .fui-Dropdown__expandIcon,
+html body .fui-Combobox__expandIcon {
+  font-size: 16px;
+  color: var(--colorNeutralForeground2);
+}
+
+/* The chevron turns over while the list is open. */
+html body .fui-Dropdown__expandIcon svg,
+html body .fui-Combobox__expandIcon svg {
+  transition: rotate 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+html body [aria-expanded="true"] .fui-Dropdown__expandIcon svg,
+html body .fui-Combobox:has([aria-expanded="true"]) .fui-Combobox__expandIcon svg {
+  rotate: 180deg;
+}
+
+/* Dialogs keep 48px clear of the window's top and bottom (and so of the title bar). Fluent lets a
+   tall one reach both edges; its body scrolls instead. The body's limit is the surface's, less the
+   surface's 24px padding each side. */
+html body .fui-DialogSurface {
+  max-height: calc(100dvh - 2 * 48px);
+}
+
+html body .fui-DialogBody {
+  max-height: calc(100dvh - 2 * 48px - 2 * 24px);
+}
+
+/* Lists ease in a few pixels from the trigger's side. Fluent positions them with `transform`, so this
+   uses the separate `translate` property, which composes with it. */
+@keyframes flyout-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--flyout-from, -6px);
+  }
+}
+
+html body .fui-Listbox {
+  padding: 4px;
+  border: 1px solid var(--flyout-stroke);
+  border-radius: 8px;
+  background-color: var(--flyout);
+  box-shadow: 0 8px 16px rgb(0 0 0 / 0.26);
+  animation: flyout-in 167ms cubic-bezier(0, 0, 0, 1);
+}
+
+html body .fui-Listbox[data-popper-placement^="top"] {
+  --flyout-from: 6px;
+}
+
+html body .fui-Option {
+  position: relative;
+  min-height: 36px;
+  margin: 2px 0;
+  padding: 0 12px;
+  border-radius: 4px;
+}
+
+html body .fui-Option .fui-Option__checkIcon {
+  display: none;
+}
+
+html body .fui-Option:hover {
+  background-color: var(--nav-hover);
+}
+
+/* WinUI button labels are regular weight; Fluent web's are semibold. */
+html body .fui-Button,
+html body .fui-ToggleButton,
+html body .fui-MenuButton {
+  font-weight: 400;
+}
+
+/* WinUI button glyphs are 16px, 8px from the label. Pages pass the *16Regular icons. */
+html body .fui-Button__icon,
+html body .fui-ToggleButton__icon,
+html body .fui-MenuButton__icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  --fui-Button__icon--spacing: 8px;
+}
+
+/* Buttons keep their icon in the text's colour on hover and press: Fluent web tints a subtle or
+   transparent button's icon brand blue, and nothing turns accent-coloured on hover here. */
+html body :is(.fui-Button, .fui-ToggleButton, .fui-MenuButton):hover :is(.fui-Button__icon, .fui-ToggleButton__icon, .fui-MenuButton__icon, .fui-MenuButton__menuIcon) {
+  color: inherit;
+}
+
+/* Menus get the app's soft states, like the dropdown options above: a neutral wash on hover and
+   press, and the icon keeps the text's colour (Fluent web tints it brand blue on hover). Disabled
+   items get no wash. */
+html body :is(.fui-MenuItem, .fui-MenuItemRadio, .fui-MenuItemCheckbox):not([aria-disabled="true"]):hover {
+  background-color: var(--nav-hover);
+}
+
+html body :is(.fui-MenuItem, .fui-MenuItemRadio, .fui-MenuItemCheckbox):not([aria-disabled="true"]):hover:active {
+  background-color: var(--nav-pressed);
+}
+
+html body :is(.fui-MenuItem, .fui-MenuItemRadio, .fui-MenuItemCheckbox):hover :is(.fui-MenuItem__icon, .fui-MenuItemRadio__icon, .fui-MenuItemCheckbox__icon) {
+  color: inherit;
+}
+
+/* WinUI menu glyphs are 16px too (Fluent web's menu slot is 20px). */
+html body .fui-MenuItem__icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}

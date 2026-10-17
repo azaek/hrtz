@@ -1,0 +1,36 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# The page labs' copy of this PC's data (src-tauri dump_lab_* tests): paths, games, settings.
+src/lab/data/
+
+# TypeScript's incremental build info.
+*.tsbuildinfo
+
+# The private notes repo, cloned here (handoff, plans, design record).
+/hrtz-notes/
+
+# Claude Code's local settings.
+.claude/settings.local.json

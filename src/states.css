@@ -1,0 +1,230 @@
+/* Focus and selection for the whole app, driven by the variables and data-* attributes that
+   states.ts writes on :root from states.json. `html body` lifts specificity just above Fluent's
+   atomic classes without !important. */
+
+/* Per-element selected shadow. Not inherited, so a selected card doesn't pass it to its buttons. */
+@property --_sel-shadow {
+  syntax: "*";
+  inherits: false;
+}
+
+/* ---- Focus ---------------------------------------------------------------------------------- */
+
+/* The app's own controls (nav rows, tiles, button rows, markers). Fluent controls carry `fui-`
+   classes and get their own rules below. */
+:where(button, a, [tabindex], input[type="color"]):not([class*="fui-"]):focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  box-shadow: var(--focus-glow);
+  background-image: linear-gradient(var(--focus-layer), var(--focus-layer));
+}
+
+/* Fluent buttons draw focus as a border plus an inset ring; replace it with the same ring. */
+html body :is(.fui-Button, .fui-ToggleButton, .fui-MenuButton)[data-fui-focus-visible] {
+  --colorStrokeFocus2: transparent;
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  box-shadow: var(--focus-glow);
+  background-image: linear-gradient(var(--focus-layer), var(--focus-layer));
+}
+
+/* Dropdown and combobox triggers: focus lands on an inner button or input, the ring goes on the box. */
+html body :is(.fui-Dropdown, .fui-Combobox):has([data-fui-focus-visible]) {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  box-shadow: var(--focus-glow);
+  background-image: linear-gradient(var(--focus-layer), var(--focus-layer));
+}
+
+/* Switches, checkboxes and radios focus a hidden input; Fluent rings the root with ::after. Make that
+   ::after a ghost of the root so it takes the same ring, gap and halo as everything else. */
+html body :is(.fui-Switch, .fui-Checkbox, .fui-Radio):is([data-fui-focus-within]:focus-within)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  border-radius: var(--borderRadiusMedium);
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  box-shadow: var(--focus-glow);
+  pointer-events: none;
+}
+
+/* The row the arrow keys are on in a list: a fill, the way Windows menus show it, not a ring. */
+html body .fui-Option[data-activedescendant-focusvisible] {
+  background-image: linear-gradient(var(--focus-layer), var(--focus-layer));
+}
+
+html body .fui-Option:not([aria-selected="true"])[data-activedescendant-focusvisible] {
+  background-color: var(--nav-hover);
+}
+
+html body .fui-Option[data-activedescendant-focusvisible]::after {
+  display: none;
+}
+
+/* ---- Rows: navigation and dropdown options --------------------------------------------------- */
+
+/* WinUI NavigationView row, as in Windows Settings and PowerToys. */
+.st-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
+  background-color: transparent;
+  color: var(--colorNeutralForeground1);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color var(--state-dur) ease-out,
+    color var(--state-dur) ease-out;
+}
+
+.st-row__icon {
+  display: flex;
+  font-size: 20px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .st-row:hover {
+    background-color: var(--nav-hover);
+  }
+}
+
+.st-row:active {
+  background-color: var(--nav-pressed);
+}
+
+.st-row[data-selected="true"],
+html body .fui-Option[aria-selected="true"] {
+  background-color: var(--row-sel-bg);
+}
+
+:root[data-accent-text="on"] :is(.st-row[data-selected="true"], .fui-Option[aria-selected="true"]) {
+  color: var(--accent-fg);
+}
+
+.st-row[data-selected="true"]::before,
+html body .fui-Option[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: var(--pill-w);
+  height: var(--pill-h);
+  translate: 0 -50%;
+  border-radius: 999px;
+  background-color: var(--accent);
+  transition: height var(--state-dur) ease-out;
+}
+
+/* ---- Choice buttons (Choice in components.tsx) ----------------------------------------------- */
+
+/* Every option the same width, the widest label's: equal columns in a grid that sizes to its
+   content. */
+.st-seg-group {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  border-radius: 6px;
+}
+
+html body .st-seg.fui-ToggleButton {
+  min-width: auto;
+  font-variant-numeric: tabular-nums;
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: var(--state-dur);
+  transition-timing-function: ease-out;
+}
+
+/* Solid: accent block with white text. */
+:root[data-choice-style="solid"] .st-seg.fui-ToggleButton[aria-pressed="true"] {
+  background-color: var(--accent-strong);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* Tonal: the button fill tinted with accent, accent text, a translucent accent edge. */
+:root[data-choice-style="tonal"] .st-seg.fui-ToggleButton[aria-pressed="true"] {
+  background-color: var(--seg-tonal-bg);
+  border-color: var(--seg-edge);
+}
+
+/* Raised: a recessed track; the chosen option is a lighter puck with a soft shadow. */
+:root[data-choice-style="raised"] .st-seg-group {
+  gap: 2px;
+  padding: 2px;
+  background-color: var(--seg-track);
+}
+
+:root[data-choice-style="raised"] .st-seg.fui-ToggleButton:not([aria-pressed="true"]) {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root[data-choice-style="raised"] .st-seg.fui-ToggleButton:not([aria-pressed="true"]):hover {
+    background-color: var(--nav-hover);
+  }
+}
+
+:root[data-choice-style="raised"] .st-seg.fui-ToggleButton[aria-pressed="true"] {
+  --_sel-shadow: var(--seg-puck-shadow);
+  background-color: var(--seg-puck);
+  border-color: transparent;
+  box-shadow: var(--_sel-shadow);
+}
+
+:root[data-accent-text="on"]:not([data-choice-style="solid"]) .st-seg.fui-ToggleButton[aria-pressed="true"] {
+  color: var(--accent-fg);
+}
+
+/* Keep the puck's shadow under the focus halo. */
+html body .st-seg.fui-ToggleButton[aria-pressed="true"][data-fui-focus-visible] {
+  box-shadow: var(--focus-glow), var(--_sel-shadow, 0 0 #0000);
+}
+
+/* ---- Tiles and cards (DPI stages, profiles, tray styles, button rows) ------------------------ */
+
+/* Each tile sets --tile-bg, --tile-bg-hover and --tile-border to its resting colours; selection
+   mixes the accent into those, so the same values work on the window and inside cards. */
+.st-tile {
+  --_bg: var(--tile-bg, transparent);
+  --_edge: color-mix(in srgb, var(--accent) var(--_edge-a, 0%), var(--tile-border, transparent));
+  background-color: color-mix(in srgb, var(--accent) var(--_tint, 0%), var(--_bg));
+  border: 1px solid var(--_edge);
+  box-shadow: var(--_sel-shadow, 0 0 #0000);
+  transition:
+    background-color var(--state-dur) ease-out,
+    border-color var(--state-dur) ease-out,
+    box-shadow var(--state-dur) ease-out,
+    color var(--state-dur) ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .st-tile:hover {
+    --_bg: var(--tile-bg-hover, var(--tile-bg, transparent));
+  }
+}
+
+.st-tile[data-selected="true"] {
+  --_tint: var(--tile-tint);
+  --_edge-a: var(--tile-edge-a);
+  --_sel-shadow: inset 0 0 0 var(--tile-edge-extra) var(--_edge), var(--tile-glow);
+}
+
+:root[data-accent-text="on"] .st-tile[data-selected="true"] {
+  color: var(--accent-fg);
+}
+
+.st-tile:focus-visible {
+  box-shadow: var(--focus-glow), var(--_sel-shadow, 0 0 #0000);
+}
