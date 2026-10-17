@@ -11,9 +11,10 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 
 ## Releases
 
-- `CHANGELOG.md` feeds the app's "What's new" and each GitHub release's text. Add a user-facing change under the next version, whose heading reads "Unreleased" (`## 0.2.0 — Unreleased`, or `## Unreleased` before the number is known).
-- `pnpm release 0.2.0` cuts a release (`scripts/release.mjs`): the heading takes the day's date (`## 0.2.0 — 2026-11-02`), the version goes into `package.json`, `src-tauri/Cargo.toml`, `Cargo.lock` and `tauri.conf.json`, and a commit "Release 0.2.0" and the tag `v0.2.0` are pushed. Run it from a clean `main`.
-- The tag runs `.github/workflows/release.yml`: the type-check, `cargo fmt --check`, clippy with warnings as errors, and the Rust tests, then a signed NSIS installer in a **draft** GitHub release. Publish the draft to ship: installed copies read `latest.json` from the latest release and update themselves.
+- `CHANGELOG.md` feeds the app's "What's new" and each GitHub release's text. Add a user-facing change under `## Unreleased`, at the top.
+- **A release is cut by pushing its tag**, from the tip of `main`: `git tag v0.2.0 && git push origin v0.2.0`. There's no version to bump by hand.
+- The tag runs `.github/workflows/release.yml`: the type-check, `cargo fmt --check`, clippy with warnings as errors, and the Rust tests. Then `scripts/release.mjs` stamps the release (the "Unreleased" heading becomes `## 0.2.0 — 2026-11-02`, the day in the maintainer's time zone, and the version goes into `package.json`, `Cargo.toml`, `Cargo.lock` and `tauri.conf.json`), and a signed NSIS installer goes into a **draft** GitHub release with those notes. After a good build, the stamped files go to `main` as "Release 0.2.0" (by github-actions), so pull before the next change.
+- Publish the draft to ship: installed copies read `latest.json` from the latest release and update themselves.
 - The updater's signing key is `~/.tauri/hrtz-updater.key` (no password), set on the repo as `TAURI_SIGNING_PRIVATE_KEY`. Its public half is the `pubkey` in `tauri.conf.json`. Only the release build signs (`tauri.release.conf.json` turns on `createUpdaterArtifacts`), so `pnpm tauri build` works without the key. Lose the key and installed copies can't take updates, so keep a backup.
 - Run the checks before pushing, as the release does: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` in `src-tauri`, with `rustfmt.toml`'s width of 120.
 - The release builds with the newest stable Rust, whose clippy can have lints an older one lacks (1.99 added `chunks_exact_to_as_chunks`). Keep the local toolchain current with `rustup update stable`, or run the workflow by hand to check main.

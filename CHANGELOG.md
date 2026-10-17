@@ -2,9 +2,9 @@
 
 Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The app's "What's new" window reads this file, so write for the people using it.
 
-A version's heading reads "Unreleased" while it's being made. On the day it's released, the heading takes that day's date: `## 0.2.0 — 2026-11-02`.
+Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## 0.1.0 — Unreleased
+## Unreleased
 
 ### New
 - Sensor settings: DPI stages, polling rate up to 8,000 Hz, lift-off distance, motion sync, angle snapping, ripple control, click debounce and more.

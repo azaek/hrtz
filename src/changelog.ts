@@ -8,14 +8,15 @@ export interface Release {
 }
 
 /**
- * CHANGELOG.md as releases, newest first. Only its own shape is read: `## version — date`,
- * `### Section`, and `- item` lines (an indented line continues the item above). Anything else,
- * such as the intro, is left out.
+ * CHANGELOG.md as releases, newest first. Only its own shape is read: `## version — date` (or
+ * `## Unreleased`, the next version's notes before the release stamps it), `### Section`, and
+ * `- item` lines (an indented line continues the item above). Anything else, such as the intro, is
+ * left out.
  */
 export function parseChangelog(text: string): Release[] {
   const releases: Release[] = [];
   for (const line of text.split(/\r?\n/)) {
-    const release = line.match(/^##\s+(.+?)\s+[—–-]\s+(.+)$/);
+    const release = line.match(/^##\s+(.+?)\s+[—–-]\s+(.+)$/) ?? line.match(/^##\s+(Unreleased)\s*()$/);
     const section = line.match(/^###\s+(.+)$/);
     const item = line.match(/^[-*]\s+(.+)$/);
     const current = releases[releases.length - 1];

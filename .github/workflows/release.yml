@@ -1,13 +1,18 @@
 name: Release
 
-# Tag-driven, after HEAD's release.yml, for Windows and one (stable) channel.
+# Tag-driven, after HEAD's release.yml, for Windows and one (stable) channel. A release is cut by
+# pushing its tag:
 #
-# `pnpm release X.Y.Z` dates the changelog, sets the version everywhere, commits and pushes the tag
-# vX.Y.Z (scripts/release.mjs). The tag runs:
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# The tag runs:
 #   1. gate: the type-check, rustfmt, clippy and the Rust tests. A red tree never builds.
-#   2. build: the tag must match the app's version, the notes come from CHANGELOG.md (which must
-#      have dated that version), and tauri-action builds the NSIS installer, signs the updater
-#      artifacts and puts them, with latest.json, in a DRAFT GitHub release.
+#   2. build: scripts/release.mjs stamps the release into the files (the changelog's "Unreleased"
+#      heading takes the version and the day's date, and the version goes into package.json,
+#      Cargo.toml, Cargo.lock and tauri.conf.json), the notes come from that changelog entry, and
+#      tauri-action builds the NSIS installer, signs the updater artifacts and puts them, with
+#      latest.json, in a DRAFT GitHub release. Then the stamped files go to main as
+#      "Release X.Y.Z", so the repo keeps the date and the version.
 # Publishing the draft makes it the latest release, whose latest.json installed copies read
 # (plugins.updater.endpoints in tauri.conf.json). A draft lets a human look before it ships.
 #
@@ -23,11 +28,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # create the GitHub release
+  contents: write # create the GitHub release, and commit the stamped release to main
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  # The release is dated with the day in the maintainer's time zone, the day the tag was pushed.
+  RELEASE_TZ: Asia/Kolkata
 
 jobs:
   gate:
@@ -66,6 +75,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # main's history, to put the release commit on it
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -78,7 +89,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Check the version
+      - name: Version and date from the tag
         id: meta
         shell: bash
         run: |
@@ -88,13 +99,19 @@ jobs:
             echo "::error::Tag '$tag' is not a release version (expected vX.Y.Z)"
             exit 1
           fi
-          # pnpm release sets the version before it tags, so the two always agree.
-          app="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          if [ "$app" != "$version" ]; then
-            echo "::error::The tag says $version but tauri.conf.json says $app. Cut releases with pnpm release."
-            exit 1
-          fi
+          date="$(TZ="$RELEASE_TZ" date +%F)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+          echo "Releasing hrtz $version, dated $date"
+
+      # The changelog's "Unreleased" heading takes the version and the date, and the version goes
+      # into the app, so the build is that version and its What's new is dated.
+      - name: Stamp the release
+        shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          DATE: ${{ steps.meta.outputs.date }}
+        run: node scripts/release.mjs "$VERSION" "$DATE"
 
       - run: pnpm install --frozen-lockfile
 
@@ -127,3 +144,27 @@ jobs:
           prerelease: false
           # The signed updater artifacts are made only here, so a clone builds without the key.
           args: --config src-tauri/tauri.release.conf.json
+
+      # The stamped files go to main, so the repo keeps the release's date and version. Only after
+      # a good build: a failed one leaves main as it was. If main moved after the tag, the commit
+      # goes on top of it; tag the tip of main so new notes don't land in a released version.
+      - name: Commit the release to main
+        shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          git fetch origin main
+          # A tag off main (a branch nobody merged) must not bring that branch into main.
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::The tag isn't on main, so the release wasn't committed there. Stamp it on main by hand: node scripts/release.mjs $VERSION <date>."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
+          git commit -m "Release $VERSION"
+          if ! git rebase --autostash origin/main; then
+            echo "::error::main changed the same lines since the tag. Stamp it by hand: node scripts/release.mjs $VERSION <date>, then commit."
+            exit 1
+          fi
+          git push origin HEAD:main

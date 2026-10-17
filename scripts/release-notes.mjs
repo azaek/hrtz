@@ -1,6 +1,6 @@
 // The GitHub release's text for a version, from CHANGELOG.md: the same notes the app's What's new
-// shows. Fails when the version has no entry, or its heading isn't dated yet ("Unreleased"):
-// `pnpm release` dates it on the release day, before the tag exists.
+// shows. Fails when the version has no entry, or its heading isn't dated yet ("Unreleased"): the
+// Release workflow dates it (scripts/release.mjs) before it asks for the notes.
 //
 //   node scripts/release-notes.mjs 0.2.0
 import { readFileSync } from "node:fs";
@@ -20,7 +20,7 @@ const heading = (line) => line.match(/^##\s+(.+?)\s+[—–-]\s+(.+)$/);
 const at = lines.findIndex((l) => heading(l)?.[1] === version);
 if (at < 0) fail(`CHANGELOG.md has no entry for ${version}.`);
 const date = heading(lines[at])[2].trim();
-if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) fail(`CHANGELOG.md's ${version} reads "${date}". Cut releases with: pnpm release ${version}`);
+if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) fail(`CHANGELOG.md's ${version} reads "${date}", not a date: run scripts/release.mjs first.`);
 
 const out = [];
 for (const line of lines.slice(at + 1)) {
