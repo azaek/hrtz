@@ -124,6 +124,7 @@ impl Finder for HidppFinder {
             },
         };
         let opened = Opened {
+            family: "hidpp",
             long_only: link.short.is_none(),
             link: Box::new(link),
             product_id: long.product_id(),
@@ -198,6 +199,9 @@ impl Link for HidppLink {
 
 /// A receiver or a mouse on its cable, opened.
 pub(crate) struct Opened {
+    /// The key's first part: `hidpp`, or `sim` for a simulated mouse in a dev build, so it never
+    /// takes over what a real one keeps.
+    pub family: &'static str,
     pub link: Box<dyn Link>,
     /// No short-report collection: every request goes long.
     pub long_only: bool,
@@ -474,8 +478,8 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
         (_, Some(w)) if w == opened.product_id => false,
         _ => index == p::DIRECT,
     };
-    let model_key = models::model_key(usb.or(id.wireless).unwrap_or(opened.product_id));
-    let key = format!("{model_key}/{}", id.unit.as_deref().unwrap_or("0"));
+    let model = usb.or(id.wireless).unwrap_or(opened.product_id);
+    let key = format!("{}/{model:04x}/{}", opened.family, id.unit.as_deref().unwrap_or("0"));
     let model = usb.and_then(models::name).map(str::to_string).or(name).unwrap_or_else(|| "Logitech mouse".into());
     let mut battery = false;
     for f in BATTERIES {

@@ -106,6 +106,19 @@ export const real = {
       },
     ];
     if (device === SUPERLIGHT) mice.push({ key: SUPERLIGHT.key!, model: SUPERLIGHT.model!, firstSeen: 0, lastSeen: 0, prefs: { ...mice[0].prefs, profileNames: [], profileSnapshots: [], rules: [] } } as KnownMouse);
+    // `?many`: a long list of mice known from before, to see the switcher scroll.
+    if (new URLSearchParams(location.search).has("many")) {
+      const away = (key: string, model: string, hoursAgo: number) =>
+        ({ key, model, firstSeen: 0, lastSeen: Math.floor(Date.now() / 1000) - hoursAgo * 3600, prefs: { ...mice[0].prefs, rules: [] }, last: null }) as KnownMouse;
+      mice.push(
+        away("compx/7-3", "Z2 mini", 2),
+        away("hidpp/c09b/5e6f7081", "PRO X SUPERLIGHT 2", 5),
+        away("compx/7-5", "Z2 MAX", 30),
+        away("hidpp/c0a0/0a0b0c0d", "PRO X SUPERLIGHT 2 DEX", 50),
+        away("compx/7-1", "ZI PRO", 80),
+        away("compx/7-6", "Z2 mini MAX", 200),
+      );
+    }
     return mice.map((m) => ({
       ...m,
       // What the stand-in's mouse held, for its pages while it's "unplugged" (?away).

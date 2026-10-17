@@ -381,12 +381,20 @@ impl Link for SimLink {
 /// Finds the simulated mouse while it's plugged in.
 pub struct SimFinder {
     pub mouse: Arc<Mutex<SimMouse>>,
+    /// The key's first part: `hidpp` in the tests, `sim` beside the real mice in a dev build (met
+    /// under its real key first, it would be taken for that mouse).
+    family: &'static str,
     last: Option<u8>,
 }
 
 impl SimFinder {
+    #[cfg(test)]
     pub fn new(mouse: Arc<Mutex<SimMouse>>) -> Self {
-        Self { mouse, last: None }
+        Self { mouse, family: "hidpp", last: None }
+    }
+
+    pub fn dev(mouse: Arc<Mutex<SimMouse>>) -> Self {
+        Self { mouse, family: "sim", last: None }
     }
 }
 
@@ -396,6 +404,7 @@ impl Finder for SimFinder {
             bail!("no Logitech receiver found");
         }
         let opened = Opened {
+            family: self.family,
             link: Box::new(SimLink(self.mouse.clone())),
             long_only: false,
             product_id: self.mouse.lock().product_id,
@@ -441,21 +450,6 @@ impl Family for SimFamily {
 
     fn finder(&self, id: &str) -> Box<dyn Finder> {
         let mouse = self.mice.iter().find(|(i, _)| i == id).map(|(_, m)| m.clone()).expect("a simulated mouse");
-        Box::new(DevSimFinder(SimFinder::new(mouse)))
-    }
-}
-
-/// The simulated mouse under a `sim/` key.
-struct DevSimFinder(SimFinder);
-
-impl Finder for DevSimFinder {
-    fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
-        let d = self.0.find(board)?;
-        board.set(|s| s.key = s.key.as_ref().map(|k| k.replacen("hidpp/", "sim/", 1)));
-        Ok(d)
-    }
-
-    fn count(&mut self) -> usize {
-        self.0.count()
+        Box::new(SimFinder::dev(mouse))
     }
 }

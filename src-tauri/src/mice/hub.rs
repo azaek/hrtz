@@ -179,5 +179,7 @@ mod tests {
         until(|| heard.lock().iter().any(|(s, _)| s.key.as_deref() == Some("sim/7-3") && !s.connected));
         assert!(hub.engine("sim/7-3").is_none());
         assert_eq!(hub.primary_state().key.as_deref(), Some("sim/7-4"), "the one in use went: another one");
+        // Never under a real mouse's key, not even for a moment.
+        assert!(heard.lock().iter().all(|(s, _)| s.key.as_deref().is_none_or(|k| k.starts_with("sim/"))));
     }
 }

@@ -219,25 +219,32 @@ impl Link for SimLink {
 }
 
 /// Finds the simulated receiver while it's plugged in.
+#[cfg(test)]
 pub struct SimFinder(pub Arc<Mutex<SimMouse>>);
 
+#[cfg(test)]
 impl Finder for SimFinder {
     fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
-        if self.0.lock().unplugged {
-            bail!("no Zaopin receiver found");
-        }
-        let opened = Opened {
-            link: Box::new(SimLink(self.0.clone())),
-            gap: Duration::ZERO,
-            #[cfg(windows)]
-            port: None,
-        };
-        connect(opened, board)
+        find(&self.0, "compx", board)
     }
 
     fn count(&mut self) -> usize {
         self.0.lock().receivers
     }
+}
+
+fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Result<Box<dyn Driver>> {
+    if mouse.lock().unplugged {
+        bail!("no Zaopin receiver found");
+    }
+    let opened = Opened {
+        family,
+        link: Box::new(SimLink(mouse.clone())),
+        gap: Duration::ZERO,
+        #[cfg(windows)]
+        port: None,
+    };
+    connect(opened, board)
 }
 
 /// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, or both,
@@ -278,21 +285,20 @@ impl Family for SimFamily {
 
     fn finder(&self, id: &str) -> Box<dyn Finder> {
         let mouse = self.mice.iter().find(|(i, _)| i == id).map(|(_, m)| m.clone()).expect("a simulated mouse");
-        Box::new(DevSimFinder(SimFinder(mouse)))
+        Box::new(DevSimFinder(mouse))
     }
 }
 
-/// The simulated mouse under a `sim/` key.
-struct DevSimFinder(SimFinder);
+/// The simulated mouse under a `sim/` key from the start: met under its real key first, it would
+/// be taken for that mouse.
+struct DevSimFinder(Arc<Mutex<SimMouse>>);
 
 impl Finder for DevSimFinder {
     fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
-        let d = self.0.find(board)?;
-        board.set(|s| s.key = s.key.as_ref().map(|k| k.replacen("compx/", "sim/", 1)));
-        Ok(d)
+        find(&self.0, "sim", board)
     }
 
     fn count(&mut self) -> usize {
-        self.0.count()
+        self.0.lock().receivers
     }
 }

@@ -24,6 +24,7 @@ import { seenAt } from "./format";
 import { linkName } from "./links";
 import { artOf } from "./models";
 import { pickMouse, startFlow, useMouse, useStore } from "./store";
+import { FLYOUT_PADDING } from "./kit";
 
 const useStyles = makeStyles({
   // The mouse anchors the pane: a raised card on the same surface as everything else. It's the
@@ -77,6 +78,11 @@ const useStyles = makeStyles({
   menuItem: { display: "grid", gridTemplateColumns: "44px minmax(0, 1fr)", alignItems: "center", gap: tokens.spacingHorizontalS, padding: "2px 0" },
   rowText: { display: "flex", flexDirection: "column", minWidth: 0 },
   thumb: { display: "flex", alignItems: "center", justifyContent: "center", width: "44px", color: tokens.colorNeutralForeground3 },
+  // Fluent's auto-size keeps the flyout below the title bar and above the window's edge; the mice
+  // scroll inside it, and "Connect a new mouse" stays in view under them.
+  popover: { display: "flex", flexDirection: "column", overflowY: "hidden" },
+  list: { minHeight: 0, flex: 1 },
+  mice: { display: "flex", flexDirection: "column", gap: "4px", minHeight: 0, overflowY: "auto" },
 });
 
 /** "Connected · 8K receiver", or why it isn't. */
@@ -190,28 +196,30 @@ export function Switcher() {
   const inUse = useStore((st) => st.status.inUse);
   return (
     <Menu
-      positioning={{ position: "below", align: "start", offset: 4, matchTargetSize: "width" }}
+      positioning={{ position: "below", align: "start", offset: 4, matchTargetSize: "width", autoSize: "height", overflowBoundaryPadding: FLYOUT_PADDING }}
       checkedValues={{ mouse: device?.key ? [device.key] : [] }}
       onCheckedValueChange={(_, d) => d.checkedItems[0] && pickMouse(d.checkedItems[0])}
     >
       <MenuTrigger disableButtonEnhancement>
         <MouseCard d={device} aria-label="Switch mouse" />
       </MenuTrigger>
-      <MenuPopover>
-        <MenuList>
-          {mice.map((m) => (
-            <MenuItemRadio key={m.key} name="mouse" value={m.key}>
-              <span className={s.menuItem}>
-                <span className={s.thumb}>
-                  <MousePicture image={artOf(m.key)?.image} width={44} />
+      <MenuPopover className={s.popover}>
+        <MenuList className={s.list}>
+          <div className={s.mice}>
+            {mice.map((m) => (
+              <MenuItemRadio key={m.key} name="mouse" value={m.key}>
+                <span className={s.menuItem}>
+                  <span className={s.thumb}>
+                    <MousePicture image={artOf(m.key)?.image} width={44} />
+                  </span>
+                  <span className={s.rowText}>
+                    <Body1 className={s.model}>{m.model}</Body1>
+                    <Caption1 className={mergeClasses(s.muted, s.model)}>{brief(m, devices[m.key], inUse === m.key && mice.length > 1)}</Caption1>
+                  </span>
                 </span>
-                <span className={s.rowText}>
-                  <Body1 className={s.model}>{m.model}</Body1>
-                  <Caption1 className={mergeClasses(s.muted, s.model)}>{brief(m, devices[m.key], inUse === m.key && mice.length > 1)}</Caption1>
-                </span>
-              </span>
-            </MenuItemRadio>
-          ))}
+              </MenuItemRadio>
+            ))}
+          </div>
           {mice.length > 0 && <MenuDivider />}
           <MenuItem icon={<Add16Regular />} onClick={() => startFlow("add")}>
             Connect a new mouse

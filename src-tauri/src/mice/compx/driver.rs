@@ -64,6 +64,7 @@ impl Finder for HidFinder {
             .clone();
         let dev = info.open_device(api).context("open HID device")?;
         let opened = Opened {
+            family: "compx",
             link: Box::new(dev),
             // The vendor driver keeps at least 8 ms between writes; the receiver drops packets otherwise.
             gap: Duration::from_millis(8),
@@ -84,6 +85,9 @@ impl Finder for HidFinder {
 
 /// A receiver or a mouse on its cable, opened.
 pub(crate) struct Opened {
+    /// The key's first part: `compx`, or `sim` for a simulated mouse in a dev build, so it never
+    /// takes over what a real one keeps.
+    pub family: &'static str,
     pub link: Box<dyn Link>,
     /// The least time between two writes.
     pub gap: Duration,
@@ -106,7 +110,7 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
     let (cid, mid, device_type) = (d[4], d[5], d[6]);
     board.set(|s| {
         *s = DeviceState {
-            key: Some(format!("compx/{cid}-{mid}")),
+            key: Some(format!("{}/{cid}-{mid}", opened.family)),
             connected: true,
             model: Some(models::model_name(mid).to_string()),
             cid,

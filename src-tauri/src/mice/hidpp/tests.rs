@@ -652,3 +652,17 @@ fn a_receivers_short_and_long_collections_pair_up_by_path() {
     assert_ne!(interface_of(short), interface_of(other), "another receiver of the same model");
     assert_eq!(interface_of("/dev/hidraw3"), "/dev/hidraw3");
 }
+
+#[test]
+fn a_simulated_mouse_in_a_dev_build_is_never_under_a_real_key() {
+    let mouse = Arc::new(Mutex::new(SimMouse::superlight()));
+    let seen: Seen = Arc::default();
+    let sink = seen.clone();
+    let notify: Notify = Arc::new(move |s, e| sink.lock().push((s.clone(), e)));
+    let state = Arc::new(RwLock::new(DeviceState::default()));
+    let log = Arc::new(Mutex::new(BatteryLog::load(None)));
+    let mut w = Worker::new(Box::new(SimFinder::dev(mouse)), state, notify, None, log);
+    w.housekeeping();
+    assert_eq!(w.snapshot().key.as_deref(), Some("sim/c094/1a2b3c4d"));
+    assert!(seen.lock().iter().all(|(s, _)| s.key.as_deref().is_none_or(|k| k.starts_with("sim/"))));
+}
