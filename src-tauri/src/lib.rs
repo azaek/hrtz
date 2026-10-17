@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use parking_lot::{Mutex, RwLock};
 use serde::Serialize;
@@ -68,6 +68,8 @@ struct Ctx {
     tray_menu: Mutex<Option<Menu<tauri::Wry>>>,
     /// The update already announced this run, so the notification comes once.
     update_ready: Mutex<Option<String>>,
+    /// Profile switches to make, for `profile_switcher`: the newest one wins.
+    profiles: std::sync::mpsc::Sender<u8>,
     /// Last rendered (level, style, light taskbar), so the icon is only redrawn when it changes.
     tray_level: Mutex<Option<(TrayLevel, TrayStyle, bool)>>,
     hud: hud::Hud,
@@ -926,20 +928,22 @@ fn watch_foreground(app: AppHandle) {
             let mut last_path: Option<String> = None;
             let mut last_recording: Option<String> = None;
             let mut last_hud: Option<(Option<String>, isize, isize)> = None;
+            let mut focus = FocusSettle::default();
             let mut ticks = 0u32;
             loop {
-                thread::sleep(Duration::from_millis(500));
+                // Four looks a second at the front window; the rest runs on multiples of this.
+                thread::sleep(Duration::from_millis(250));
                 let Some(ctx) = app.try_state::<Arc<Ctx>>() else { continue };
                 ticks += 1;
-                if ticks.is_multiple_of(6) {
+                if ticks.is_multiple_of(12) {
                     refresh_tray(&ctx, &ctx.engine.snapshot());
                 }
-                if ticks.is_multiple_of(4)
+                if ticks.is_multiple_of(8)
                     && let Some(h) = app.get_webview_window("main").and_then(|w| w.hwnd().ok())
                 {
                     win::strip_webview_scroll_styles(h.0 as isize);
                 }
-                if ticks % 20 == 1 {
+                if ticks % 40 == 1 {
                     let running = win::vendor_app_running();
                     let changed = ctx.status.read().vendor_app_running != running;
                     if changed {
@@ -991,28 +995,81 @@ fn watch_foreground(app: AppHandle) {
                         path: g.path,
                     }));
                 }
-                if exe.is_none() || exe == last_exe || ours {
+                if exe.is_none() || ours {
                     continue;
                 }
-                last_exe = exe.clone();
-                ctx.status.write().foreground_exe = exe.clone();
-                let _ = app.emit("app-status", status_of(&ctx));
+                if exe != last_exe {
+                    last_exe = exe.clone();
+                    ctx.status.write().foreground_exe = exe.clone();
+                    let _ = app.emit("app-status", status_of(&ctx));
+                }
+                // Only an app that stays in front switches the profile, and only once: alt-tabbing
+                // through windows switches nothing.
+                let Some(settled) = focus.see(exe.as_deref(), Instant::now()) else { continue };
                 let prefs = ctx.prefs.read().clone();
-                if !prefs.rules_enabled {
-                    continue;
-                }
-                let Some(want) = exe.as_deref().and_then(|e| prefs.profile_for(e)) else { continue };
-                let s = ctx.engine.snapshot();
-                if s.online
-                    && s.profile.is_some()
-                    && s.profile != Some(want)
-                    && let Err(e) = ctx.engine.call(move |w| w.set_profile(want))
+                if prefs.rules_enabled
+                    && let Some(want) = prefs.profile_for(&settled)
                 {
-                    eprintln!("rule switch failed: {e:#}");
+                    let _ = ctx.profiles.send(want);
                 }
             }
         })
         .expect("spawn foreground watcher");
+}
+
+/// How long an app has to stay in front before its profile applies.
+const SETTLE: Duration = Duration::from_millis(450);
+
+/// Which app's profile to apply as focus moves. An app counts once it has been in front for
+/// `SETTLE`, so alt-tabbing through windows (or past the Alt+Tab switcher) switches nothing, and
+/// coming back to the app already applied switches nothing either.
+#[derive(Default)]
+struct FocusSettle {
+    seen: Option<(String, Instant)>,
+    applied: Option<String>,
+}
+
+impl FocusSettle {
+    /// The app in front now; returns it once it has settled and isn't the one applied already.
+    fn see(&mut self, exe: Option<&str>, now: Instant) -> Option<String> {
+        let exe = exe?;
+        match &self.seen {
+            Some((e, _)) if e == exe => {}
+            _ => {
+                self.seen = Some((exe.to_string(), now));
+                return None;
+            }
+        }
+        let since = self.seen.as_ref()?.1;
+        if self.applied.as_deref() == Some(exe) || now.duration_since(since) < SETTLE {
+            return None;
+        }
+        self.applied = Some(exe.to_string());
+        Some(exe.to_string())
+    }
+}
+
+/// Makes profile switches one at a time. A switch holds the mouse for about a second while the new
+/// profile's settings load, so asks that arrive meanwhile replace each other: only the newest runs.
+fn profile_switcher(app: AppHandle, asks: std::sync::mpsc::Receiver<u8>) {
+    thread::Builder::new()
+        .name("hrtz-profiles".into())
+        .spawn(move || {
+            while let Ok(mut want) = asks.recv() {
+                while let Ok(newer) = asks.try_recv() {
+                    want = newer;
+                }
+                let Some(ctx) = app.try_state::<Arc<Ctx>>() else { continue };
+                let s = ctx.engine.snapshot();
+                if !s.online || s.profile.is_none() || s.profile == Some(want) {
+                    continue;
+                }
+                if let Err(e) = ctx.engine.call(move |w| w.set_profile(want)) {
+                    eprintln!("profile switch failed: {e:#}");
+                }
+            }
+        })
+        .expect("spawn profile switcher");
 }
 
 fn show_main(app: &AppHandle) {
@@ -1052,15 +1109,10 @@ fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
                 let _ = app.emit_to("main", "update-install", ());
             }
             id => {
-                if let Some(i) = id.strip_prefix("profile-").and_then(|n| n.parse::<u8>().ok()) {
-                    let app = app.clone();
-                    thread::spawn(move || {
-                        if let Some(ctx) = app.try_state::<Arc<Ctx>>()
-                            && let Err(e) = ctx.engine.call(move |w| w.set_profile(i))
-                        {
-                            eprintln!("profile switch failed: {e:#}");
-                        }
-                    });
+                if let Some(i) = id.strip_prefix("profile-").and_then(|n| n.parse::<u8>().ok())
+                    && let Some(ctx) = app.try_state::<Arc<Ctx>>()
+                {
+                    let _ = ctx.profiles.send(i);
                 }
             }
         })
@@ -1120,6 +1172,7 @@ pub fn run() {
             );
             let prefs = Prefs::load(&prefs_path);
             let hud = hud::Hud::new(&prefs, engine.log.clone());
+            let (profiles, profile_asks) = std::sync::mpsc::channel();
             let ctx = Arc::new(Ctx {
                 engine,
                 prefs: RwLock::new(prefs),
@@ -1132,12 +1185,14 @@ pub fn run() {
                 tray: Mutex::new(None),
                 tray_menu: Mutex::new(None),
                 update_ready: Mutex::new(None),
+                profiles,
                 tray_level: Mutex::new(None),
                 hud,
                 met: Mutex::new(HashSet::new()),
             });
             build_tray(&handle, &ctx)?;
             app.manage(ctx.clone());
+            profile_switcher(handle.clone(), profile_asks);
             // Its reports need the state managed above.
             let hud_handle = handle.clone();
             ctx.hud.start(move |r| on_hud_report(&hud_handle, r));
@@ -1253,6 +1308,53 @@ pub fn run() {
         ])
         .run(context)
         .expect("error while running hrtz");
+}
+
+#[cfg(test)]
+mod focus {
+    use super::FocusSettle;
+    use std::time::{Duration, Instant};
+
+    /// Looks at the front window every 250 ms, as the watcher does: one app per look.
+    fn run(apps: &[&str]) -> Vec<String> {
+        let start = Instant::now();
+        let mut f = FocusSettle::default();
+        apps.iter()
+            .enumerate()
+            .filter_map(|(i, a)| f.see(Some(a), start + Duration::from_millis(250 * i as u64)))
+            .collect()
+    }
+
+    #[test]
+    fn an_app_that_stays_in_front_switches_once() {
+        assert_eq!(run(&["game.exe"; 8]), ["game.exe"]);
+    }
+
+    #[test]
+    fn alt_tabbing_back_and_forth_switches_nothing_more() {
+        // Settled on the game, then quick tabs to Discord and back, for two seconds.
+        let mut looks = vec!["game.exe"; 3];
+        for _ in 0..4 {
+            looks.extend(["discord.exe", "game.exe"]);
+        }
+        assert_eq!(run(&looks), ["game.exe"]);
+    }
+
+    #[test]
+    fn a_detour_that_settles_switches_and_comes_back() {
+        let looks = [
+            "game.exe",
+            "game.exe",
+            "game.exe",
+            "discord.exe",
+            "discord.exe",
+            "discord.exe",
+            "game.exe",
+            "game.exe",
+            "game.exe",
+        ];
+        assert_eq!(run(&looks), ["game.exe", "discord.exe", "game.exe"]);
+    }
 }
 
 #[cfg(all(test, windows))]

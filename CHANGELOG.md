@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Fixed
+- Switching profiles by app no longer lags or piles up when you alt-tab quickly. A profile now switches once an app has been in front for half a second, and only once.
+
 ## 0.2.1 — 2026-10-17
 
 ### New

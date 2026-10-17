@@ -495,11 +495,17 @@ impl Worker {
         if !self.loaded {
             return self.load();
         }
+        // The mouse reports every profile switch, hrtz's own too, which `set_profile` has loaded
+        // already: only a switch made on the mouse needs its profile loaded (and a second load
+        // would hold the mouse a second more, and show the pop-up twice).
         if bits & status::PROFILE != 0 {
-            self.load()?;
-            let index = self.state.read().profile.unwrap_or(0);
-            self.publish(Some(DeviceEvent::Profile { index }));
-            return Ok(());
+            let r = self.transact_simple(cmd::GET_PROFILE)?;
+            if (r[5] > 0).then_some(r[6]) != self.state.read().profile {
+                self.load()?;
+                let index = self.state.read().profile.unwrap_or(0);
+                self.publish(Some(DeviceEvent::Profile { index }));
+                return Ok(());
+            }
         }
         if bits & status::DPI != 0 {
             let r = self.read_flash(0x02, 4)?;
