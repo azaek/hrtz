@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.2.1 — 2026-10-17
 
 ### New
 - Settings has a Help section: report a problem with your hrtz version, mouse and Windows filled in, or send a short report on how an untested mouse works.
