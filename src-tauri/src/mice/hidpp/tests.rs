@@ -404,6 +404,8 @@ fn with_stages(s: &Settings, list: &[u32], in_use: u8) -> Settings {
     Settings { stages: Some(slots), dpi_stage_count: Some(list.len() as u8), dpi_stage: Some(in_use), ..s.clone() }
 }
 
+/// What hrtz's driver read from the user's Superlight in the probe (2026-10-18), but the unit ID:
+/// the simulated one answers as that mouse did.
 #[test]
 fn a_superlight_on_its_receiver_is_met_and_read() {
     let r = Rig::connected(SimMouse::superlight());
@@ -411,7 +413,7 @@ fn a_superlight_on_its_receiver_is_met_and_read() {
     assert!(s.connected && s.online);
     assert_eq!(s.key.as_deref(), Some("hidpp/c094/1a2b3c4d"));
     assert_eq!(s.model.as_deref(), Some("PRO X SUPERLIGHT"));
-    assert_eq!(s.firmware.as_deref(), Some("MPM 25.01"));
+    assert_eq!(s.firmware.as_deref(), Some("MPM 25.02"), "the main application, though the bootloader is listed first");
     assert_eq!(s.profile, Some(0));
     let caps = s.capabilities.clone().unwrap();
     assert!(!caps.wired && caps.battery);
@@ -424,13 +426,58 @@ fn a_superlight_on_its_receiver_is_met_and_read() {
     let st = r.settings();
     assert_eq!(st.polling_hz, Some(1000));
     assert_eq!((st.dpi_stage_count, st.dpi_stage), (Some(1), Some(0)));
-    assert_eq!(dpis(&st), [800, 1200, 1600, 2400, 3200], "the stage in use, then the ladder for the rest");
-    assert_eq!(st.dpi(), Some(800));
+    assert_eq!(dpis(&st), [1600, 800, 1200, 2400, 3200], "the stage in use, then the vendor's others");
+    assert_eq!(st.dpi(), Some(1600));
     assert!(st.lod.is_none() && st.buttons.is_none() && st.sensor_mode.is_none());
 
-    // Battery by voltage, read on the OpenMouse curve, not Zaopin's.
+    // Its own percentage, from 0x1004, with no voltage.
     let b = s.battery.unwrap();
-    assert_eq!((b.level, b.millivolts, b.charging), (80, 3989, false));
+    assert_eq!((b.level, b.millivolts, b.charging), (44, 0, false));
+}
+
+#[test]
+fn a_battery_by_voltage_is_read_on_openmouses_curve() {
+    let r = Rig::connected(SimMouse { battery: Battery::Voltage { mv: 3989, flags: 0 }, ..SimMouse::superlight() });
+    let b = r.state().battery.unwrap();
+    assert_eq!((b.level, b.millivolts, b.charging), (80, 3989, false), "not Zaopin's curve");
+}
+
+#[test]
+fn the_users_superlight_profiles_decode() {
+    let dir = fx::superlight_c547_directory();
+    assert_eq!(ob::stored_crc(&dir), 0x4037);
+    assert!(ob::crc_ok(&dir));
+    assert_eq!(
+        ob::directory(&dir).iter().map(|e| (e.sector, e.enabled)).collect::<Vec<_>>(),
+        [(1, true), (2, false), (3, false), (4, false), (5, false)]
+    );
+
+    let mine = fx::superlight_c547_profile();
+    assert_eq!(ob::stored_crc(&mine), 0x2330);
+    assert!(ob::crc_ok(&mine));
+    let d = ob::decode(&mine, 4);
+    assert_eq!((d.stages, d.default_index, d.rate_wireless), (stages(&[(1600, 0)]), Some(0), Some(1000)));
+
+    let factory = fx::superlight_c547_factory();
+    assert_eq!(ob::stored_crc(&factory), 0x60E7);
+    assert!(ob::crc_ok(&factory));
+    let d = ob::decode(&factory, 4);
+    assert_eq!(d.stages, stages(&[(400, 0), (800, 0), (1600, 0), (3200, 0), (6400, 0)]));
+    assert_eq!((d.default_index, d.rate_wired), (Some(1), Some(1000)));
+
+    // Writing its stages back as they are changes nothing.
+    let plan = Plan { stages: d.stages, default_index: 1 };
+    assert_eq!(
+        ob::encode_stages(
+            &factory,
+            4,
+            &plan,
+            ob::dpi_limits_for_sensor(ob::dpi_limits(4), &(100..=25600).step_by(50).collect::<Vec<_>>()),
+            true
+        )
+        .unwrap(),
+        factory
+    );
 }
 
 #[test]
@@ -501,7 +548,7 @@ fn a_mouse_asleep_when_hrtz_starts_is_met_once_it_wakes() {
 fn g_hubs_answers_on_the_same_receiver_are_passed_over() {
     let r = Rig::connected(SimMouse { chatter: true, ..SimMouse::superlight2() });
     assert_eq!(r.settings().dpi(), Some(1600));
-    assert_eq!(r.state().firmware.as_deref(), Some("MPM 25.01"));
+    assert_eq!(r.state().firmware.as_deref(), Some("MPM 25.02"));
 }
 
 #[test]
@@ -571,7 +618,7 @@ fn what_the_link_or_sensor_cannot_do_is_refused_before_anything_is_written() {
     let odd = with_stages(&r.settings(), &[125], 0);
     assert_eq!(r.w.apply_settings(&odd).unwrap_err().to_string(), "Stage 1: this mouse doesn't offer 125 DPI.");
     assert!(!r.profile_calls_since(from).contains(&ob::func::ADDR_WRITE));
-    assert_eq!(r.sector(1), fx::superlight_sector_1());
+    assert_eq!(r.sector(1), fx::superlight_c547_profile());
 }
 
 #[test]

@@ -708,9 +708,11 @@ impl Connected {
                 let used: Vec<u32> = profile.stages.iter().map(|s| s.x).collect();
                 let mut stages: Vec<DpiStage> =
                     used.iter().map(|d| DpiStage { dpi: *d, color: NO_LIGHT.into() }).collect();
+                // The empty slots, should the stages grow: the vendor's five, less those in use.
+                let mut spare = LADDER.iter().map(|v| ((*v).clamp(l.min, l.max) / l.step * l.step).max(l.min));
                 while stages.len() < ob::STAGE_SLOTS {
-                    let v = LADDER[stages.len()].clamp(l.min, l.max) / l.step * l.step;
-                    stages.push(DpiStage { dpi: v.max(l.min), color: NO_LIGHT.into() });
+                    let v = spare.find(|v| !used.contains(v)).unwrap_or(l.min);
+                    stages.push(DpiStage { dpi: v, color: NO_LIGHT.into() });
                 }
                 let in_use = live_dpi
                     .and_then(|d| used.iter().position(|u| *u == d))

@@ -21,7 +21,8 @@ use crate::mice::{Board, Driver, Family, Finder, Link};
 pub enum Battery {
     /// 0x1004: a percentage and a charging status.
     Unified { percent: u8, status: u8 },
-    /// 0x1001: a voltage and flags (0x80 charging).
+    /// 0x1001: a voltage and flags (0x80 charging). The Superlights don't; the tests try it.
+    #[cfg_attr(not(test), expect(dead_code, reason = "only the tests have a mouse that reports a voltage"))]
     Voltage { mv: u16, flags: u8 },
 }
 
@@ -65,19 +66,18 @@ pub struct SimMouse {
 }
 
 impl SimMouse {
-    /// A PRO X SUPERLIGHT on its LIGHTSPEED receiver (0xC539), slot 1: profile format 4, its
-    /// factory profile in all five, battery by voltage.
+    /// A PRO X SUPERLIGHT on its LIGHTSPEED receiver (0xC547), slot 1, as the user's answered the
+    /// probe on 2026-10-18 (with another unit ID): profile format 4, profile 1 set up in G HUB and
+    /// the rest as they came, battery by percentage.
     pub fn superlight() -> Self {
         let mut sectors = BTreeMap::new();
-        let mut directory = vec![0xFF; 255];
-        for s in 1..=5u16 {
-            directory[(s as usize - 1) * 4..s as usize * 4].copy_from_slice(&[0, s as u8, (s == 1) as u8, 0xFF]);
-            sectors.insert(s, fixtures::superlight_sector_1());
+        sectors.insert(0, fixtures::superlight_c547_directory());
+        sectors.insert(1, fixtures::superlight_c547_profile());
+        for s in 2..=5 {
+            sectors.insert(s, fixtures::superlight_c547_factory());
         }
-        ob::apply_crc(&mut directory);
-        sectors.insert(0, directory);
         Self {
-            product_id: 0xC539,
+            product_id: 0xC547,
             slot: p::FIRST_SLOT,
             empty_direct: false,
             keyboard: None,
@@ -86,9 +86,9 @@ impl SimMouse {
             wireless_id: 0x4093,
             usb_id: 0xC094,
             name: "PRO X Wireless",
-            battery: Battery::Voltage { mv: 3989, flags: 0x00 },
+            battery: Battery::Unified { percent: 44, status: 0 },
             extended: false,
-            live_dpi: 800,
+            live_dpi: 1600,
             rate: 3,
             info: fixtures::superlight_info(),
             sectors,
@@ -222,15 +222,17 @@ impl SimMouse {
             (feature::FIRMWARE, 0x00) => {
                 let [w0, w1] = self.wireless_id.to_be_bytes();
                 let [u0, u1] = self.usb_id.to_be_bytes();
-                let mut v = vec![3];
+                let mut v = vec![4];
                 v.extend_from_slice(&self.unit);
                 v.extend_from_slice(&[0, 0x0C, w0, w1, u0, u1, 0, 0]);
                 Ok(v)
             }
+            // The bootloader first, then something unnamed, the main application, the hardware.
             (feature::FIRMWARE, 0x10) => Ok(match at(0) {
-                0 => vec![0, b'M', b'P', b'M', 0x25, 0x01, 0x00, 0x18],
-                1 => vec![1, b'B', b'O', b'T', 0x01, 0x02, 0x00, 0x05],
-                _ => vec![2, 0, 0, 0, 0x01, 0x00, 0x00, 0x00],
+                0 => vec![1, b'B', b'L', b'1', 0x25, 0x02, 0x00, 0x23],
+                1 => vec![5, 0, 0, 0, 0, 0, 0x01, 0x25],
+                2 => vec![0, b'M', b'P', b'M', 0x25, 0x02, 0x00, 0x23],
+                _ => vec![2, b'H', b'W', b' ', 0x00, 0x01],
             }),
             (feature::NAME, 0x00) => Ok(vec![self.name.len() as u8]),
             (feature::NAME, 0x10) => Ok(self.name.as_bytes().iter().skip(at(0) as usize).take(16).copied().collect()),

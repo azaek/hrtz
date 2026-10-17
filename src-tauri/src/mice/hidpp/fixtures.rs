@@ -27,6 +27,7 @@ pub fn superlight_info() -> Vec<u8> {
 }
 
 /// Its sector 1, untouched from the factory: one 800 DPI stage, 1,000 Hz, CRC `dd 75`.
+#[cfg(test)]
 pub fn superlight_sector_1() -> Vec<u8> {
     erased_with(
         255,
@@ -137,4 +138,54 @@ pub fn superstrike_sector_1() -> Vec<u8> {
     s[253] = 0x2A;
     s[254] = 0x38;
     s
+}
+
+// The user's own PRO X SUPERLIGHT on its 0xC547 receiver, read by hrtz's probe (`probe.rs`) on
+// 2026-10-18, main application MPM 25.02: getInfo as OpenMouse's capture above. Not ported.
+
+/// Its directory: five profiles, sector 1's flag set (the one in use). CRC 0x4037.
+pub fn superlight_c547_directory() -> Vec<u8> {
+    erased_with(
+        255,
+        &[
+            (0x00, "00 01 01 ff 00 02 00 ff 00 03 00 ff 00 04 00 ff"),
+            (0x10, "00 05 00 ff ff ff ff ff ff ff ff ff ff ff ff ff"),
+            (0xF0, "ff ff ff ff ff ff ff ff ff ff ff ff ff 40 37"),
+        ],
+    )
+}
+
+/// Its profile 1, set up in G HUB: one 1,600 DPI stage, 1,000 Hz, G-shift buttons set, named
+/// "PROFILE_NAME_DEFAULT". CRC 0x2330.
+pub fn superlight_c547_profile() -> Vec<u8> {
+    erased_with(
+        255,
+        &[
+            (0x00, "01 00 00 40 06 00 00 00 00 00 00 00 00 ff ff ff"),
+            (0x10, "ff 00 ff ff ff ff ff ff ff ff ff ff ff ff ff ff"),
+            (0x20, "80 01 00 01 80 01 00 02 80 01 00 04 80 01 00 08"),
+            (0x30, "80 01 00 10 ff ff ff ff ff ff ff ff ff ff ff ff"),
+            (0x60, "80 01 00 01 80 01 00 02 80 01 00 04 80 01 00 08"),
+            (0x70, "80 01 00 10 ff ff ff ff ff ff ff ff ff ff ff ff"),
+            (0xA0, "50 00 52 00 4f 00 46 00 49 00 4c 00 45 00 5f 00"),
+            (0xB0, "4e 00 41 00 4d 00 45 00 5f 00 44 00 45 00 46 00"),
+            (0xC0, "41 00 55 00 4c 00 54 00 00 00 00 00 00 00 00 00"),
+            (0xF0, "ff ff ff ff ff ff ff ff ff ff ff ff ff 23 30"),
+        ],
+    )
+}
+
+/// Its profiles 2 to 5, as they came: stages 400, 800, 1,600, 3,200 and 6,400, the second the
+/// default, 1,000 Hz, no name. CRC 0x60e7.
+pub fn superlight_c547_factory() -> Vec<u8> {
+    erased_with(
+        255,
+        &[
+            (0x00, "01 01 00 90 01 20 03 40 06 80 0c 00 19 ff ff ff"),
+            (0x10, "ff 00 ff ff ff ff ff ff ff ff ff ff ff ff ff ff"),
+            (0x20, "80 01 00 01 80 01 00 02 80 01 00 04 80 01 00 08"),
+            (0x30, "80 01 00 10 ff ff ff ff ff ff ff ff ff ff ff ff"),
+            (0xF0, "ff ff ff ff ff ff ff ff ff ff ff ff ff 60 e7"),
+        ],
+    )
 }
