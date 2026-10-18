@@ -1718,6 +1718,27 @@ pub fn run() {
         .expect("error while running hrtz");
 }
 
+/// The README's list of mice is the app's, kept in step: a model marked tested in code shows as
+/// tested there, and one added here is listed there.
+#[cfg(test)]
+mod readme {
+    #[test]
+    fn readme_lists_the_mice_the_app_does() {
+        let mut want = String::from("| Mouse | Status |\n|---|---|\n");
+        let mut all = crate::mice::compx::models::supported();
+        all.extend(crate::mice::hidpp::models::supported());
+        for m in all {
+            let status = if m.tested { "Tested" } else { "Not tested yet" };
+            want.push_str(&format!("| {} {} | {status} |\n", m.brand, m.model));
+        }
+        let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md")).unwrap();
+        let start = readme.find("<!-- supported:start").expect("the README's list starts with its marker");
+        let start = readme[start..].find('\n').map(|i| start + i + 1).unwrap();
+        let end = readme.find("<!-- supported:end -->").expect("and ends with one");
+        assert_eq!(&readme[start..end], want, "the README's list of mice (between its markers) should read as above");
+    }
+}
+
 #[cfg(test)]
 mod focus {
     use super::FocusSettle;

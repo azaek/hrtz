@@ -13,6 +13,7 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 ## Releases
 
 - `CHANGELOG.md` feeds the app's "What's new" and each GitHub release's text. Add a user-facing change under `## Unreleased`, at the top.
+- The README's list of mice is the app's: a model marked tested in its family's `models.rs` (or a new one) goes into the table between the `supported` markers too, and `cargo test --lib readme` fails until it does.
 - **A release is cut by pushing its tag**, from the tip of `main`: `git tag v0.2.0 && git push origin v0.2.0`. There's no version to bump by hand.
 - **Only the maintainer decides to release.** A coding agent never pushes a release tag on its own: it finishes the change, runs the checks, and asks first. Fixes are tried in a dev build before they're tagged.
 - The tag runs `.github/workflows/release.yml`: the type-check, `cargo fmt --check`, clippy with warnings as errors, and the Rust tests. Then `scripts/release.mjs` stamps the release (the "Unreleased" heading becomes `## 0.2.0 — 2026-11-02`, the day in the maintainer's time zone, and the version goes into `package.json`, `Cargo.toml`, `Cargo.lock` and `tauri.conf.json`), and a signed NSIS installer goes into a **draft** GitHub release with those notes. After a good build, the stamped files go to `main` as "Release 0.2.0" (by github-actions), so pull before the next change.
