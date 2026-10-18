@@ -77,6 +77,7 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
         wake_by_input: false,
         // On the underside of every model.
         dpi_button: true,
+        rated_hours: None,
     }
 }
 

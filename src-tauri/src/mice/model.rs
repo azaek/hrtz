@@ -210,6 +210,10 @@ pub struct Capabilities {
     pub wake_by_input: bool,
     /// It has a button that cycles the DPI stages out of the box (every Zaopin; not the Superlights).
     pub dpi_button: bool,
+    /// The maker's own figure for a charge, in hours of use at each polling rate: shown until hrtz
+    /// has measured the mouse's own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rated_hours: Option<Vec<(u32, f64)>>,
 }
 
 impl Capabilities {

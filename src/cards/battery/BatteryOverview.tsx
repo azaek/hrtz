@@ -6,6 +6,7 @@ import { SavingCards } from "./SavingCards";
 import { hoursLeft, lifeAt, useBatteryData } from "./useBatteryData";
 import { Choice, Group, SettingCard } from "@/components";
 import { StatTile } from "@/kit";
+import { familyOf } from "@/models";
 import { hzText, rateColor } from "@/rates";
 import { useStore } from "@/store";
 
@@ -22,7 +23,10 @@ export function BatteryOverview() {
   const b = device?.connected ? device.battery : null;
   const hz = device?.settings?.pollingHz;
   const left = hoursLeft(device, summary);
-  const life = lifeAt(summary, hz);
+  const life = lifeAt(summary, hz, device);
+  // Until hrtz has measured this rate, the figures are the maker's, and say so.
+  const maker = familyOf(device?.key) === "compx" ? "Zaopin" : "Logitech";
+  const ofUse = life?.rated && hz ? `${maker}'s figure, ${hzText(hz)}` : hz ? `of use at ${hzText(hz)}` : "";
   const asleep = !!device?.connected && !device.online;
   const unknown = <StatTile.Unknown />;
 
@@ -40,7 +44,7 @@ export function BatteryOverview() {
           <StatTile
             label="Time left"
             value={b?.charging ? "Charging" : left != null ? hours(left) : unknown}
-            detail={left != null && hz ? `of use at ${hzText(hz)}` : b?.charging ? "Shown when unplugged" : "After an hour of use"}
+            detail={left != null && hz ? ofUse : b?.charging ? "Shown when unplugged" : "After an hour of use"}
           />
           <StatTile
             label="A charge lasts"
@@ -49,7 +53,7 @@ export function BatteryOverview() {
               summary?.daysPerCharge && summary.awakePerDay
                 ? `or ${days(summary.daysPerCharge)} at ${hours(summary.awakePerDay)} a day`
                 : life && hz
-                  ? `of use at ${hzText(hz)}`
+                  ? ofUse
                   : "After an hour of use"
             }
           />

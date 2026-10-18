@@ -534,7 +534,13 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
             connected: true,
             model: Some(model),
             variant: id.variant,
-            capabilities: Some(Capabilities { wired, battery, wake_by_input, ..Default::default() }),
+            capabilities: Some(Capabilities {
+                wired,
+                battery,
+                wake_by_input,
+                rated_hours: usb.and_then(models::rated_hours),
+                ..Default::default()
+            }),
             #[cfg(windows)]
             port: opened.port,
             ..Default::default()

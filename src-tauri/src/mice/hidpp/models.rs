@@ -31,6 +31,30 @@ pub fn name(usb_id: u16) -> Option<&'static str> {
     CABLED.iter().find(|(pid, _)| *pid == usb_id).map(|(_, n)| *n)
 }
 
+/// Logitech's power model, from G HUB (`battery.xml`, the notes' GHUB.md): the battery in mWh,
+/// what the sensor and the chip draw, and what reporting draws at each rate, in mW.
+struct Power {
+    usb: u16,
+    battery_mwh: f64,
+    always_mw: f64,
+    rate_mw: [(u32, f64); 4],
+}
+
+const POWER: [Power; 1] = [Power {
+    usb: 0xC094,
+    battery_mwh: 874.0,
+    // HERO sensor, STM32 chip.
+    always_mw: 1.545_556 + 2.306_444,
+    rate_mw: [(125, 2.203_556), (250, 3.073_778), (500, 4.814_222), (1000, 8.295_111)],
+}];
+
+/// Hours of use a charge lasts at each rate, by Logitech's model: about 144 h at 125 Hz down to 72
+/// at 1,000 for the first Superlight. None for a model it doesn't give.
+pub fn rated_hours(usb: u16) -> Option<Vec<(u32, f64)>> {
+    let p = POWER.iter().find(|p| p.usb == usb)?;
+    Some(p.rate_mw.iter().map(|(hz, mw)| (*hz, p.battery_mwh / (p.always_mw + mw))).collect())
+}
+
 /// The key a mouse's model shares, by its USB ID: `hidpp/c094`. A connected one adds its unit ID.
 pub fn model_key(usb_id: u16) -> String {
     format!("hidpp/{usb_id:04x}")

@@ -17,6 +17,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - Buttons for Logitech mice: set each button to a mouse button, DPI up, down, cycle or default stage, tilt left or right, a key with modifiers, a media key, the next, previous or cycling profile, or nothing. What G HUB set that hrtz can't edit yet (macros, G-Shift, DPI Shift) is kept as it is.
 - Restore factory settings for Logitech mice: the mouse's own factory profile goes back over each profile, after a backup.
 - Logitech profile names are saved on the mouse, so G HUB shows the names given in hrtz, and hrtz shows those given in G HUB.
+- The Battery page and the HUD show Logitech's own battery-life figure for the first PRO X SUPERLIGHT until hrtz has measured yours.
 - Backups for Logitech mice: every onboard profile, saved when the mouse first connects and whenever you like, and restored with Undo. Each mouse lists only its own model's backups.
 - A warning while G HUB is running, and when G HUB is controlling a Logitech mouse (with its On-board memory mode off), changes made in hrtz wait until it lets go.
 

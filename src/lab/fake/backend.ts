@@ -87,6 +87,13 @@ const SUPERLIGHT: DeviceState = {
     pairing: false,
     factoryReset: true,
     backups: true,
+    // As the driver works them out from Logitech's power model.
+    ratedHours: [
+      [125, 144.3],
+      [250, 126.2],
+      [500, 100.9],
+      [1000, 71.9],
+    ],
   },
 } as unknown as DeviceState;
 const device = (new URLSearchParams(location.search).get("mouse") === "superlight" ? SUPERLIGHT : deviceJson) as unknown as DeviceState;
@@ -99,8 +106,9 @@ export const real = {
   // The receiver's port on this PC, as Windows names it (the dump leaves it to the stand-in).
   device: {
     ...device,
-    settings: device.settings && kindFirst(device.settings),
-    capabilities: device.capabilities && { ...device.capabilities, sleepTimesS: device.capabilities.sleepTimesS ?? [10, 30, 60, 120] },
+    // A dump from before the sleep timer was offered: a Zaopin's choices. A Logitech has none.
+    settings: device.settings && (device === SUPERLIGHT ? device.settings : kindFirst(device.settings)),
+    capabilities: device.capabilities && (device === SUPERLIGHT ? device.capabilities : { ...device.capabilities, sleepTimesS: device.capabilities.sleepTimesS ?? [10, 30, 60, 120] }),
     port: device.port ?? { path: "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(11)", hubs: 0 },
   } as DeviceState,
   prefs: (() => {

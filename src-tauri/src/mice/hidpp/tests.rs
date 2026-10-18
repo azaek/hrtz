@@ -406,6 +406,16 @@ fn with_stages(s: &Settings, list: &[u32], in_use: u8) -> Settings {
 }
 
 #[test]
+fn logitechs_power_model_gives_a_charges_hours_at_each_rate() {
+    let rated = super::models::rated_hours(0xC094).unwrap();
+    let at = |hz: u32| rated.iter().find(|(h, _)| *h == hz).unwrap().1.round();
+    assert_eq!([at(125), at(250), at(500), at(1000)], [144.0, 126.0, 101.0, 72.0], "Logitech says 70 h");
+    assert!(super::models::rated_hours(0xC09B).is_none(), "not given for the SUPERLIGHT 2");
+    let r = Rig::connected(SimMouse::superlight());
+    assert_eq!(r.state().capabilities.unwrap().rated_hours.unwrap().len(), 4);
+}
+
+#[test]
 fn only_the_first_superlight_has_been_tried() {
     let tried: Vec<_> = super::models::supported().into_iter().filter(|m| m.tested).map(|m| m.key).collect();
     assert_eq!(tried, ["hidpp/c094"]);

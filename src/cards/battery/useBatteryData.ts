@@ -34,11 +34,17 @@ export function useBatteryData() {
   return { summary, range, pickRange, rows, now };
 }
 
-export const lifeAt = (summary: BatterySummary | null, hz: number | undefined) => summary?.life.find((l) => l.hz === hz);
+/** How long a charge lasts at `hz`: as measured, else (`rated`) the maker's own figure. */
+export function lifeAt(summary: BatterySummary | null, hz: number | undefined, device?: DeviceState | null): { hours: number; rated: boolean } | undefined {
+  const measured = summary?.life.find((l) => l.hz === hz);
+  if (measured) return { hours: measured.hours, rated: false };
+  const rated = device?.capabilities?.ratedHours?.find(([h]) => h === hz);
+  return rated ? { hours: rated[1], rated: true } : undefined;
+}
 
-/** Hours of use left now at the rate in use, once that rate has been measured. */
+/** Hours of use left now at the rate in use, once that rate has been measured (or the maker rates it). */
 export function hoursLeft(device: DeviceState | null, summary: BatterySummary | null) {
   const b = device?.battery;
-  const life = lifeAt(summary, device?.settings?.pollingHz);
+  const life = lifeAt(summary, device?.settings?.pollingHz, device);
   return b && life && !b.charging ? (life.hours * b.level) / 100 : null;
 }

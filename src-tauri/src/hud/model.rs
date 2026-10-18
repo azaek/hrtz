@@ -150,9 +150,12 @@ impl Facts {
             (true, true, false) => Link::Receiver,
         };
         let battery = s.battery.as_ref().map(|b| (b.level, b.charging));
-        // The battery log keys life by the rate set, as the Battery page does.
+        // The battery log keys life by the rate set, as the Battery page does; until it has one,
+        // the maker's figure.
+        let rated =
+            |hz: u32| caps.and_then(|c| c.rated_hours.as_ref()?.iter().find(|(h, _)| *h == hz).map(|(_, l)| *l));
         let time_left_h = match (battery, st.and_then(|x| x.polling_hz)) {
-            (Some((level, false)), Some(hz)) => life_h(hz).map(|h| h * level as f64 / 100.0),
+            (Some((level, false)), Some(hz)) => life_h(hz).or_else(|| rated(hz)).map(|h| h * level as f64 / 100.0),
             _ => None,
         };
         // Zaopin's app gets in the way of a Zaopin only.
@@ -474,7 +477,7 @@ mod tests {
     use super::*;
     use crate::mice::Battery;
     use crate::mice::compx::{image, models};
-    use crate::mice::model::{DpiStage, Settings};
+    use crate::mice::model::{Capabilities, DpiStage, Settings};
 
     fn prefs() -> Prefs {
         Prefs::default()
@@ -639,6 +642,16 @@ mod tests {
         assert_eq!(f.profile.as_deref(), Some("Profile 3"));
         assert!((f.time_left_h.unwrap() - 9.6).abs() < 1e-9);
         assert!(f.saver && f.vendor_app && f.link == Link::Receiver);
+        // Not measured yet: the maker's figure, where it gives one.
+        let rated = DeviceState {
+            capabilities: Some(Capabilities {
+                rated_hours: Some(vec![(8000, 20.0)]),
+                ..s.capabilities.clone().unwrap()
+            }),
+            ..s.clone()
+        };
+        assert!((Facts::of(&rated, &p, &m, false, |_| None).time_left_h.unwrap() - 16.0).abs() < 1e-9);
+        assert!(Facts::of(&s, &p, &m, false, |_| None).time_left_h.is_none(), "neither");
         let logitech = DeviceState { key: Some("hidpp/c094/1a2b3c4d".into()), ..s.clone() };
         assert!(!Facts::of(&logitech, &p, &m, true, |_| None).vendor_app, "Zaopin's app is no matter to a Logitech");
         let asleep = Facts::of(&DeviceState { online: false, ..s.clone() }, &p, &m, false, |_| None);

@@ -96,6 +96,8 @@ export interface Capabilities {
   backups: boolean;
   /** It has a button that cycles the DPI stages out of the box (every Zaopin; not the Superlights). */
   dpiButton?: boolean;
+  /** The maker's own figure for a charge: [Hz, hours of use], until hrtz has measured its own. */
+  ratedHours?: [number, number][];
 }
 
 /** The highest polling rate this connection carries. */
