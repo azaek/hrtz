@@ -41,7 +41,7 @@ let state: Store = {
   flow: null,
   prefs: null,
   mice: [],
-  status: { foregroundExe: null, vendorAppRunning: false, hudShowing: false },
+  status: { foregroundExe: null, vendorApps: [], hudShowing: false },
   progress: null,
   toasts: [],
   busy: false,

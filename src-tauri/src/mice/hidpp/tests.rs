@@ -543,6 +543,30 @@ fn sleep_and_wake_through_the_receiver() {
 
 /// On the user's Superlight (2026-10-18), asking a sleeping mouse every quarter second woke it, or
 /// caught it checking in, and reading it whole each time kept it from sleeping.
+/// G HUB with its On-board memory mode off puts the mouse in host mode (GHUB.md): hrtz says so,
+/// and sees it let go.
+#[test]
+fn a_mouse_software_has_taken_over_is_said_to_be() {
+    let r = Rig::connected(SimMouse { mode: ob::MODE_HOST, ..SimMouse::superlight() });
+    assert!(r.state().host_mode);
+    let r = Rig::connected(SimMouse::superlight());
+    assert!(!r.state().host_mode, "its own profile");
+}
+
+#[test]
+fn taken_over_while_asleep_is_seen_when_it_wakes() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    r.mouse.lock().online = false;
+    r.w.housekeeping();
+    r.mouse.lock().mode = ob::MODE_HOST;
+    let (from, _) = r.mark();
+    r.w.drain_unsolicited();
+    assert!(r.mouse.lock().calls_since(from, feature::ONBOARD_PROFILES).is_empty(), "not asked asleep");
+    r.mouse.lock().online = true;
+    r.w.housekeeping();
+    assert!(r.state().host_mode);
+}
+
 #[test]
 fn a_sleeping_mouse_is_left_alone_until_its_used() {
     let port = "PCIROOT(0)#TEST(sleep)";

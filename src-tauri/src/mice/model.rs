@@ -189,6 +189,8 @@ pub struct Capabilities {
     /// Asleep, it isn't asked whether it woke: hrtz waits to see it used (raw input on its port),
     /// so raw input is followed while it's connected.
     pub wake_by_input: bool,
+    /// It has a button that cycles the DPI stages out of the box (every Zaopin; not the Superlights).
+    pub dpi_button: bool,
 }
 
 impl Capabilities {

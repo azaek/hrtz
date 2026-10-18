@@ -19,11 +19,36 @@ pub use engine::{Battery, Board, DeviceEvent, DeviceState, Engine, Notify, Worke
 pub use hub::Hub;
 use model::Settings;
 
-/// Whether a mouse's key is a Zaopin's: `compx/7-4`, or simulated, `sim/7-4` (a simulated
-/// Logitech's is `sim/c094/…`).
-pub fn is_zaopin(key: &str) -> bool {
-    let rest = key.strip_prefix("compx/").or_else(|| key.strip_prefix("sim/"));
-    rest.and_then(|r| r.split_once('-')).is_some_and(|(c, m)| c.parse::<u8>().is_ok() && m.parse::<u8>().is_ok())
+/// A mouse's family, from its key: `compx/7-4` a Zaopin, `hidpp/c094/…` a Logitech. A simulated
+/// one (`sim/7-4`, `sim/c094/…`) is told by the shape of the rest.
+pub fn family_of(key: &str) -> Option<&'static str> {
+    if key.starts_with("compx/") {
+        return Some("compx");
+    }
+    if key.starts_with("hidpp/") {
+        return Some("hidpp");
+    }
+    let rest = key.strip_prefix("sim/")?;
+    if rest.split_once('-').is_some_and(|(c, m)| c.parse::<u8>().is_ok() && m.parse::<u8>().is_ok()) {
+        return Some("compx");
+    }
+    let usb = rest.split_once('/')?.0;
+    (usb.len() == 4 && usb.chars().all(|c| c.is_ascii_hexdigit())).then_some("hidpp")
+}
+
+#[cfg(test)]
+mod family_tests {
+    use super::family_of;
+
+    #[test]
+    fn a_keys_family_is_told_by_its_shape() {
+        assert_eq!(family_of("compx/7-4"), Some("compx"));
+        assert_eq!(family_of("sim/7-3"), Some("compx"));
+        assert_eq!(family_of("hidpp/c094/43c2f6b0"), Some("hidpp"));
+        assert_eq!(family_of("sim/c09b/5e6f7081"), Some("hidpp"));
+        assert_eq!(family_of("sim/what"), None);
+        assert_eq!(family_of(""), None);
+    }
 }
 
 /// One open connection to a receiver, or to a mouse on its cable: reports out, reports in.

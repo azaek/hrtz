@@ -90,6 +90,8 @@ export interface Capabilities {
   factoryReset: boolean;
   /** Its whole memory can be read and written back, for backups. */
   backups: boolean;
+  /** It has a button that cycles the DPI stages out of the box (every Zaopin; not the Superlights). */
+  dpiButton?: boolean;
 }
 
 /** The highest polling rate this connection carries. */
@@ -136,6 +138,9 @@ export interface DeviceState {
   battery: Battery | null;
   profile: number | null;
   longRange: boolean | null;
+  /** Software drives the mouse live instead of its own memory: a Logitech in host mode, G HUB's
+   *  doing with its On-board memory mode off. What's set here applies once it lets go. */
+  hostMode?: boolean;
   settings: Settings | null;
   capabilities: Capabilities | null;
   port: UsbPort | null;
@@ -335,7 +340,8 @@ export interface AppStatus {
   foregroundExe: string | null;
   /** The mouse in your hand (its key): the tray, the HUD and the pop-ups follow it. */
   inUse?: string | null;
-  vendorAppRunning: boolean;
+  /** The families whose maker's app is running: `compx` (Zaopin's app), `hidpp` (G HUB). */
+  vendorApps: string[];
   /** The HUD window is visible now. */
   hudShowing: boolean;
 }

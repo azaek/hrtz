@@ -30,7 +30,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::{BOOL, PCWSTR};
 
-const VENDOR_EXE: &str = "mouse drive beta.exe";
+/// Makers' apps that talk to their mice, by the family whose mice they'd change under hrtz:
+/// Zaopin's driver, and G HUB's agent (the only part of G HUB that talks to devices; its window,
+/// tray and game library don't).
+const VENDOR_APPS: [(&str, &str); 2] = [("compx", "mouse drive beta.exe"), ("hidpp", "lghub_agent.exe")];
 /// Hosts whose windows belong to another process (Store/UWP apps run inside it).
 const FRAME_HOST: &str = "applicationframehost.exe";
 
@@ -304,18 +307,22 @@ pub fn encode_png(w: u32, h: u32, rgba: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// The vendor app fights over the same channel (it disables status reports when minimised).
-pub fn vendor_app_running() -> bool {
+/// The families whose maker's app is running: Zaopin's fights hrtz over the same channel (it
+/// disables status reports when minimised); G HUB edits the same onboard profiles, or takes the
+/// mouse over (host mode).
+pub fn vendor_apps_running() -> Vec<&'static str> {
+    let mut found = Vec::new();
     unsafe {
-        let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return false };
+        let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return found };
         let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
-        let mut found = false;
         if Process32FirstW(snap, &mut e).is_ok() {
             loop {
                 let end = e.szExeFile.iter().position(|c| *c == 0).unwrap_or(e.szExeFile.len());
-                if String::from_utf16_lossy(&e.szExeFile[..end]).eq_ignore_ascii_case(VENDOR_EXE) {
-                    found = true;
-                    break;
+                let exe = String::from_utf16_lossy(&e.szExeFile[..end]);
+                for (family, name) in VENDOR_APPS {
+                    if exe.eq_ignore_ascii_case(name) && !found.contains(&family) {
+                        found.push(family);
+                    }
                 }
                 if Process32NextW(snap, &mut e).is_err() {
                     break;
@@ -323,8 +330,9 @@ pub fn vendor_app_running() -> bool {
             }
         }
         let _ = CloseHandle(snap);
-        found
     }
+    found.sort_unstable();
+    found
 }
 
 /// Show a window without taking focus away from the game or app in front.

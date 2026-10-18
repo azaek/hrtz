@@ -21,7 +21,7 @@ import { LabPage } from "./pages/Lab";
 import { BatteryPage } from "./pages/Battery";
 import { HudPage } from "./pages/Hud";
 import { SettingsPage } from "./pages/SettingsPage";
-import type { Capabilities } from "./api";
+import type { Capabilities, DeviceState } from "./api";
 import { familyOf } from "./models";
 import { Onboarding } from "./Onboarding";
 import { Switcher } from "./Switcher";
@@ -143,7 +143,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   const [ready, setReady] = useState(false);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const device = useStore((st) => st.device);
-  const vendor = useStore((st) => st.status.vendorAppRunning);
+  const vendorApps = useStore((st) => st.status.vendorApps);
   const flow = useStore((st) => st.flow);
 
   useEffect(() => {
@@ -215,11 +215,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
         </header>
         <div className={s.scroller}>
           <div className={s.page}>
-            {vendor && familyOf(device?.key) === "compx" && (
-              <Notice tone="warning" icon={<Warning16Filled />} title="Zaopin's app is running">
-                Quit it from its tray icon. Both apps use the same channel and overwrite each other's changes.
-              </Notice>
-            )}
+            <MakerAppNotice device={device} running={vendorApps} />
             <Page />
           </div>
         </div>
@@ -269,4 +265,36 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
     </div>
     </HeaderActionsSlot.Provider>
   );
+}
+
+/** The maker's app, or other software, in the way of the mouse shown: Zaopin's app fights hrtz over
+ *  the same channel; G HUB edits the same onboard profiles, or drives the mouse itself (host mode,
+ *  with its On-board memory mode off). */
+function MakerAppNotice({ device, running }: { device: DeviceState | null; running: string[] }) {
+  const family = familyOf(device?.key);
+  if (!device?.connected || !family) return null;
+  const app = running.includes(family);
+  if (family === "compx" && app)
+    return (
+      <Notice tone="warning" icon={<Warning16Filled />} title="Zaopin's app is running">
+        Quit it from its tray icon. Both apps use the same channel and overwrite each other's changes.
+      </Notice>
+    );
+  if (family === "hidpp" && device.hostMode)
+    return app ? (
+      <Notice tone="warning" icon={<Warning16Filled />} title="G HUB is controlling this mouse">
+        Changes here apply after you quit G HUB, or turn on On-board memory mode in G HUB.
+      </Notice>
+    ) : (
+      <Notice tone="warning" icon={<Warning16Filled />} title="Another app is controlling this mouse">
+        Changes here apply after it lets go of the mouse.
+      </Notice>
+    );
+  if (family === "hidpp" && app)
+    return (
+      <Notice tone="warning" icon={<Warning16Filled />} title="G HUB is running">
+        Quit it from its tray icon. Both apps change the profiles saved on the mouse, and the last change wins.
+      </Notice>
+    );
+  return null;
 }

@@ -60,7 +60,15 @@ export function DpiStagesCard({ s, caps }: { s: Settings; caps: Capabilities }) 
       stacked
       icon={<Gauge20Regular />}
       title="DPI stages"
-      description={count === 1 ? "Add a stage to switch DPI with the DPI button." : "The DPI button cycles through these, top to bottom."}
+      description={
+        caps.dpiButton
+          ? count === 1
+            ? "Add a stage to switch DPI with the DPI button."
+            : "The DPI button cycles through these, top to bottom."
+          : count === 1
+            ? "Add a stage, then switch to it with Use."
+            : "Switch between them with Use."
+      }
       below={
         <CardList footer={footer}>
           {e.stages.map((x, i) => {

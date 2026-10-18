@@ -547,6 +547,7 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
         onboard: None,
         dpi_options: None,
         rates: None,
+        mode_read: None,
     }))
 }
 
@@ -599,9 +600,28 @@ struct Connected {
     dpi_options: Option<Vec<u32>>,
     /// The rates this link carries, read once.
     rates: Option<Vec<u32>>,
+    /// When it was last asked whether software drives it (host mode).
+    mode_read: Option<Instant>,
 }
 
+/// How often a connected mouse is asked whether software has taken it over: G HUB does when it
+/// starts, or the mouse reconnects, with its On-board memory mode off.
+const MODE_EVERY: Duration = Duration::from_secs(5);
+
 impl Connected {
+    /// Whether software drives the mouse live (host mode) instead of its onboard profile, posted
+    /// for the UI. Returns whether that changed.
+    fn read_mode(&mut self, board: &Board) -> Result<bool> {
+        self.mode_read = Some(Instant::now());
+        let Some(fi) = self.onboard.as_ref().map(|o| o.feature) else { return Ok(false) };
+        let host = self.t.request(fi, ob::func::GET_MODE, &[])?.first() == Some(&ob::MODE_HOST);
+        if board.read().host_mode == host {
+            return Ok(false);
+        }
+        board.set(|s| s.host_mode = host);
+        Ok(true)
+    }
+
     /// memoryRead hands back 16 bytes and refuses to run past the sector's end, so a length that
     /// isn't a multiple of 16 has its tail read from `len - 16`, over the chunk before it.
     fn read_sector(&mut self, fi: u8, sector: u16, len: usize) -> Result<Vec<u8>> {
@@ -910,6 +930,7 @@ impl Driver for Connected {
     fn load(&mut self, board: &Board) -> Result<()> {
         let firmware = firmware(&mut self.t)?;
         self.onboard = self.read_onboard()?;
+        self.read_mode(board)?;
         let live = self.live()?;
         board.set(|s| {
             s.online = true;
@@ -987,6 +1008,13 @@ impl Driver for Connected {
                 Some(feature::ONBOARD_PROFILES | feature::ADJUSTABLE_DPI | feature::EXTENDED_DPI) => moved = true,
                 _ => {}
             }
+        }
+        // Taken over or let go: said at once, and let go, what the mouse now runs is read. Never
+        // asked asleep: that would wake it.
+        let awake = board.read().online;
+        if loaded && awake && self.mode_read.is_none_or(|t| t.elapsed() >= MODE_EVERY) && self.read_mode(board)? {
+            board.publish(None);
+            moved |= !board.read().host_mode;
         }
         if moved {
             if !loaded {

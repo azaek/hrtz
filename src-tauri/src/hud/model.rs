@@ -156,7 +156,7 @@ impl Facts {
             _ => None,
         };
         // Zaopin's app gets in the way of a Zaopin only.
-        let vendor_app = vendor_app && s.key.as_deref().is_some_and(crate::mice::is_zaopin);
+        let vendor_app = vendor_app && s.key.as_deref().and_then(crate::mice::family_of) == Some("compx");
         Self {
             link,
             long_range: s.long_range == Some(true),

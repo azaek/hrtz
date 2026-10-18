@@ -75,6 +75,8 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
         factory_reset: true,
         backups: true,
         wake_by_input: false,
+        // On the underside of every model.
+        dpi_button: true,
     }
 }
 

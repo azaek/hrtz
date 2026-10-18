@@ -81,6 +81,10 @@ const SUPERLIGHT: DeviceState = {
   },
 } as unknown as DeviceState;
 const device = (new URLSearchParams(location.search).get("mouse") === "superlight" ? SUPERLIGHT : deviceJson) as unknown as DeviceState;
+/** `?ghub`: G HUB's agent running; `?zaopinapp`: Zaopin's app; `?host`: the stand-in Superlight in
+ *  host mode (G HUB's On-board memory mode off). */
+const LAB_VENDOR_APPS = [...(new URLSearchParams(location.search).has("zaopinapp") ? ["compx"] : []), ...(new URLSearchParams(location.search).has("ghub") ? ["hidpp"] : [])];
+if (new URLSearchParams(location.search).has("host")) SUPERLIGHT.hostMode = true;
 
 export const real = {
   // The receiver's port on this PC, as Windows names it (the dump leaves it to the stand-in).
@@ -774,7 +778,7 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       pushPrefs(args.prefs as Prefs);
       return null;
     case "app_status":
-      return { foregroundExe: null, inUse: fake.device.key ?? null, vendorAppRunning: false, hudShowing: false };
+      return { foregroundExe: null, inUse: fake.device.key ?? null, vendorApps: LAB_VENDOR_APPS, hudShowing: false };
     case "apply_settings":
       await wait(250);
       pushDevice({ settings: args.settings as Settings });

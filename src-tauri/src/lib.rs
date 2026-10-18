@@ -50,7 +50,8 @@ struct AppStatus {
     foreground_exe: Option<String>,
     /// The mouse in your hand (its key): the tray, the HUD and the pop-ups follow it.
     in_use: Option<String>,
-    vendor_app_running: bool,
+    /// The families whose maker's app is running (`compx` for Zaopin's, `hidpp` for G HUB).
+    vendor_apps: Vec<&'static str>,
     /// The HUD's window is on screen now.
     hud_showing: bool,
 }
@@ -1074,7 +1075,7 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
     if !backups
         || !s.online
         || s.settings.is_none()
-        || ctx.status.read().vendor_app_running
+        || s.key.as_deref().and_then(mice::family_of).is_some_and(|f| ctx.status.read().vendor_apps.contains(&f))
         || !ctx.met.lock().insert(s.mid)
     {
         return;
@@ -1203,11 +1204,12 @@ fn watch_foreground(app: AppHandle) {
                     win::strip_webview_scroll_styles(h.0 as isize);
                 }
                 if ticks % 40 == 1 {
-                    let running = win::vendor_app_running();
-                    let changed = ctx.status.read().vendor_app_running != running;
+                    let running = win::vendor_apps_running();
+                    let changed = ctx.status.read().vendor_apps != running;
                     if changed {
-                        ctx.status.write().vendor_app_running = running;
-                        ctx.hud.vendor_app(running);
+                        // The HUD's note is about Zaopin's app, which makes its values late.
+                        ctx.hud.vendor_app(running.contains(&"compx"));
+                        ctx.status.write().vendor_apps = running;
                         let _ = app.emit("app-status", status_of(&ctx));
                     }
                 }
@@ -1748,6 +1750,7 @@ mod lab {
             }),
             profile: Some(0),
             long_range: Some(false),
+            host_mode: false,
             settings: Some(newest),
             capabilities: Some(models::capabilities(4, 5)),
             // The stand-in backend says where the receiver is.

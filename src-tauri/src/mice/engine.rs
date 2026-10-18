@@ -63,6 +63,10 @@ pub struct DeviceState {
     pub battery: Option<Battery>,
     pub profile: Option<u8>,
     pub long_range: Option<bool>,
+    /// Software drives the mouse live instead of its own memory: a Logitech in host mode, G HUB's
+    /// doing with its On-board memory mode off. What's set here applies once it lets go.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub host_mode: bool,
     pub settings: Option<Settings>,
     pub capabilities: Option<Capabilities>,
     /// Where the receiver (or the mouse, on its cable) is plugged in.

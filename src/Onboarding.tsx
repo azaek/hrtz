@@ -141,7 +141,7 @@ export function Onboarding() {
   const prefs = useStore((x) => x.prefs);
   const devices = useStore((x) => x.devices);
   const supported = useStore((x) => x.supported);
-  const vendorApp = useStore((x) => x.status.vendorAppRunning);
+  const vendorApps = useStore((x) => x.status.vendorApps);
   const first = flow.mode === "first";
   const steps: Step[] = first ? ["welcome", "connect", "found", "prefs"] : ["connect", "found"];
   const [startup, setStartup] = useState(true);
@@ -250,8 +250,12 @@ export function Onboarding() {
       const backedUp = (d: DeviceState) => !d.capabilities?.backups || !!backups?.some((b) => b.model === d.model);
       const waiting = found.some((d) => !backedUp(d));
       const backing = found.some((d) => d.capabilities?.backups);
-      // Zaopin's app is the one that fights hrtz for a Zaopin.
-      const zaopinApp = vendorApp && found.some((d) => familyOf(d.key) === "compx");
+      // A maker's app in the way of a mouse found: Zaopin's app fights hrtz for a Zaopin; G HUB edits
+      // a Logitech's profiles too, or drives it itself (host mode).
+      const makerApp = (family: string) => vendorApps.includes(family) && found.some((d) => familyOf(d.key) === family);
+      const zaopinApp = makerApp("compx");
+      const ghub = makerApp("hidpp");
+      const ghubDrives = ghub && found.some((d) => familyOf(d.key) === "hidpp" && d.hostMode);
       shown = {
         hero: (
           <div className={s.heroRow}>
@@ -282,6 +286,14 @@ export function Onboarding() {
               <div className={s.stretch}>
                 <Notice tone="warning" icon={<Warning16Filled />} title="Quit Zaopin's app">
                   It uses the same channel as hrtz and overwrites its changes. Quit it from its tray icon.
+                </Notice>
+              </div>
+            ) : ghub ? (
+              <div className={s.stretch}>
+                <Notice tone="warning" icon={<Warning16Filled />} title="Quit G HUB">
+                  {ghubDrives
+                    ? "It's controlling the mouse, so changes made in hrtz wait until it lets go. Quit it from its tray icon."
+                    : "It changes the same profiles on the mouse as hrtz, and the last change wins. Quit it from its tray icon."}
                 </Notice>
               </div>
             ) : waiting ? (

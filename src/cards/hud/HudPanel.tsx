@@ -89,7 +89,9 @@ export function HudPanel({ prefs }: { prefs: Prefs }) {
           : preview.on && showing
             ? sample
               ? "Previewing now, with sample values until a mouse connects."
-              : "Previewing now. Press the DPI button to see it update."
+              : device?.capabilities?.dpiButton
+                ? "Previewing now. Press the DPI button to see it update."
+                : "Previewing now. Change the DPI to see it update."
             : "Shows the HUD on your screen while this page is open.";
   const fieldsNote =
     hud.show === "off"

@@ -28,8 +28,11 @@ pub mod func {
 }
 
 /// getMode: the mouse runs its onboard profile, or software drives it live (host mode, which
-/// hrtz never switches to: settings there are lost at power-off).
+/// hrtz never switches to: settings there are lost at power-off). G HUB switches to host mode
+/// (setMode, 0x10) when it starts the mouse with its On-board memory mode off, and back to onboard
+/// when it lets go (GHUB.md, from its code).
 pub const MODE_ONBOARD: u8 = 0x01;
+pub const MODE_HOST: u8 = 0x02;
 
 /// memoryRead hands back 16 bytes at a time; memoryWrite takes 16.
 pub const CHUNK: usize = 16;
