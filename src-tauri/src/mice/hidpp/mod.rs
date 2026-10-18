@@ -3,6 +3,7 @@
 //! a connected one. `backup` is hrtz's own: what a backup of the onboard memory holds.
 
 pub mod backup;
+pub mod buttons;
 pub(crate) mod driver;
 #[cfg(any(test, debug_assertions))]
 pub(crate) mod fixtures;

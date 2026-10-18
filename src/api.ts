@@ -8,7 +8,7 @@ export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 export type ButtonAction =
   | { kind: "disabled" }
   | { kind: "mouse"; button: MouseButton }
-  | { kind: "dpi"; action: "cycle" | "up" | "down" }
+  | { kind: "dpi"; action: "cycle" | "up" | "down" | "default" }
   | { kind: "scroll"; direction: "up" | "down" | "left" | "right" }
   | { kind: "fire"; intervalMs: number; times: number }
   | { kind: "pollingSwitch" }
@@ -16,7 +16,11 @@ export type ButtonAction =
   | { kind: "media"; usage: number }
   | { kind: "keys"; modifiers: number; keys: number[] }
   | { kind: "macro"; slot: number; repeat: number }
-  | { kind: "raw"; code: number; p1: number; p2: number };
+  | { kind: "raw"; code: number; p1: number; p2: number }
+  /** Switch the mouse's onboard profile (a Logitech's). */
+  | { kind: "profile"; action: "next" | "previous" | "cycle" }
+  /** Set in G HUB in a form hrtz doesn't edit yet (a macro, G-Shift, DPI Shift): its record, kept. */
+  | { kind: "vendor"; bytes: number[] };
 
 export interface DpiStage {
   dpi: number;

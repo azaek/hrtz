@@ -16,7 +16,7 @@ use super::onboard::{self as ob, Plan, Stage};
 use super::protocol::{self as p, Charge, Refusal, feature};
 use super::sim::{Battery, SimFinder, SimMouse};
 use crate::battery_log::BatteryLog;
-use crate::mice::model::{DpiStage, Settings};
+use crate::mice::model::{ButtonAction, DpiAction, DpiStage, MouseButton, ScrollDirection, Settings};
 use crate::mice::{DeviceEvent, DeviceState, Notify, Worker};
 
 // ---- the wire ---------------------------------------------------------------------------------
@@ -429,14 +429,22 @@ fn a_superlight_on_its_receiver_is_met_and_read() {
     assert_eq!((dpi.min, dpi.max, dpi.step, dpi.max_stages, dpi.colors), (100, 25600, 50, 5, false));
     assert_eq!(caps.polling.unwrap().rates, [125, 250, 500, 1000]);
     assert!(caps.backups, "its onboard memory");
-    assert!(!caps.factory_reset && !caps.pairing && caps.lod.is_none() && caps.buttons.is_none());
+    assert!(!caps.factory_reset && !caps.pairing && caps.lod.is_none());
+    let names: Vec<String> = caps.buttons.clone().unwrap().into_iter().map(|(_, n)| n).collect();
+    assert_eq!(names, ["Left", "Right", "Wheel click", "Back", "Forward"], "getInfo's five");
 
     let st = r.settings();
     assert_eq!(st.polling_hz, Some(1000));
     assert_eq!((st.dpi_stage_count, st.dpi_stage), (Some(1), Some(0)));
     assert_eq!(dpis(&st), [1600, 800, 1200, 2400, 3200], "the stage in use, then the vendor's others");
     assert_eq!(st.dpi(), Some(1600));
-    assert!(st.lod.is_none() && st.buttons.is_none() && st.sensor_mode.is_none());
+    assert!(st.lod.is_none() && st.sensor_mode.is_none());
+    assert_eq!(
+        st.buttons.as_deref().unwrap(),
+        [MouseButton::Left, MouseButton::Right, MouseButton::Middle, MouseButton::Back, MouseButton::Forward]
+            .map(|button| ButtonAction::Mouse { button }),
+        "as they came"
+    );
 
     // Its own percentage, from 0x1004, with no voltage.
     let b = s.battery.unwrap();
@@ -544,6 +552,26 @@ fn sleep_and_wake_through_the_receiver() {
 
 /// On the user's Superlight (2026-10-18), asking a sleeping mouse every quarter second woke it, or
 /// caught it checking in, and reading it whole each time kept it from sleeping.
+#[test]
+fn a_button_set_here_is_written_into_the_profile_and_kept() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    let mut buttons = r.settings().buttons.unwrap();
+    buttons[3] = ButtonAction::Dpi { action: DpiAction::Cycle };
+    buttons[4] = ButtonAction::Keys { modifiers: 0x01, keys: vec![0x06] };
+    let after = r.w.apply_settings(&Settings { buttons: Some(buttons.clone()), ..r.settings() }).unwrap();
+    assert_eq!(after.buttons.unwrap(), buttons);
+    let sector = r.sector(1);
+    assert_eq!(sector[0x2C..0x34], [0x90, 0x05, 0x00, 0x00, 0x80, 0x02, 0x01, 0x06], "back, then forward");
+    assert!(ob::crc_ok(&sector));
+    assert_eq!(sector[0x60..0x70], fx::superlight_c547_profile()[0x60..0x70], "the G-Shift layer is left as it was");
+
+    // What the buttons can't do is refused, and nothing is written.
+    let (from, _) = r.mark();
+    buttons[4] = ButtonAction::Scroll { direction: ScrollDirection::Up };
+    assert!(r.w.apply_settings(&Settings { buttons: Some(buttons), ..r.settings() }).is_err());
+    assert!(!r.profile_calls_since(from).contains(&ob::func::WRITE));
+}
+
 #[test]
 fn a_backup_holds_every_sector_and_a_restore_puts_back_what_changed() {
     let mut r = Rig::connected(SimMouse::superlight());

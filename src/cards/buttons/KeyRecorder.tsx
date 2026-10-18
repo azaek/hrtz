@@ -13,7 +13,16 @@ const count = (c: Combo) => c.keys.length + [0x11, 0x22, 0x44, 0x88].filter((b) 
  * saved when every key is up (or when you leave the field mid-press), and the next press starts a
  * new one. Tab still moves on.
  */
-export function KeyRecorder(props: { label: string; value: Combo; autoFocus?: boolean; disabled?: boolean; onCommit: (v: Combo) => void; onLeaveEmpty?: () => void }) {
+export function KeyRecorder(props: {
+  label: string;
+  value: Combo;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  /** One key besides any modifiers (a Logitech's), not three counting them. */
+  oneKey?: boolean;
+  onCommit: (v: Combo) => void;
+  onLeaveEmpty?: () => void;
+}) {
   const ref = useRef<HTMLInputElement>(null);
   const held = useRef(new Set<string>());
   // The combination being pressed, in a ref too: keys arrive faster than renders.
@@ -58,8 +67,9 @@ export function KeyRecorder(props: { label: string; value: Combo; autoFocus?: bo
         const mod = MODIFIER_BIT[e.code];
         const usage = KEY_USAGE[e.code];
         let next = start;
-        if (mod && count({ ...start, modifiers: start.modifiers | mod }) <= 3) next = { ...start, modifiers: start.modifiers | mod };
-        else if (usage && !start.keys.includes(usage) && count({ ...start, keys: [...start.keys, usage] }) <= 3) next = { ...start, keys: [...start.keys, usage] };
+        const fits = (c: Combo) => (props.oneKey ? c.keys.length <= 1 : count(c) <= 3);
+        if (mod && fits({ ...start, modifiers: start.modifiers | mod })) next = { ...start, modifiers: start.modifiers | mod };
+        else if (usage && !start.keys.includes(usage) && fits({ ...start, keys: [...start.keys, usage] })) next = { ...start, keys: [...start.keys, usage] };
         setDraft(next);
       }}
       onKeyUp={(e) => {

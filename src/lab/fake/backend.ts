@@ -64,9 +64,18 @@ const SUPERLIGHT: DeviceState = {
     dpiStageCount: 1,
     dpiStage: 0,
     stages: [800, 1200, 1600, 2400, 3200].map((dpi) => ({ dpi, color: "#FFFFFF" })),
+    // As they came, but Forward set in G HUB to G-Shift (a record hrtz keeps as it is).
+    buttons: [
+      { kind: "mouse", button: "left" },
+      { kind: "mouse", button: "right" },
+      { kind: "mouse", button: "middle" },
+      { kind: "mouse", button: "back" },
+      { kind: "vendor", bytes: [0x90, 0x0b, 0x00, 0x00] },
+    ],
   },
   capabilities: {
     wired: false,
+    buttons: ["Left", "Right", "Wheel click", "Back", "Forward"].map((n, i) => [i, n]),
     dpi: { min: 100, max: 25600, step: 50, maxStages: 5, colors: false },
     polling: { rates: [125, 250, 500, 1000] },
     motionSync: false,

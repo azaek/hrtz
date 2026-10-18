@@ -8,6 +8,7 @@ import {
   Keyboard20Regular,
   Play20Regular,
   Prohibited20Regular,
+  Stack20Regular,
 } from "@fluentui/react-icons";
 import type { ButtonAction } from "@/api";
 import { actionLabel } from "@/hid";
@@ -26,7 +27,40 @@ export const DEFAULT_ACTIONS: Record<number, ButtonAction> = {
 };
 
 /** The kinds of function a button can have: one tile each in the editor. */
-export type Fn = "mouse" | "dpi" | "scroll" | "keys" | "media" | "fire" | "pollingSwitch" | "disabled";
+export type Fn = "mouse" | "dpi" | "scroll" | "keys" | "media" | "fire" | "pollingSwitch" | "profile" | "disabled";
+
+type DpiChoice = "cycle" | "up" | "down" | "default" | "hold";
+type Direction = "up" | "down" | "left" | "right";
+
+/** What a family's buttons can do: the tiles, the options within them, and whose app set what
+ *  this one can't edit. */
+export interface Catalog {
+  fns: Fn[];
+  dpi: DpiChoice[];
+  scroll: Direction[];
+  /** Keys in a combination: up to three counting modifiers (a Zaopin), or one besides them. */
+  oneKey: boolean;
+  maker: string;
+}
+
+export const CATALOGS: Record<"compx" | "hidpp", Catalog> = {
+  compx: {
+    fns: ["mouse", "dpi", "scroll", "keys", "media", "fire", "pollingSwitch", "disabled"],
+    dpi: ["cycle", "up", "down", "hold"],
+    scroll: ["up", "down", "left", "right"],
+    oneKey: false,
+    maker: "Zaopin's app",
+  },
+  // OpenMouse's records (`hidpp/buttons.rs`): no rapid fire, polling switch or hold-for-DPI, and the
+  // wheel tilts but doesn't scroll from a button.
+  hidpp: {
+    fns: ["mouse", "dpi", "scroll", "keys", "media", "profile", "disabled"],
+    dpi: ["cycle", "up", "down", "default"],
+    scroll: ["left", "right"],
+    oneKey: true,
+    maker: "G HUB",
+  },
+};
 
 export const FUNCTIONS: { value: Fn; label: string; icon: ReactElement }[] = [
   { value: "mouse", label: "Mouse button", icon: <CursorClick20Regular /> },
@@ -36,25 +70,28 @@ export const FUNCTIONS: { value: Fn; label: string; icon: ReactElement }[] = [
   { value: "media", label: "Media", icon: <Play20Regular /> },
   { value: "fire", label: "Rapid fire", icon: <Flash20Regular /> },
   { value: "pollingSwitch", label: "Polling rate", icon: <ArrowRepeatAll20Regular /> },
+  { value: "profile", label: "Profile", icon: <Stack20Regular /> },
   { value: "disabled", label: "Disabled", icon: <Prohibited20Regular /> },
 ];
 
 /** The tile an action belongs to, or null for a macro or vendor function this app can't edit. */
 export function functionOf(a: ButtonAction): Fn | null {
   if (a.kind === "dpiLock") return "dpi";
-  if (a.kind === "macro" || a.kind === "raw") return null;
+  if (a.kind === "macro" || a.kind === "raw" || a.kind === "vendor") return null;
   return a.kind;
 }
 
-/** What picking a tile writes: the function's first option. */
-export function firstOf(fn: Fn): ButtonAction {
+/** What picking a tile writes: the function's first option this mouse has. */
+export function firstOf(fn: Fn, catalog: Catalog): ButtonAction {
   switch (fn) {
     case "mouse":
       return { kind: "mouse", button: "left" };
     case "dpi":
       return { kind: "dpi", action: "cycle" };
     case "scroll":
-      return { kind: "scroll", direction: "up" };
+      return { kind: "scroll", direction: catalog.scroll[0] };
+    case "profile":
+      return { kind: "profile", action: "next" };
     case "keys":
       return { kind: "keys", modifiers: 0, keys: [] };
     case "media":

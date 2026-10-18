@@ -16,6 +16,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use hidapi::{HidApi, HidDevice};
 
 use super::backup;
+use super::buttons;
 use super::models;
 use super::onboard::{self as ob, Entry, Info, Plan, Stage};
 use super::protocol::{self as p, Charge, Refusal, feature};
@@ -822,6 +823,12 @@ impl Connected {
         caps.profiles = (count > 0).then_some(count.min(u8::MAX as usize) as u8);
         caps.backups = ob::writable(format);
         if ob::writable(format) {
+            let (at, room) = buttons::table(format);
+            let count = o.info.button_count.min(room as u8);
+            caps.buttons = (count > 0).then(|| buttons::names(count));
+            settings.buttons = (count > 0).then(|| {
+                (0..count as usize).map(|i| buttons::decode(o.bytes.get(at + i * 4..).unwrap_or(&[]))).collect()
+            });
             let limits = self.dpi_limits(format)?;
             let rates =
                 ob::rates_offered(ob::rate_limits(format, self.usb_hex().as_deref()), self.wired, &self.live_rates()?);
@@ -1077,6 +1084,21 @@ impl Driver for Connected {
             let write_lod = !self.usb.is_some_and(|u| NO_LOD_WRITES.contains(&u));
             bytes = ob::encode_stages(&bytes, format, &plan, self.dpi_limits(format)?, write_lod)
                 .map_err(|e| anyhow!(e))?;
+        }
+        if let Some(want) = &new.buttons {
+            let (at, room) = buttons::table(format);
+            let mut changed = false;
+            for (i, a) in want.iter().enumerate().take(room) {
+                let record = buttons::encode(a).map_err(|e| anyhow!("Button {}: {e}", i + 1))?;
+                let slot = &mut bytes[at + i * 4..at + i * 4 + 4];
+                if slot != record {
+                    slot.copy_from_slice(&record);
+                    changed = true;
+                }
+            }
+            if changed {
+                ob::apply_crc(&mut bytes);
+            }
         }
         if let Some(hz) = new.polling_hz {
             let shown = if self.wired && ob::v6(format) { profile.rate_wired } else { profile.rate_wireless };

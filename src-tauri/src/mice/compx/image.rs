@@ -274,7 +274,8 @@ fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction) {
         ButtonAction::Dpi { action } => (
             2,
             match action {
-                DpiAction::Cycle => 1,
+                // Default is refused by `validate_fields`.
+                DpiAction::Cycle | DpiAction::Default => 1,
                 DpiAction::Up => 2,
                 DpiAction::Down => 3,
             },
@@ -300,6 +301,8 @@ fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction) {
         ButtonAction::PollingSwitch => (7, 0, 0),
         ButtonAction::DpiLock { dpi } => (10, dpi_encode(*dpi).0, 0),
         ButtonAction::Raw { code, p1, p2 } => (*code, *p1, *p2),
+        // Refused by `validate_fields`.
+        ButtonAction::Profile { .. } | ButtonAction::Vendor { .. } => (0, 0, 0),
     };
     put_triple(f, addr::BUTTONS + 4 * i, [code, p1, p2]);
 }
@@ -341,6 +344,15 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
             && modifiers.count_ones() as usize + keys.len() > 3
         {
             return Err("a key combination can have at most three keys".into());
+        }
+        // A Logitech's: never offered for a Zaopin.
+        if matches!(
+            b,
+            ButtonAction::Profile { .. }
+                | ButtonAction::Vendor { .. }
+                | ButtonAction::Dpi { action: DpiAction::Default }
+        ) {
+            return Err("this mouse's buttons can't do that".into());
         }
     }
     Ok(())

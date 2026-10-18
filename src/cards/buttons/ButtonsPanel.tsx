@@ -5,7 +5,7 @@ import type { Capabilities, Settings } from "@/api";
 import { CardNote, MoreMenu, Pane, PaneFooter, PaneHeader, TileChoice, UndoNote } from "@/kit";
 import type { ModelArt } from "@/models";
 import { FunctionOptions } from "./FunctionOptions";
-import { DPI_BUTTON, firstOf, FUNCTIONS, functionOf, shortLabel } from "./functions";
+import { CATALOGS, DPI_BUTTON, firstOf, FUNCTIONS, functionOf, shortLabel } from "./functions";
 import { Chip, MouseArt } from "./MouseArt";
 import { useButtons } from "./useButtons";
 
@@ -17,7 +17,21 @@ const muted = { color: "var(--colorNeutralForeground3)" };
  * every change writes to the mouse at once, with Undo. Below 700px the editor drops under the
  * list. Decided in the Buttons lab (DECISIONS.md, "Buttons page").
  */
-export function ButtonsPanel({ s, caps, art, online }: { s: Settings; caps: Capabilities; art: ModelArt | undefined; online: boolean }) {
+export function ButtonsPanel({
+  s,
+  caps,
+  art,
+  online,
+  family,
+}: {
+  s: Settings;
+  caps: Capabilities;
+  art: ModelArt | undefined;
+  online: boolean;
+  /** The mouse's family: what its buttons can do. */
+  family: "compx" | "hidpp";
+}) {
+  const catalog = CATALOGS[family];
   // Shown only for a mouse with buttons, so these are there.
   const physical = caps.buttons ?? [];
   const actions = s.buttons ?? [];
@@ -103,14 +117,15 @@ export function ButtonsPanel({ s, caps, art, online }: { s: Settings; caps: Capa
               label={`What ${name} does`}
               value={functionOf(shown)}
               disabled={off}
-              options={FUNCTIONS.map((f) => ({ ...f, disabled: onlyLeft && f.value !== "mouse" }))}
-              onChange={(fn) => e.set(sel, firstOf(fn))}
+              options={FUNCTIONS.filter((f) => catalog.fns.includes(f.value)).map((f) => ({ ...f, disabled: onlyLeft && f.value !== "mouse" }))}
+              onChange={(fn) => e.set(sel, firstOf(fn, catalog))}
             />
           </div>
           <div className="flex flex-col items-start gap-4 px-4 pt-5 pb-4">
             <FunctionOptions
               key={sel}
               action={shown}
+              catalog={catalog}
               maxDpi={caps.dpi?.max ?? 12800}
               disabled={off || onlyLeft}
               onChange={(a) => e.set(sel, a)}

@@ -4,7 +4,7 @@ import type { ButtonAction } from "@/api";
 import { Choice } from "@/components";
 import { MEDIA } from "@/hid";
 import { NumberStepper } from "@/kit";
-import { functionOf } from "./functions";
+import { functionOf, type Catalog } from "./functions";
 import { KeyRecorder } from "./KeyRecorder";
 
 const muted = { color: "var(--colorNeutralForeground3)" };
@@ -27,6 +27,8 @@ function Field({ label, hint, children }: { label?: string; hint?: string; child
  */
 export function FunctionOptions(props: {
   action: ButtonAction;
+  /** What this mouse's buttons can do. */
+  catalog: Catalog;
   maxDpi: number;
   disabled?: boolean;
   onChange: (a: ButtonAction) => void;
@@ -38,6 +40,7 @@ export function FunctionOptions(props: {
   const a = props.action;
   const off = props.disabled;
   const set = props.onChange;
+  const cat = props.catalog;
   switch (functionOf(a)) {
     case "mouse":
       return (
@@ -62,12 +65,15 @@ export function FunctionOptions(props: {
             label="DPI action"
             disabled={off}
             value={a.kind === "dpiLock" ? "hold" : a.kind === "dpi" ? a.action : "cycle"}
-            options={[
-              { value: "cycle", label: "Cycle stages" },
-              { value: "up", label: "Up" },
-              { value: "down", label: "Down" },
-              { value: "hold", label: "Hold for" },
-            ]}
+            options={(
+              [
+                { value: "cycle", label: "Cycle stages" },
+                { value: "up", label: "Up" },
+                { value: "down", label: "Down" },
+                { value: "default", label: "Default stage" },
+                { value: "hold", label: "Hold for" },
+              ] as const
+            ).filter((o) => cat.dpi.includes(o.value))}
             onChange={(v) => set(v === "hold" ? { kind: "dpiLock", dpi: 400 } : { kind: "dpi", action: v })}
           />
           {a.kind === "dpiLock" && (
@@ -92,13 +98,15 @@ export function FunctionOptions(props: {
         <Choice
           label="Scroll direction"
           disabled={off}
-          value={a.kind === "scroll" ? a.direction : "up"}
-          options={[
-            { value: "up", label: "Up" },
-            { value: "down", label: "Down" },
-            { value: "left", label: "Left" },
-            { value: "right", label: "Right" },
-          ]}
+          value={a.kind === "scroll" ? a.direction : cat.scroll[0]}
+          options={(
+            [
+              { value: "up", label: "Up" },
+              { value: "down", label: "Down" },
+              { value: "left", label: "Left" },
+              { value: "right", label: "Right" },
+            ] as const
+          ).filter((o) => cat.scroll.includes(o.value))}
           onChange={(direction) => set({ kind: "scroll", direction })}
         />
       );
@@ -121,8 +129,16 @@ export function FunctionOptions(props: {
       );
     case "keys":
       return a.kind === "keys" ? (
-        <Field label="Keys" hint="Up to three keys, including modifiers. Saves on release.">
-          <KeyRecorder label="Keys" value={a} autoFocus={props.recordNow} disabled={off} onCommit={(v) => set({ kind: "keys", ...v })} onLeaveEmpty={props.onLeaveKeys} />
+        <Field label="Keys" hint={cat.oneKey ? "One key, with any modifiers. Saves on release." : "Up to three keys, including modifiers. Saves on release."}>
+          <KeyRecorder
+            label="Keys"
+            value={a}
+            autoFocus={props.recordNow}
+            disabled={off}
+            oneKey={cat.oneKey}
+            onCommit={(v) => set({ kind: "keys", ...v })}
+            onLeaveEmpty={props.onLeaveKeys}
+          />
         </Field>
       ) : null;
     case "fire":
@@ -149,9 +165,23 @@ export function FunctionOptions(props: {
       ) : null;
     case "pollingSwitch":
       return <Caption1 style={muted}>Each press switches to the next polling rate.</Caption1>;
+    case "profile":
+      return (
+        <Choice
+          label="Profile action"
+          disabled={off}
+          value={a.kind === "profile" ? a.action : "next"}
+          options={[
+            { value: "next", label: "Next" },
+            { value: "previous", label: "Previous" },
+            { value: "cycle", label: "Cycle" },
+          ]}
+          onChange={(action) => set({ kind: "profile", action })}
+        />
+      );
     case "disabled":
       return <Caption1 style={muted}>This button is disabled.</Caption1>;
     case null:
-      return <Caption1 style={muted}>Set in Zaopin's app and not editable here yet. Choosing a function replaces it.</Caption1>;
+      return <Caption1 style={muted}>Set in {cat.maker} and not editable here yet. Choosing a function replaces it.</Caption1>;
   }
 }

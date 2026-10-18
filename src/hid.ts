@@ -85,7 +85,7 @@ export function actionLabel(a: ButtonAction): string {
     case "mouse":
       return MOUSE_NAME[a.button];
     case "dpi":
-      return { cycle: "Cycle DPI stages", up: "DPI up", down: "DPI down" }[a.action];
+      return { cycle: "Cycle DPI stages", up: "DPI up", down: "DPI down", default: "Default DPI stage" }[a.action];
     case "scroll":
       return { up: "Scroll up", down: "Scroll down", left: "Scroll left", right: "Scroll right" }[a.direction];
     case "fire":
@@ -102,5 +102,16 @@ export function actionLabel(a: ButtonAction): string {
       return `Macro ${a.slot + 1}`;
     case "raw":
       return `Vendor function ${a.code}`;
+    case "profile":
+      return { next: "Next profile", previous: "Previous profile", cycle: "Cycle profiles" }[a.action];
+    case "vendor":
+      return vendorLabel(a.bytes);
   }
+}
+
+/** A Logitech record hrtz keeps as it is, by what G HUB calls it. */
+function vendorLabel(b: number[]): string {
+  if (b[0] === 0x00) return "Macro";
+  if (b[0] === 0x90) return { 0x07: "DPI Shift", 0x0b: "G-Shift", 0x0c: "Battery level" }[b[1]] ?? "Set in G HUB";
+  return "Set in G HUB";
 }

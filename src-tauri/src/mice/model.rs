@@ -70,6 +70,23 @@ pub enum ButtonAction {
         p1: u8,
         p2: u8,
     },
+    /// Switch the mouse's onboard profile (a Logitech's).
+    Profile {
+        action: ProfileAction,
+    },
+    /// Set in the maker's app in a form hrtz doesn't edit yet (a Logitech's macro, G-Shift or DPI
+    /// Shift): its record, written back unchanged.
+    Vendor {
+        bytes: Vec<u8>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProfileAction {
+    Next,
+    Previous,
+    Cycle,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,6 +105,8 @@ pub enum DpiAction {
     Cycle,
     Up,
     Down,
+    /// Back to the profile's default stage (a Logitech's).
+    Default,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
