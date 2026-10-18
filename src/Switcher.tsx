@@ -12,18 +12,19 @@ import {
   MenuItemRadio,
   MenuList,
   MenuPopover,
+  MenuSplitGroup,
   MenuTrigger,
   ProgressBar,
   tokens,
 } from "@fluentui/react-components";
-import { Add16Regular, BatterySaverRegular, ChevronUpDown16Regular } from "@fluentui/react-icons";
+import { Add16Regular, BatterySaverRegular, ChevronUpDown16Regular, Delete16Regular, MoreHorizontal16Regular } from "@fluentui/react-icons";
 import { topRate, type DeviceState, type KnownMouse } from "./api";
 import { BatteryIcon } from "./BatteryIcon";
 import { MousePicture } from "./DrawnMouse";
 import { seenAt } from "./format";
 import { linkName } from "./links";
 import { artOf, ofModel } from "./models";
-import { goTo, pickMouse, startFlow, useMouse, useStore } from "./store";
+import { asleepOnPort, forgetMouse, goTo, pickMouse, restoreMouse, startFlow, toast, useMouse, useStore } from "./store";
 import { FLYOUT_PADDING } from "./kit";
 
 const useStyles = makeStyles({
@@ -221,6 +222,11 @@ export function Switcher() {
   const devices = useStore((st) => st.devices);
   const mice = useStore((st) => st.mice);
   const inUse = useStore((st) => st.status.inUse);
+  const quiet = useStore((st) => st.status.quietPorts);
+  const remove = async (key: string) => {
+    const gone = await forgetMouse(key);
+    if (gone) toast(`Removed ${gone.model}.`, "info", { label: "Undo", run: () => void restoreMouse(gone) });
+  };
   return (
     <Menu
       positioning={{ position: "below", align: "start", offset: 4, matchTargetSize: "width", autoSize: "height", overflowBoundaryPadding: FLYOUT_PADDING }}
@@ -236,19 +242,43 @@ export function Switcher() {
       <MenuPopover className={s.popover}>
         <MenuList className={s.list}>
           <div className={s.mice}>
-            {mice.map((m) => (
-              <MenuItemRadio key={m.key} name="mouse" value={m.key}>
-                <span className={s.menuItem}>
-                  <span className={s.thumb}>
-                    <MousePicture image={artOf(m.key, m.last?.variant)?.image} width={44} />
+            {mice.map((m) => {
+              const asleep = asleepOnPort(m, quiet);
+              const row = (
+                <MenuItemRadio key={m.key} name="mouse" value={m.key}>
+                  <span className={s.menuItem}>
+                    <span className={s.thumb}>
+                      <MousePicture image={artOf(m.key, m.last?.variant)?.image} width={44} />
+                    </span>
+                    <span className={s.rowText}>
+                      <Body1 className={s.model}>{m.model}</Body1>
+                      <Caption1 className={mergeClasses(s.muted, s.model)}>
+                        {asleep ? "Asleep" : brief(m, devices[m.key], inUse === m.key && mice.length > 1)}
+                      </Caption1>
+                    </span>
                   </span>
-                  <span className={s.rowText}>
-                    <Body1 className={s.model}>{m.model}</Body1>
-                    <Caption1 className={mergeClasses(s.muted, s.model)}>{brief(m, devices[m.key], inUse === m.key && mice.length > 1)}</Caption1>
-                  </span>
-                </span>
-              </MenuItemRadio>
-            ))}
+                </MenuItemRadio>
+              );
+              // An unplugged mouse can be removed from here too, as from Settings, with Undo.
+              if (devices[m.key]?.connected || asleep) return row;
+              return (
+                <MenuSplitGroup key={m.key}>
+                  {row}
+                  <Menu>
+                    <MenuTrigger disableButtonEnhancement>
+                      <MenuItem aria-label={`${m.model} actions`} submenuIndicator={<MoreHorizontal16Regular />} />
+                    </MenuTrigger>
+                    <MenuPopover>
+                      <MenuList>
+                        <MenuItem icon={<Delete16Regular />} onClick={() => void remove(m.key)}>
+                          Remove
+                        </MenuItem>
+                      </MenuList>
+                    </MenuPopover>
+                  </Menu>
+                </MenuSplitGroup>
+              );
+            })}
           </div>
           {mice.length > 0 && <MenuDivider />}
           <MenuItem icon={<Add16Regular />} onClick={() => startFlow("add")}>

@@ -353,6 +353,9 @@ export interface AppStatus {
   inUse?: string | null;
   /** The families whose maker's app is running: `compx` (Zaopin's app), `hidpp` (G HUB). */
   vendorApps: string[];
+  /** USB ports with a receiver whose mouse hasn't answered since hrtz started: the mouse last seen
+   *  on one is asleep, not unplugged. */
+  quietPorts?: string[];
   /** The HUD window is visible now. */
   hudShowing: boolean;
 }

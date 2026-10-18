@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
+  Link,
   Body1,
   Body1Strong,
   Caption1,
@@ -324,11 +325,23 @@ export function ToastBridge() {
     for (const t of toasts) {
       if (shown.current.has(t.id)) continue;
       shown.current.add(t.id);
+      const action = t.action;
       dispatchToast(
         <Toast>
-          <ToastTitle>{t.text}</ToastTitle>
+          <ToastTitle
+            action={
+              action ? (
+                <Link as="button" onClick={action.run}>
+                  {action.label}
+                </Link>
+              ) : undefined
+            }
+          >
+            {t.text}
+          </ToastTitle>
         </Toast>,
-        { intent: t.tone === "error" ? "error" : "success", timeout: t.tone === "error" ? 6000 : 2500 },
+        // An Undo lasts 6 s, as the page's do.
+        { intent: t.tone === "error" ? "error" : action ? "info" : "success", timeout: t.tone === "error" || action ? 6000 : 2500 },
       );
     }
   }, [toasts, dispatchToast]);

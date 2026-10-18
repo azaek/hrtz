@@ -76,6 +76,18 @@ impl Hub {
         }
     }
 
+    /// The USB ports (location paths) of connections whose mouse hasn't answered yet: a Logitech's
+    /// receiver with its mouse asleep since hrtz started, whose mouse can't be named until it wakes.
+    #[cfg(windows)]
+    pub fn quiet_ports(&self) -> Vec<String> {
+        self.conns
+            .read()
+            .iter()
+            .filter(|c| c.engine.state.read().key.is_none())
+            .filter_map(|c| crate::usb::port_of(&c.id).map(|p| p.path))
+            .collect()
+    }
+
     /// Every connection's engine, in the order they were found.
     pub fn engines(&self) -> Vec<Engine> {
         self.conns.read().iter().map(|c| c.engine.clone()).collect()

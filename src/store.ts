@@ -11,6 +11,8 @@ interface Toast {
   id: number;
   text: string;
   tone: "info" | "error";
+  /** A link at its end ("Undo"), and what it does. */
+  action?: { label: string; run: () => void };
 }
 
 interface Store {
@@ -68,10 +70,10 @@ export function useStore<T>(pick: (s: Store) => T): T {
 }
 
 let toastId = 0;
-export function toast(text: string, tone: Toast["tone"] = "info") {
+export function toast(text: string, tone: Toast["tone"] = "info", action?: Toast["action"]) {
   const id = ++toastId;
-  set({ toasts: [...state.toasts, { id, text, tone }] });
-  setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), tone === "error" ? 6000 : 3000);
+  set({ toasts: [...state.toasts, { id, text, tone, action }] });
+  setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), tone === "error" || action ? 6000 : 3000);
 }
 
 const NOTHING: DeviceState = {
@@ -91,10 +93,18 @@ const NOTHING: DeviceState = {
   port: null,
 };
 
-/** A known mouse that isn't connected, as its pages show it: what it held last time. */
+/** A known mouse that isn't connected, as its pages show it: what it held last time. One whose
+ *  receiver is plugged in and quiet (a Logitech asleep since hrtz started) is asleep, its last
+ *  battery reading kept. */
 function away(m: KnownMouse): DeviceState {
-  return { ...NOTHING, ...(m.last ?? {}), key: m.key, model: m.last?.model ?? m.model, connected: false, online: false, battery: null };
+  const port = m.last?.port?.path;
+  const asleep = !!port && !!state.status.quietPorts?.includes(port);
+  const base = { ...NOTHING, ...(m.last ?? {}), key: m.key, model: m.last?.model ?? m.model };
+  return asleep ? { ...base, connected: true, online: false, battery: m.last?.battery ?? null } : { ...base, connected: false, online: false, battery: null };
 }
+
+/** Whether known mouse `m` is asleep on a receiver that's plugged in (see `away`). */
+export const asleepOnPort = (m: KnownMouse, quiet: string[] | undefined) => !!m.last?.port?.path && !!quiet?.includes(m.last.port.path);
 
 /** The mouse the window shows: the one picked, connected or not; before any, the one in use, else
  *  one awake, else one connected, else the one seen last. */

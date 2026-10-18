@@ -97,6 +97,8 @@ const SUPERLIGHT: DeviceState = {
   },
 } as unknown as DeviceState;
 const device = (new URLSearchParams(location.search).get("mouse") === "superlight" ? SUPERLIGHT : deviceJson) as unknown as DeviceState;
+/** Where the stand-in's receiver is plugged in, as Windows names the port. */
+const LAB_PORT = { path: "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(11)", hubs: 0 };
 /** `?ghub`: G HUB's agent running; `?zaopinapp`: Zaopin's app; `?host`: the stand-in Superlight in
  *  host mode (G HUB's On-board memory mode off). */
 const LAB_VENDOR_APPS = [...(new URLSearchParams(location.search).has("zaopinapp") ? ["compx"] : []), ...(new URLSearchParams(location.search).has("ghub") ? ["hidpp"] : [])];
@@ -109,7 +111,7 @@ export const real = {
     // A dump from before the sleep timer was offered: a Zaopin's choices. A Logitech has none.
     settings: device.settings && (device === SUPERLIGHT ? device.settings : kindFirst(device.settings)),
     capabilities: device.capabilities && (device === SUPERLIGHT ? device.capabilities : { ...device.capabilities, sleepTimesS: device.capabilities.sleepTimesS ?? [10, 30, 60, 120] }),
-    port: device.port ?? { path: "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(11)", hubs: 0 },
+    port: device.port ?? LAB_PORT,
   } as DeviceState,
   prefs: (() => {
     const prefs = prefsJson as unknown as Prefs;
@@ -144,7 +146,7 @@ export const real = {
     return mice.map((m) => ({
       ...m,
       // What the stand-in's mouse held, for its pages while it's "unplugged" (?away).
-      last: m.last ?? (m.key === device.key ? { ...device, settings: device.settings && kindFirst(device.settings) } : null),
+      last: m.last ?? (m.key === device.key ? { ...device, port: device.port ?? LAB_PORT, settings: device.settings && kindFirst(device.settings) } : null),
       prefs: {
         ...m.prefs,
         profileSnapshots: m.prefs.profileSnapshots.map((x) => x && { ...x, buttons: x.buttons.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) }),
@@ -797,7 +799,8 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       pushPrefs(args.prefs as Prefs);
       return null;
     case "app_status":
-      return { foregroundExe: null, inUse: fake.device.key ?? null, vendorApps: LAB_VENDOR_APPS, hudShowing: false };
+      // `?away&quiet`: its receiver plugged in, the mouse asleep since hrtz started.
+      return { foregroundExe: null, inUse: fake.device.key ?? null, vendorApps: LAB_VENDOR_APPS, hudShowing: false, quietPorts: new URLSearchParams(location.search).has("quiet") ? [LAB_PORT.path] : [] };
     case "apply_settings":
       await wait(250);
       pushDevice({ settings: args.settings as Settings });

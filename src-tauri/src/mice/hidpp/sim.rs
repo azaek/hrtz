@@ -94,7 +94,7 @@ impl SimMouse {
             unit: [0x1A, 0x2B, 0x3C, 0x4D],
             wireless_id: 0x4093,
             usb_id: 0xC094,
-            // White, as the user's.
+            // White (the user's reads 0, black): a colour past the first, to show it's read.
             colour: 1,
             name: "PRO X Wireless",
             battery: Battery::Unified { percent: 44, status: 0 },

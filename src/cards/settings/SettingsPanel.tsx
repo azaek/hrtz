@@ -88,8 +88,9 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   // The small print names the maker of the mouse shown.
   const family = familyOf(device?.key);
   const maker = family ? { compx: "Zaopin", hidpp: "Logitech" }[family] : null;
-  // A row this mouse can't use is left out; with no mouse they all show, waiting for one.
-  const can = (feature: "longRange" | "pairing" | "factoryReset" | "backups") => !caps || caps[feature];
+  // A row this mouse can't use is left out, and so is one hrtz doesn't know it has yet (a mouse met
+  // but never read); with no mouse they all show, waiting for one.
+  const can = (feature: "longRange" | "pairing" | "factoryReset" | "backups") => (caps ? !!caps[feature] : !device);
   const noLongRange = !device?.connected || device.longRange === null || wired;
   const facts = device?.connected
     ? [

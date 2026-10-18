@@ -52,6 +52,9 @@ struct AppStatus {
     in_use: Option<String>,
     /// The families whose maker's app is running (`compx` for Zaopin's, `hidpp` for G HUB).
     vendor_apps: Vec<&'static str>,
+    /// USB ports with a receiver whose mouse hasn't answered since hrtz started (asleep): the
+    /// window shows the mouse last seen on that port as asleep, not as unplugged.
+    quiet_ports: Vec<String>,
     /// The HUD's window is on screen now.
     hud_showing: bool,
 }
@@ -100,6 +103,10 @@ fn status_of(ctx: &Ctx) -> AppStatus {
     let mut s = ctx.status.read().clone();
     s.hud_showing = ctx.hud.showing();
     s.in_use = ctx.hub.primary_state().key;
+    #[cfg(windows)]
+    {
+        s.quiet_ports = ctx.hub.quiet_ports();
+    }
     s
 }
 
@@ -1275,6 +1282,14 @@ fn watch_foreground(app: AppHandle) {
                     && let Some(h) = app.get_webview_window("main").and_then(|w| w.hwnd().ok())
                 {
                     win::strip_webview_scroll_styles(h.0 as isize);
+                }
+                // A receiver whose mouse is asleep since hrtz started, or that woke: said within 2 s.
+                if ticks.is_multiple_of(8) {
+                    let quiet = ctx.hub.quiet_ports();
+                    if ctx.status.read().quiet_ports != quiet {
+                        ctx.status.write().quiet_ports = quiet;
+                        let _ = app.emit("app-status", status_of(&ctx));
+                    }
                 }
                 if ticks % 40 == 1 {
                     let running = win::vendor_apps_running();
