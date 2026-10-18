@@ -49,7 +49,7 @@ pub fn decode_name(bytes: &[u8]) -> Option<String> {
         return None;
     }
     let units: Vec<u16> =
-        bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|u| *u != 0).collect();
+        bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).take_while(|u| *u != 0).collect();
     let name = String::from_utf16_lossy(&units).trim().to_string();
     (!name.is_empty() && name != NAME_PLACEHOLDER).then_some(name)
 }
@@ -125,8 +125,10 @@ pub struct Entry {
 /// reserved byte. It ends at sector 0xFFFF (erased) or 0x0000.
 pub fn directory(bytes: &[u8]) -> Vec<Entry> {
     bytes
-        .chunks_exact(4)
-        .map(|e| (u16::from_be_bytes([e[0], e[1]]), e[2]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|[hi, lo, flag, _]| (u16::from_be_bytes([*hi, *lo]), *flag))
         .take_while(|(sector, _)| *sector != 0xFFFF && *sector != 0x0000)
         .map(|(sector, flag)| Entry { sector, enabled: flag == 0x01 })
         .collect()
