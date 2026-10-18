@@ -110,6 +110,7 @@ been.
 
 hrtz isn't made by or affiliated with Zaopin, Logitech or any other mouse maker. "Zaopin", "Logitech",
 "LIGHTSPEED" and the model names are their makers'. The mouse pictures in `src/assets/models` are the
-makers' own product renders, taken from their apps (Zaopin's driver app and Logitech G HUB). They
-aren't covered by this project's licence, and are here only to show which mouse is connected (see
-[`NOTICE.md`](src/assets/models/NOTICE.md)). If a maker asks, theirs will be removed.
+makers' own product renders, taken from their apps and sites (Zaopin's driver app, Logitech G HUB
+and logitechg.com). They aren't covered by this project's licence, and are here only to show which
+mouse is connected (see [`NOTICE.md`](src/assets/models/NOTICE.md)). If a maker asks, theirs will be
+removed.

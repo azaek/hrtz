@@ -11,6 +11,9 @@ import mid6 from "./assets/models/mid6.png";
 import superlightBlack from "./assets/models/superlight-black.webp";
 import superlightMagenta from "./assets/models/superlight-magenta.webp";
 import superlightWhite from "./assets/models/superlight-white.webp";
+import superlight2Black from "./assets/models/superlight2-black.webp";
+import superlight2Pink from "./assets/models/superlight2-pink.webp";
+import superlight2White from "./assets/models/superlight2-white.webp";
 
 export interface ModelArt {
   name: string;
@@ -62,8 +65,16 @@ export const MODEL_ART: Record<number, ModelArt> = {
 const SUPERLIGHT_HOTSPOTS: Record<number, [number, number]> = { 0: [72, 108], 1: [126, 55], 2: [90, 72], 3: [111, 190], 4: [79, 161] };
 const superlight = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT", image, size: [298, 263], hotspots: SUPERLIGHT_HOTSPOTS, view: "viewed from above" });
 
+/** Logitech's top view from its product page, turned the same way; the buttons placed where the
+ *  first Superlight's are on its own shape (see NOTICE.md). */
+const SUPERLIGHT_2_HOTSPOTS: Record<number, [number, number]> = { 0: [72, 109], 1: [126, 54], 2: [90, 72], 3: [111, 191], 4: [78, 162] };
+const superlight2 = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2", image, size: [298, 263], hotspots: SUPERLIGHT_2_HOTSPOTS, view: "viewed from above" });
+
 /** A Logitech's pictures by its USB product ID, then by its colour (the extended model ID). A
  *  colour without its own picture shows the first. */
 const LOGITECH_ART: Record<string, ModelArt[]> = {
   c094: [superlight(superlightBlack), superlight(superlightWhite), superlight(superlightMagenta)],
+  // Assumed in the first Superlight's order (G HUB's data for this one isn't public): to confirm
+  // with an owner.
+  c09b: [superlight2(superlight2Black), superlight2(superlight2White), superlight2(superlight2Pink)],
 };

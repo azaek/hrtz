@@ -60,6 +60,11 @@ const click = (text: string) => {
   return !!b;
 };
 const SCENARIOS: Record<string, () => Promise<void>> = {
+  /** The mouse switcher's list open (with `many` for a long one). */
+  switcher: async () => {
+    document.querySelector<HTMLElement>('[aria-label="Switch mouse"]')?.click();
+    await wait(600);
+  },
   /** A connection check in game mode, stepping down a rate if it needs to. */
   conn: async () => {
     click("Start");
