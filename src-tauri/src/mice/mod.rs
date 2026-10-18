@@ -161,6 +161,10 @@ pub trait Driver: Send {
     fn set_profile_names(&mut self, _board: &Board, _names: &[String]) -> Result<()> {
         unsupported()
     }
+    /// What a test report needs beyond the mouse's memory and state, as its family knows it.
+    fn report(&mut self, _board: &Board) -> Result<serde_json::Value> {
+        Ok(serde_json::Value::Null)
+    }
 
     /// All of the mouse's memory, for a backup; `progress` shows a progress bar.
     fn read_image(&mut self, _board: &Board, _progress: bool) -> Result<Vec<u8>> {

@@ -488,6 +488,18 @@ async fn undo_restore(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, id: Strin
     Ok(written)
 }
 
+/// A test report's reading of mouse `mouse`: its memory and what its family adds (`Worker::report`).
+#[tauri::command]
+async fn mouse_report(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>) -> CmdResult<serde_json::Value> {
+    on_device(&ctx, mouse.as_deref(), |w| w.report()).await
+}
+
+/// Write a test report where the tester picked.
+#[tauri::command]
+fn save_report(path: String, text: String) -> CmdResult<()> {
+    std::fs::write(&path, text).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn rename_backup(ctx: State<'_, Arc<Ctx>>, id: String, note: String) -> CmdResult<BackupMeta> {
     ctx.backups.rename(&id, &note).map_err(err)
@@ -1659,6 +1671,8 @@ pub fn run() {
             supported_mice,
             forget_mouse,
             restore_mouse,
+            mouse_report,
+            save_report,
             set_mouse_prefs,
             set_prefs,
             list_backups,

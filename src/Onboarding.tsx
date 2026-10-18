@@ -278,8 +278,8 @@ export function Onboarding() {
             ))}
             {untested.length > 0 && (
               <Caption1 className={s.muted}>
-                {untested.map((d) => d.model).join(" and ")} {untested.length > 1 ? "haven't" : "hasn't"} been tested yet. If something doesn't work, send a
-                report from Settings.
+                {untested.map((d) => d.model).join(" and ")} {untested.length > 1 ? "haven't" : "hasn't"} been tested yet. You can help: Settings has a 2-minute check that sends what works and what
+                doesn't.
               </Caption1>
             )}
             {zaopinApp ? (

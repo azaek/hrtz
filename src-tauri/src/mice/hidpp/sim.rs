@@ -255,6 +255,12 @@ impl SimMouse {
                 Ok(vec![features.iter().position(|f| *f == want).unwrap_or(0) as u8, 0, 0])
             }
             (feature::ROOT, 0x10) => Ok(vec![4, 2, at(2)]),
+            // The feature set: how many there are past the root, and each by its index.
+            (0x0001, 0x00) => Ok(vec![features.len() as u8 - 1]),
+            (0x0001, 0x10) => match features.get(at(0) as usize) {
+                Some(f) => Ok([f.to_be_bytes().as_slice(), &[0, 0]].concat()),
+                None => Err(0x02),
+            },
             (feature::FIRMWARE, 0x00) => {
                 let [w0, w1] = self.wireless_id.to_be_bytes();
                 let [u0, u1] = self.usb_id.to_be_bytes();

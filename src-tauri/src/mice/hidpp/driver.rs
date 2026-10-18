@@ -1267,6 +1267,51 @@ impl Driver for Connected {
         self.load(board)
     }
 
+    /// For a test report: every feature the mouse lists (by the feature set, 0x0001), getInfo's
+    /// reply, its mode and the profile in use, and each factory profile as read.
+    fn report(&mut self, _board: &Board) -> Result<serde_json::Value> {
+        let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<Vec<_>>().join(" ");
+        let mut features = Vec::new();
+        let set = self.t.feature(0x0001)?;
+        if set != 0 {
+            let count = self.t.request(set, 0x00, &[])?.first().copied().unwrap_or(0);
+            for i in 0..=count {
+                let r = self.t.request(set, 0x10, &[i])?;
+                if r.len() >= 4 {
+                    features.push(serde_json::json!({
+                        "index": i,
+                        "id": format!("{:04x}", u16::from_be_bytes([r[0], r[1]])),
+                        "type": r[2],
+                        "version": r[3],
+                    }));
+                }
+            }
+        }
+        let mut onboard = serde_json::Value::Null;
+        let fi = self.t.feature(feature::ONBOARD_PROFILES)?;
+        if fi != 0 {
+            let info = self.t.request(fi, ob::func::INFO, &[])?;
+            let parsed = Info::parse(&info);
+            let mode = self.t.request(fi, ob::func::GET_MODE, &[]).ok();
+            let current = self.t.request(fi, ob::func::GET_CURRENT, &[]).ok();
+            let mut roms = Vec::new();
+            for r in 0..parsed.rom_count as u16 {
+                let sector = ob::ROM_FIRST + r;
+                roms.push(match self.read_sector(fi, sector, parsed.sector_len()) {
+                    Ok(b) => serde_json::json!({ "sector": format!("{sector:#06x}"), "crcOk": ob::crc_ok(&b), "bytes": hex(&b) }),
+                    Err(e) => serde_json::json!({ "sector": format!("{sector:#06x}"), "refused": format!("{e:#}") }),
+                });
+            }
+            onboard = serde_json::json!({
+                "info": hex(&info),
+                "mode": mode.as_deref().map(hex),
+                "current": current.as_deref().map(hex),
+                "rom": roms,
+            });
+        }
+        Ok(serde_json::json!({ "index": format!("{:#04x}", self.t.index), "features": features, "onboard": onboard }))
+    }
+
     /// Save profile names: each profile whose name differs is rewritten, checked, and read again.
     fn set_profile_names(&mut self, board: &Board, names: &[String]) -> Result<()> {
         let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;

@@ -114,6 +114,20 @@ SCENARIOS.backup = async () => {
 SCENARIOS.update = async () => {
   [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Check for updates"))?.click();
 };
+// Help test from start to finish, on Settings (with ?mouse=superlight&untested): circles, then each
+// button it can see pressed in turn.
+SCENARIOS.participate = async () => {
+  click("Start");
+  await wait(500);
+  lab().circlesAlong();
+  await wait(14000);
+  const press = (b: number) => ({ buttons: [{ button: b, down: true, tUs: 0, dx: 0, dy: 0 }, { button: b, down: false, tUs: 0, dx: 0, dy: 0 }] });
+  for (const b of [0, 1, 2, 3]) {
+    lab().play([press(b)]);
+    await wait(800);
+  }
+  await wait(3000);
+};
 // Removes the mouse shown, which isn't connected (with ?select=<its key>).
 SCENARIOS.remove = async () => {
   click("Remove");

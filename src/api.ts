@@ -612,6 +612,10 @@ export const api = {
   restoreMouse: (mouse: KnownMouse) => invoke<void>("restore_mouse", { mouse }),
   listBackups: () => invoke<BackupMeta[]>("list_backups"),
   createBackup: (note: string) => invoke<BackupMeta>("create_backup", { mouse, note }),
+  /** A test report's reading of the mouse shown: its memory, and its family's facts. */
+  mouseReport: () => invoke<unknown>("mouse_report", { mouse }),
+  /** Write a test report where the tester picked. */
+  saveReport: (path: string, text: string) => invoke<void>("save_report", { path, text }),
   /** Saves the mouse as it is first (an automatic backup), unless it already matches. */
   restoreBackup: (id: string) => invoke<Restored>("restore_backup", { mouse, id }),
   /** Puts back what a restore replaced, from the backup it saved, and drops that backup. */

@@ -22,7 +22,7 @@ import { BatteryIcon } from "./BatteryIcon";
 import { MousePicture } from "./DrawnMouse";
 import { seenAt } from "./format";
 import { linkName } from "./links";
-import { artOf } from "./models";
+import { artOf, ofModel } from "./models";
 import { pickMouse, startFlow, useMouse, useStore } from "./store";
 import { FLYOUT_PADDING } from "./kit";
 
@@ -46,6 +46,9 @@ const useStyles = makeStyles({
     margin: `${tokens.spacingVerticalM} 0 ${tokens.spacingVerticalXS}`,
     color: tokens.colorNeutralForeground3,
   },
+  /** The picture's area, the card's full width: the "Not tested" chip sits in its corner. */
+  artRow: { position: "relative", display: "flex", justifyContent: "center" },
+  untested: { position: "absolute", top: tokens.spacingVerticalS, right: tokens.spacingHorizontalS },
   device: {
     display: "flex",
     flexDirection: "column",
@@ -123,6 +126,19 @@ function RateBadge({ d }: { d: DeviceState }) {
   );
 }
 
+/** A model hrtz lists but hasn't been tried on: Settings has its check. */
+function UntestedBadge({ d }: { d: DeviceState }) {
+  const s = useStyles();
+  const untested = useStore((st) => st.supported.some((m) => ofModel(d.key, m.key) && !m.tested));
+  if (!untested) return null;
+  const label = "hrtz hasn't been tried on this model yet. Help test it in Settings.";
+  return (
+    <Badge className={mergeClasses(s.rate, s.rateIdle, s.untested)} appearance="tint" shape="rounded" color="informative" title={label} aria-label={label}>
+      Not tested
+    </Badge>
+  );
+}
+
 /** The mouse the window shows, as the pane's card: its picture, how it's connected, its battery. */
 function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"div">) {
   const s = useStyles();
@@ -132,8 +148,11 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
   const b = d?.connected ? d.battery : null;
   return (
     <div className={s.card} role="button" tabIndex={0} {...rest}>
-      <div className={s.art}>
-        <MousePicture image={artOf(d?.key, d?.variant)?.image} width={176} none={!d} />
+      <div className={s.artRow}>
+        <div className={s.art}>
+          <MousePicture image={artOf(d?.key, d?.variant)?.image} width={176} none={!d} />
+        </div>
+        {d?.connected && <UntestedBadge d={d} />}
       </div>
       <div className={s.device}>
         <div className={s.modelRow}>

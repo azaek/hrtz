@@ -429,6 +429,19 @@ impl Worker {
         Ok(self.board.read().settings.clone().unwrap())
     }
 
+    /// A test report's reading of the mouse: its whole memory (with a progress bar) and what its
+    /// family adds.
+    pub fn report(&mut self) -> Result<serde_json::Value> {
+        use base64::Engine as _;
+        let image = self.read_image(true)?;
+        let more = self.drive(|d, b| d.report(b))?;
+        Ok(serde_json::json!({
+            "memorySize": image.len(),
+            "memory": base64::engine::general_purpose::STANDARD.encode(&image),
+            "family": more,
+        }))
+    }
+
     /// Save profile names on the mouse, where it keeps them (by profile; one unchanged is left).
     pub fn set_profile_names(&mut self, names: &[String]) -> Result<()> {
         self.require_online()?;

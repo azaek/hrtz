@@ -617,6 +617,18 @@ fn names_saved_here_go_onto_the_mouse_and_read_back() {
 }
 
 #[test]
+fn a_test_report_holds_the_memory_and_what_the_mouse_lists() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    let report = r.w.report().unwrap();
+    assert_eq!(report["memorySize"], 16 + 16 * 255);
+    let family = &report["family"];
+    let ids: Vec<&str> = family["features"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert!(ids.contains(&"8100") && ids.contains(&"1d4b"), "{ids:?}");
+    assert_eq!(family["onboard"]["rom"][0]["crcOk"], false, "kept with no checksum, as read");
+    assert!(family["onboard"]["info"].as_str().unwrap().starts_with("01 04"));
+}
+
+#[test]
 fn factory_settings_put_the_factory_profile_over_every_profile() {
     let mut r = Rig::connected(SimMouse::superlight());
     assert!(r.state().capabilities.unwrap().factory_reset, "getInfo counts one factory profile");

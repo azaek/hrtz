@@ -8,7 +8,6 @@ import {
   Delete20Regular,
   Desktop20Regular,
   Info20Regular,
-  PersonFeedback20Regular,
   PlugConnected20Regular,
   Power20Regular,
   Wifi120Regular,
@@ -24,6 +23,7 @@ import { reportUrl, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { forgetMouse, restoreMouse, run, savePrefs, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
+import { ParticipateCard } from "../participate/ParticipateCard";
 import { AppCard } from "./AppCard";
 
 const muted = { color: "var(--colorNeutralForeground3)" };
@@ -168,6 +168,8 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       </Group>
 
       <Group title="Mouse">
+        {/* A model hrtz lists but hasn't been tried on: its owner's check is what makes it supported. */}
+        {untested && device && <ParticipateCard device={device} />}
         {removed && (
           <div className="tw px-1 py-1 text-xs">
             <UndoNote onUndo={() => undoRemove(removed)}>Removed {removed.model}.</UndoNote>
@@ -268,15 +270,6 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         <SettingCard icon={<Bug20Regular />} title="Report a problem" description="Opens a GitHub issue with your hrtz version, mouse and Windows filled in.">
           <Button onClick={() => report("bug_report")}>Report</Button>
         </SettingCard>
-        {untested && (
-          <SettingCard
-            icon={<PersonFeedback20Regular />}
-            title={`Your ${untested} isn't tested yet`}
-            description="A short report on what works helps make it supported."
-          >
-            <Button onClick={() => report("mouse_report")}>Send a report</Button>
-          </SettingCard>
-        )}
       </Group>
 
       <Caption1 style={{ ...muted, padding: "8px 2px 0" }}>

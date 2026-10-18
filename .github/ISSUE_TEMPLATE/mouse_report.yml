@@ -1,11 +1,13 @@
 name: Report how your mouse works
-description: hrtz with your Zaopin mouse, especially a model that isn't tested yet.
+description: hrtz with your mouse, especially a model that isn't tested yet.
 labels: ["mouse report"]
 body:
   - type: markdown
     attributes:
       value: |
-        hrtz is tested on the **Z1 PRO MAX**. The Z1 PRO, Z2, Z2 mini, Z2 MAX and Z2 mini MAX use the same protocol and should work, but nobody has tried them yet. A report from any of them tells us what to fix before calling it supported.
+        hrtz is tested on the **Zaopin Z1 PRO MAX** and the **Logitech PRO X SUPERLIGHT**. The other models it lists should work, but nobody has tried them yet. A report from any of them tells us what to fix before calling it supported.
+
+        The quickest report: **Settings → Mouse → Help test your …** runs a 2-minute check and saves a report file. Its summary fills in below; drag the file it saved into the box too.
 
         hrtz backs your mouse up the first time it connects (Settings → Backups), so you can put everything back.
   - type: input
@@ -15,6 +17,12 @@ body:
       placeholder: Z2 mini
     validations:
       required: true
+  - type: textarea
+    id: check
+    attributes:
+      label: hrtz's check
+      description: Filled in by Help test. Drag the report file it saved in here too.
+      render: text
   - type: input
     id: firmware
     attributes:
@@ -34,12 +42,13 @@ body:
       options:
         - label: The mouse is recognised, with the right name and picture
         - label: Battery level and charging
-        - label: DPI stages, and the DPI button cycles them
+        - label: DPI stages, and the DPI button if it has one
         - label: Polling rate
         - label: Lift-off distance, sensor mode, motion sync, angle snapping, ripple control
         - label: Click debounce and the peak performance timeout
         - label: Buttons
         - label: Profiles
+        - label: Backups and factory settings
         - label: Sleep after
         - label: The in-game HUD
   - type: textarea

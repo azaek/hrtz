@@ -11,7 +11,7 @@ export type ReportForm = "bug_report" | "mouse_report";
  * hrtz knows: its version, the mouse, its firmware, the connection and Windows. GitHub fills a
  * form's field from the query parameter named as the field's `id`.
  */
-export async function reportUrl(form: ReportForm, device: DeviceState | null): Promise<string> {
+export async function reportUrl(form: ReportForm, device: DeviceState | null, more: Record<string, string> = {}): Promise<string> {
   const [version, windows] = await Promise.all([getVersion().catch(() => ""), api.windowsVersion().catch(() => "")]);
   const fields: [string, string | null | undefined][] = [
     ["template", `${form}.yml`],
@@ -20,6 +20,7 @@ export async function reportUrl(form: ReportForm, device: DeviceState | null): P
     ["firmware", device?.connected ? device.firmware : null],
     ["connection", device?.connected ? linkName(device) : null],
     ["windows", windows],
+    ...Object.entries(more),
   ];
   const query = fields
     .filter((f): f is [string, string] => !!f[1])

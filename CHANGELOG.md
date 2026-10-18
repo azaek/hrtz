@@ -17,6 +17,7 @@ Notes for the next version go under `## Unreleased
 - Backups for Logitech mice: every onboard profile, saved when the mouse first connects and whenever you like, and restored with Undo. Each mouse lists only its own model's backups.
 - Restore factory settings for Logitech mice: the mouse's own factory profile goes back over each profile, after a backup.
 - The Battery page and the HUD show Logitech's own battery-life figure for the first PRO X SUPERLIGHT until hrtz has measured yours.
+- Help test a mouse hrtz hasn't been tried on: a "Not tested" badge on its card, and in Settings a 2-minute check on a full screen (movement, each button, one setting changed and put back) that saves a report to send in a GitHub issue.
 - A warning while G HUB is running, and when G HUB is controlling a Logitech mouse (with its On-board memory mode off), changes made in hrtz wait until it lets go.
 
 ### Improved

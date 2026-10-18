@@ -763,7 +763,8 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
           brand: "Logitech",
           model,
           key: `hidpp/${["c094", "c09b", "c0a0"][i]}`,
-          tested: i === 0,
+          // `?untested`: the stand-in Superlight as a model nobody has tried, for Help test.
+          tested: i === 0 && !new URLSearchParams(location.search).has("untested"),
         })),
       );
     case "get_mice":
@@ -803,6 +804,16 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       return args.settings;
     case "set_profile":
       pushDevice({ profile: args.index as number });
+      return null;
+    case "mouse_report":
+      // As the app reads it: the whole memory (with a progress bar), then the family's facts.
+      await progress(4096);
+      return {
+        memorySize: 4096,
+        memory: "",
+        family: { index: "0x01", features: [{ index: 7, id: "8100", type: 0, version: 0 }], onboard: { info: "01 04 01 05 01 05 10 00 ff 0a 04", rom: [] } },
+      };
+    case "save_report":
       return null;
     case "list_backups":
       return fake.backups.map(({ settings: _, ...meta }) => meta);
