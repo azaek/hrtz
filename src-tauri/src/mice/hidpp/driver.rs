@@ -822,6 +822,7 @@ impl Connected {
         let mut settings = Settings::default();
         caps.profiles = (count > 0).then_some(count.min(u8::MAX as usize) as u8);
         caps.backups = ob::writable(format);
+        caps.factory_reset = ob::writable(format) && o.info.rom_count > 0;
         if ob::writable(format) {
             let (at, room) = buttons::table(format);
             let count = o.info.button_count.min(room as u8);
@@ -1190,6 +1191,39 @@ impl Driver for Connected {
             self.load(board)?;
         }
         Ok(changed.len())
+    }
+
+    /// Factory settings: the mouse's own factory profile (its ROM profile, the first for a profile
+    /// past the ROM's count) written over each profile it lists, then the first one selected. The
+    /// factory profiles are read and checked before anything is written.
+    fn factory_reset(&mut self, board: &Board) -> Result<()> {
+        let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;
+        let (fi, len, roms, directory) = (o.feature, o.info.sector_len(), o.info.rom_count, o.directory.clone());
+        if !ob::writable(o.info.format) || roms == 0 || directory.is_empty() {
+            bail!("hrtz can't restore this mouse's factory settings yet.");
+        }
+        let mut factory = Vec::new();
+        for r in 0..roms as u16 {
+            let bytes = self
+                .read_sector(fi, ob::ROM_FIRST + r, len)
+                .context("The mouse didn't hand over its factory profile, so nothing was changed.")?;
+            if !ob::crc_ok(&bytes) {
+                bail!("Its factory profile failed its checksum, so nothing was changed.");
+            }
+            factory.push(bytes);
+        }
+        for (i, e) in directory.iter().enumerate() {
+            let bytes = &factory[i.min(factory.len() - 1)];
+            if self.read_sector(fi, e.sector, len)? != *bytes {
+                self.write_sector(fi, e.sector, bytes)?;
+                if self.read_sector(fi, e.sector, len)? != *bytes {
+                    bail!("The mouse didn't keep profile {} as written.", i + 1);
+                }
+            }
+            board.publish(Some(DeviceEvent::Progress { done: i + 1, total: directory.len() }));
+        }
+        self.t.request(fi, ob::func::SET_CURRENT, &directory[0].sector.to_be_bytes())?;
+        self.load(board)
     }
 
     /// Switch to the profile at `index` in the directory. This writes nothing to flash.

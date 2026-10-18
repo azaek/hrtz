@@ -34,6 +34,10 @@ pub mod func {
 pub const MODE_ONBOARD: u8 = 0x01;
 pub const MODE_HOST: u8 = 0x02;
 
+/// Where the factory (ROM) profiles are read: 0x0101 for the first. G HUB falls back to them when a
+/// profile won't read (GHUB.md); libratbag reads them the same way. Not written.
+pub const ROM_FIRST: u16 = 0x0101;
+
 /// memoryRead hands back 16 bytes at a time; memoryWrite takes 16.
 pub const CHUNK: usize = 16;
 
@@ -44,6 +48,8 @@ pub struct Info {
     pub format: u8,
     pub macro_format: u8,
     pub profile_count: u8,
+    /// Factory profiles kept in read-only memory, read from `ROM_FIRST` on.
+    pub rom_count: u8,
     pub button_count: u8,
     pub sector_count: u8,
     pub sector_size: u16,
@@ -58,6 +64,7 @@ impl Info {
             format: at(1),
             macro_format: at(2),
             profile_count: at(3),
+            rom_count: at(4),
             button_count: at(5),
             sector_count: at(6),
             sector_size: u16::from_be_bytes([at(7), at(8)]),

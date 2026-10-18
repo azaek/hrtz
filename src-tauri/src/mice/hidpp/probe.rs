@@ -1,7 +1,8 @@
 //! A read-only record of what a Logitech mouse says, for its first session on hardware and as test
 //! fixtures (PLAN-mice.md, section 6). It only asks: feature lookups, and reads of identity, name,
-//! firmware, battery, DPI, report rates and the onboard profiles' memory. It changes no setting,
-//! selects no profile and writes nothing to the mouse's memory.
+//! firmware, battery, DPI, report rates and the onboard memory (every sector, and the factory
+//! profiles from 0x0101). It changes no setting, selects no profile and writes nothing to the
+//! mouse's memory.
 //!
 //! With the mouse on its receiver or cable, and G HUB closed (its traffic is recorded too, but it
 //! can switch the mouse to host mode):
@@ -208,16 +209,24 @@ fn probe_connection(api: &HidApi, long: &hidapi::DeviceInfo) -> Value {
         a.ask("mode", i, fi, func::GET_MODE, &[], WAIT);
         a.ask("current profile", i, fi, func::GET_CURRENT, &[], WAIT);
         let len = info.sector_len();
-        if let Some(dir) = a.sector(i, fi, 0, len) {
-            let listed: Vec<u16> = ob::directory(&dir).iter().map(|e| e.sector).collect();
-            sectors.push(json!({ "sector": 0, "crcOk": ob::crc_ok(&dir), "bytes": hex(&dir) }));
-            for s in listed {
-                if let Some(b) = a.sector(i, fi, s, len) {
-                    sectors.push(json!({ "sector": s, "crcOk": ob::crc_ok(&b), "bytes": hex(&b) }));
-                }
+        // Every sector, as a backup reads them (erased ones as 0xFF), then the factory profiles.
+        let every = (0..info.sector_count as u16).chain((0..info.rom_count as u16).map(|r| ob::ROM_FIRST + r));
+        for s in every {
+            match a.sector(i, fi, s, len) {
+                Some(b) => sectors.push(json!({
+                    "sector": s,
+                    "crcOk": ob::crc_ok(&b),
+                    "erased": b.iter().all(|x| *x == 0xFF),
+                    "bytes": hex(&b),
+                })),
+                None => sectors.push(json!({ "sector": s, "refused": true })),
             }
         }
-        println!("  profile format {}, {} sectors read", info.format, sectors.len());
+        println!(
+            "  profile format {}, {} sectors asked for (the factory ones from 0x0101)",
+            info.format,
+            sectors.len()
+        );
     }
 
     // What the mouse sends by itself.

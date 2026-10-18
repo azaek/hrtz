@@ -118,6 +118,7 @@ fn reads_get_info() {
             format: 7,
             macro_format: 1,
             profile_count: 5,
+            rom_count: 1,
             button_count: 5,
             sector_count: 16,
             sector_size: 255
@@ -429,7 +430,8 @@ fn a_superlight_on_its_receiver_is_met_and_read() {
     assert_eq!((dpi.min, dpi.max, dpi.step, dpi.max_stages, dpi.colors), (100, 25600, 50, 5, false));
     assert_eq!(caps.polling.unwrap().rates, [125, 250, 500, 1000]);
     assert!(caps.backups, "its onboard memory");
-    assert!(!caps.factory_reset && !caps.pairing && caps.lod.is_none());
+    assert!(caps.factory_reset, "from its factory profile");
+    assert!(!caps.pairing && caps.lod.is_none());
     let names: Vec<String> = caps.buttons.clone().unwrap().into_iter().map(|(_, n)| n).collect();
     assert_eq!(names, ["Left", "Right", "Wheel click", "Back", "Forward"], "getInfo's five");
 
@@ -570,6 +572,32 @@ fn a_button_set_here_is_written_into_the_profile_and_kept() {
     buttons[4] = ButtonAction::Scroll { direction: ScrollDirection::Up };
     assert!(r.w.apply_settings(&Settings { buttons: Some(buttons), ..r.settings() }).is_err());
     assert!(!r.profile_calls_since(from).contains(&ob::func::WRITE));
+}
+
+#[test]
+fn factory_settings_put_the_factory_profile_over_every_profile() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    assert!(r.state().capabilities.unwrap().factory_reset, "getInfo counts one factory profile");
+    r.w.set_profile(2).unwrap();
+    r.w.factory_reset().unwrap();
+    for s in 1..=5 {
+        assert_eq!(r.sector(s), fx::superlight_c547_factory(), "profile {s}");
+    }
+    assert_eq!(r.sector(0), fx::superlight_c547_directory(), "the directory is left as it is");
+    assert_eq!(r.mouse.lock().current, 1, "the first profile, selected");
+    assert_eq!(dpis(&r.settings()), [400, 800, 1600, 3200, 6400]);
+}
+
+#[test]
+fn factory_settings_write_nothing_without_the_factory_profile() {
+    let mut m = SimMouse::superlight();
+    m.sectors.remove(&ob::ROM_FIRST);
+    let mut r = Rig::connected(m);
+    let (from, _) = r.mark();
+    let e = r.w.factory_reset().unwrap_err();
+    assert!(format!("{e:#}").contains("nothing was changed"));
+    assert!(!r.profile_calls_since(from).contains(&ob::func::WRITE));
+    assert_eq!(r.sector(1), fx::superlight_c547_profile());
 }
 
 #[test]

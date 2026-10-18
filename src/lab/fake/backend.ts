@@ -85,7 +85,7 @@ const SUPERLIGHT: DeviceState = {
     battery: true,
     longRange: false,
     pairing: false,
-    factoryReset: false,
+    factoryReset: true,
     backups: true,
   },
 } as unknown as DeviceState;

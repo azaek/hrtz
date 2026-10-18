@@ -15,6 +15,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - The tray, the HUD and the pop-ups follow the mouse you're using.
 - Logitech's PRO X SUPERLIGHT and PRO X SUPERLIGHT 2, on their LIGHTSPEED receivers or cables: DPI stages, polling rate, profiles and battery. Settings are saved in the mouse's own profile, so they stay without hrtz running. The SUPERLIGHT 2 hasn't been tried on a real one yet.
 - Buttons for Logitech mice: set each button to a mouse button, DPI up, down, cycle or default stage, tilt left or right, a key with modifiers, a media key, the next, previous or cycling profile, or nothing. What G HUB set that hrtz can't edit yet (macros, G-Shift, DPI Shift) is kept as it is.
+- Restore factory settings for Logitech mice: the mouse's own factory profile goes back over each profile, after a backup.
 - Backups for Logitech mice: every onboard profile, saved when the mouse first connects and whenever you like, and restored with Undo. Each mouse lists only its own model's backups.
 - A warning while G HUB is running, and when G HUB is controlling a Logitech mouse (with its On-board memory mode off), changes made in hrtz wait until it lets go.
 

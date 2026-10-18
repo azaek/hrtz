@@ -223,7 +223,9 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
             title="Restore factory settings"
             description={
               !resetting
-                ? "Resets DPI, polling, buttons and macros to factory defaults."
+                ? family === "hidpp"
+                  ? "Resets every profile's DPI, polling rate and buttons to factory defaults."
+                  : "Resets DPI, polling, buttons and macros to factory defaults."
                 : progress
                   ? `Saving a backup first · ${Math.round((progress[0] / progress[1]) * 100)}%`
                   : "Restoring factory settings…"
@@ -288,7 +290,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
             <DialogTitle>Restore factory settings?</DialogTitle>
             <DialogContent>
               <Body1>
-                Everything on the mouse returns to its defaults, including buttons and macros. A backup is saved first, so you can restore this setup from Backups below.
+                {family === "hidpp" ? "Every profile on the mouse returns to its defaults, including its buttons." : "Everything on the mouse returns to its defaults, including buttons and macros."} A backup is saved first, so you can restore this setup from Backups below.
               </Body1>
             </DialogContent>
             <DialogActions>
