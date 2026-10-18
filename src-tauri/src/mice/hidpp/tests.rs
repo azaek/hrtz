@@ -404,6 +404,12 @@ fn with_stages(s: &Settings, list: &[u32], in_use: u8) -> Settings {
     Settings { stages: Some(slots), dpi_stage_count: Some(list.len() as u8), dpi_stage: Some(in_use), ..s.clone() }
 }
 
+#[test]
+fn only_the_first_superlight_has_been_tried() {
+    let tried: Vec<_> = super::models::supported().into_iter().filter(|m| m.tested).map(|m| m.key).collect();
+    assert_eq!(tried, ["hidpp/c094"]);
+}
+
 /// What hrtz's driver read from the user's Superlight in the probe (2026-10-18), but the unit ID:
 /// the simulated one answers as that mouse did.
 #[test]
@@ -414,6 +420,7 @@ fn a_superlight_on_its_receiver_is_met_and_read() {
     assert_eq!(s.key.as_deref(), Some("hidpp/c094/1a2b3c4d"));
     assert_eq!(s.model.as_deref(), Some("PRO X SUPERLIGHT"));
     assert_eq!(s.firmware.as_deref(), Some("MPM 25.02"), "the main application, though the bootloader is listed first");
+    assert_eq!(s.variant, Some(1), "white, by its extended model ID");
     assert_eq!(s.profile, Some(0));
     let caps = s.capabilities.clone().unwrap();
     assert!(!caps.wired && caps.battery);

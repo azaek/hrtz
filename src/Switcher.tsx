@@ -133,7 +133,7 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
   return (
     <div className={s.card} role="button" tabIndex={0} {...rest}>
       <div className={s.art}>
-        <MousePicture image={artOf(d?.key)?.image} width={176} none={!d} />
+        <MousePicture image={artOf(d?.key, d?.variant)?.image} width={176} none={!d} />
       </div>
       <div className={s.device}>
         <div className={s.modelRow}>
@@ -210,7 +210,7 @@ export function Switcher() {
               <MenuItemRadio key={m.key} name="mouse" value={m.key}>
                 <span className={s.menuItem}>
                   <span className={s.thumb}>
-                    <MousePicture image={artOf(m.key)?.image} width={44} />
+                    <MousePicture image={artOf(m.key, m.last?.variant)?.image} width={44} />
                   </span>
                   <span className={s.rowText}>
                     <Body1 className={s.model}>{m.model}</Body1>

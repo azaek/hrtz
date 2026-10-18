@@ -130,6 +130,8 @@ export interface DeviceState {
   cid: number;
   mid: number;
   deviceType: number;
+  /** Which of its model's looks it is, where the mouse says: a Logitech's colour, for its picture. */
+  variant?: number | null;
   firmware: string | null;
   battery: Battery | null;
   profile: number | null;

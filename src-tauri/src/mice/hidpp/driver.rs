@@ -411,6 +411,8 @@ struct Identity {
     unit: Option<String>,
     wireless: Option<u16>,
     usb: Option<u16>,
+    /// The extended model ID: the colour, for a model that comes in several (0 is the first).
+    variant: Option<u8>,
 }
 
 fn identity(t: &mut Hidpp) -> Result<Identity> {
@@ -424,7 +426,8 @@ fn identity(t: &mut Hidpp) -> Result<Identity> {
     }
     let unit: String = r[1..5].iter().map(|b| format!("{b:02x}")).collect();
     let (flags, ids) = (r[6], &r[7..13]);
-    let mut id = Identity { unit: (unit != "00000000").then_some(unit), ..Default::default() };
+    let mut id =
+        Identity { unit: (unit != "00000000").then_some(unit), variant: r.get(13).copied(), ..Default::default() };
     let mut at = 0;
     // Bluetooth, Bluetooth LE, LIGHTSPEED, USB: each the link has takes the next two bytes.
     for flag in [0x01, 0x02, 0x04, 0x08] {
@@ -526,6 +529,7 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
             key: Some(key),
             connected: true,
             model: Some(model),
+            variant: id.variant,
             capabilities: Some(Capabilities { wired, battery, wake_by_input, ..Default::default() }),
             #[cfg(windows)]
             port: opened.port,

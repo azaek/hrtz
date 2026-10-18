@@ -55,6 +55,10 @@ pub struct DeviceState {
     pub cid: u8,
     pub mid: u8,
     pub device_type: u8,
+    /// Which of its model's looks it is, where the mouse says: a Logitech's colour (its extended
+    /// model ID), for its picture.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variant: Option<u8>,
     pub firmware: Option<String>,
     pub battery: Option<Battery>,
     pub profile: Option<u8>,

@@ -1688,6 +1688,7 @@ mod lab {
             cid: 7,
             mid: 4,
             device_type: 5,
+            variant: None,
             firmware: Some("2.17".into()),
             battery: Some(Battery {
                 level,

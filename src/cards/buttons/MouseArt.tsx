@@ -40,7 +40,7 @@ export function MouseArt(props: {
   const numberOf = (i: number) => props.buttons.findIndex(([b]) => b === i) + 1;
   return (
     <div className="relative shrink-0" style={{ width: props.width, height: (props.width * h) / w }}>
-      <img src={props.art.image} alt={`${props.art.name}, viewed from the left`} className="pointer-events-none size-full select-none" draggable={false} />
+      <img src={props.art.image} alt={`${props.art.name}, ${props.art.view ?? "viewed from the left"}`} className="pointer-events-none size-full select-none" draggable={false} />
       {props.buttons
         .filter(([i]) => i !== DPI_BUTTON && props.art.hotspots[i])
         .map(([i, name]) => {

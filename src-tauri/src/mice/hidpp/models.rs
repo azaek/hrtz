@@ -36,7 +36,9 @@ pub fn model_key(usb_id: u16) -> String {
     format!("hidpp/{usb_id:04x}")
 }
 
-/// None tried on a real mouse yet.
+/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18).
+const TESTED: [u16; 1] = [0xC094];
+
 pub fn supported() -> Vec<Supported> {
     CABLED
         .iter()
@@ -45,7 +47,7 @@ pub fn supported() -> Vec<Supported> {
             brand: "Logitech",
             model: name,
             key: model_key(*pid),
-            tested: false,
+            tested: TESTED.contains(pid),
         })
         .collect()
 }

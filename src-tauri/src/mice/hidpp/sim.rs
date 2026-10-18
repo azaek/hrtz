@@ -40,6 +40,8 @@ pub struct SimMouse {
     pub unit: [u8; 4],
     pub wireless_id: u16,
     pub usb_id: u16,
+    /// The extended model ID: the colour.
+    pub colour: u8,
     pub name: &'static str,
     pub battery: Battery,
     /// 0x2202 and 0x8061, as the Superlight 2; else 0x2201 and 0x8060, as the first.
@@ -91,6 +93,8 @@ impl SimMouse {
             unit: [0x1A, 0x2B, 0x3C, 0x4D],
             wireless_id: 0x4093,
             usb_id: 0xC094,
+            // White, as the user's.
+            colour: 1,
             name: "PRO X Wireless",
             battery: Battery::Unified { percent: 44, status: 0 },
             extended: false,
@@ -132,6 +136,7 @@ impl SimMouse {
             unit: [0x5E, 0x6F, 0x70, 0x81],
             wireless_id: 0x40A9,
             usb_id: 0xC09B,
+            colour: 0,
             name: "PRO X SUPERLIGHT 2",
             battery: Battery::Unified { percent: 72, status: 0 },
             extended: true,
@@ -237,7 +242,7 @@ impl SimMouse {
                 let [u0, u1] = self.usb_id.to_be_bytes();
                 let mut v = vec![4];
                 v.extend_from_slice(&self.unit);
-                v.extend_from_slice(&[0, 0x0C, w0, w1, u0, u1, 0, 0]);
+                v.extend_from_slice(&[0, 0x0C, w0, w1, u0, u1, 0, 0, self.colour, 0]);
                 Ok(v)
             }
             // The bootloader first, then something unnamed, the main application, the hardware.

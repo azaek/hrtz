@@ -244,7 +244,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       </Group>
 
       <Caption1 style={{ ...muted, padding: "8px 2px 0" }}>
-        hrtz isn't affiliated with Zaopin or any other mouse maker. Mouse images and model names belong to their makers and are shown only to identify your mouse.
+        hrtz isn't affiliated with Zaopin, Logitech or any other mouse maker. Mouse images and model names belong to their makers and are shown only to identify your mouse.
       </Caption1>
 
       {/* Factory reset is device-wide, so it's the one thing that asks first. */}

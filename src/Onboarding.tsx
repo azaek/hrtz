@@ -257,7 +257,7 @@ export function Onboarding() {
           <div className={s.heroRow}>
             {found.map((d) => (
               <div key={d.key} className={s.heroItem}>
-                <MousePicture image={artOf(d.key)?.image} width={one ? 240 : 170} />
+                <MousePicture image={artOf(d.key, d.variant)?.image} width={one ? 240 : 170} />
                 {!one && <Body1Strong>{d.model}</Body1Strong>}
               </div>
             ))}

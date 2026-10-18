@@ -54,6 +54,7 @@ const SUPERLIGHT: DeviceState = {
   cid: 0,
   mid: 0,
   deviceType: 0,
+  variant: 1,
   firmware: "MPM 25.01",
   battery: { level: 80, rawLevel: 80, charging: false, millivolts: 3989 },
   profile: 0,
@@ -740,7 +741,7 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
           brand: "Logitech",
           model,
           key: `hidpp/${["c094", "c09b", "c0a0"][i]}`,
-          tested: false,
+          tested: i === 0,
         })),
       );
     case "get_mice":

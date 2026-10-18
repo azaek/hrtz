@@ -1,8 +1,8 @@
 import { ButtonsPanel } from "@/cards/buttons/ButtonsPanel";
-import { MODEL_ART } from "@/models";
+import { artOf } from "@/models";
 import { useStore } from "@/store";
 
 export function ButtonsPage() {
   const device = useStore((x) => x.device!);
-  return <ButtonsPanel s={device.settings!} caps={device.capabilities!} art={MODEL_ART[device.mid]} online={device.online} />;
+  return <ButtonsPanel s={device.settings!} caps={device.capabilities!} art={artOf(device.key, device.variant)} online={device.online} />;
 }

@@ -12,7 +12,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - Each mouse keeps its own profile names, app rules, battery saver and battery history.
 - A mouse that isn't connected shows its last settings.
 - The tray, the HUD and the pop-ups follow the mouse you're using.
-- Logitech's PRO X SUPERLIGHT and PRO X SUPERLIGHT 2, on their LIGHTSPEED receivers or cables: DPI stages, polling rate, profiles and battery. Settings are saved in the mouse's own profile, so they stay without hrtz running.
+- Logitech's PRO X SUPERLIGHT and PRO X SUPERLIGHT 2, on their LIGHTSPEED receivers or cables: DPI stages, polling rate, profiles and battery. Settings are saved in the mouse's own profile, so they stay without hrtz running. The SUPERLIGHT 2 hasn't been tried on a real one yet.
 
 ### Improved
 - Backups, restores and factory settings show their progress where you started them.
