@@ -84,9 +84,7 @@ impl SimMouse {
         for s in 2..=5 {
             sectors.insert(s, fixtures::superlight_c547_factory());
         }
-        // Its factory (ROM) profile: taken to be what profiles 2 to 5 came as. To confirm with the
-        // probe, which reads it.
-        sectors.insert(ob::ROM_FIRST, fixtures::superlight_c547_factory());
+        sectors.insert(ob::ROM_FIRST, fixtures::superlight_c547_rom());
         Self {
             product_id: 0xC547,
             slot: p::FIRST_SLOT,

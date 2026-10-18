@@ -1233,17 +1233,23 @@ impl Driver for Connected {
     /// factory profiles are read and checked before anything is written.
     fn factory_reset(&mut self, board: &Board) -> Result<()> {
         let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;
-        let (fi, len, roms, directory) = (o.feature, o.info.sector_len(), o.info.rom_count, o.directory.clone());
+        let (fi, len, roms, format, directory) =
+            (o.feature, o.info.sector_len(), o.info.rom_count, o.info.format, o.directory.clone());
         if !ob::writable(o.info.format) || roms == 0 || directory.is_empty() {
             bail!("hrtz can't restore this mouse's factory settings yet.");
         }
         let mut factory = Vec::new();
         for r in 0..roms as u16 {
-            let bytes = self
+            let mut bytes = self
                 .read_sector(fi, ob::ROM_FIRST + r, len)
                 .context("The mouse didn't hand over its factory profile, so nothing was changed.")?;
-            if !ob::crc_ok(&bytes) {
-                bail!("Its factory profile failed its checksum, so nothing was changed.");
+            // Kept with its checksum's place erased: the user's Superlight's held what its untouched
+            // profiles hold, but FF FF there (the probe, 2026-10-18). Profiles carry one: it's added.
+            if ob::stored_crc(&bytes) == 0xFFFF && !backup::erased(&bytes) {
+                ob::apply_crc(&mut bytes);
+            }
+            if !ob::crc_ok(&bytes) || ob::decode(&bytes, format).stages.is_empty() {
+                bail!("Its factory profile doesn't read as a profile, so nothing was changed.");
             }
             factory.push(bytes);
         }

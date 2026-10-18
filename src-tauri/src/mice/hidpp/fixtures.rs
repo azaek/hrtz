@@ -175,6 +175,15 @@ pub fn superlight_c547_profile() -> Vec<u8> {
     )
 }
 
+/// Its factory (ROM) profile, read at 0x0101 by the probe (2026-10-18): what profiles 2 to 5 came
+/// as, but its checksum's place erased (FF FF, not 0x60E7).
+pub fn superlight_c547_rom() -> Vec<u8> {
+    let mut rom = superlight_c547_factory();
+    let n = rom.len();
+    rom[n - 2..].copy_from_slice(&[0xFF, 0xFF]);
+    rom
+}
+
 /// Its profiles 2 to 5, as they came: stages 400, 800, 1,600, 3,200 and 6,400, the second the
 /// default, 1,000 Hz, no name. CRC 0x60e7.
 pub fn superlight_c547_factory() -> Vec<u8> {
