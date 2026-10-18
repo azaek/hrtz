@@ -9,7 +9,7 @@ Notes for the next version go under `## Unreleased
 - Setting up a mouse is a full-page guide, on first run and for each new mouse, with its first backup.
 - Each mouse keeps its own profile names, app rules, battery saver and battery history.
 - A mouse that isn't connected shows its last settings.
-- Remove a mouse you no longer use: Settings shows Remove while it's unplugged, with Undo.
+- Remove a mouse you no longer use, from its ⋯ in the mouse list or from Settings, while it's unplugged, with Undo.
 - The tray, the HUD and the pop-ups follow the mouse you're using.
 - Logitech's PRO X SUPERLIGHT and PRO X SUPERLIGHT 2, on their LIGHTSPEED receivers or cables, each shown in its own colour: DPI stages, polling rate, profiles and battery. Settings are saved in the mouse's own profiles, so they stay without hrtz running. The SUPERLIGHT 2 hasn't been tried on a real one yet.
 - Buttons for Logitech mice: set each button to a mouse button, DPI up, down, cycle or default stage, tilt left or right, a key with modifiers, a media key, the next, previous or cycling profile, or nothing. What G HUB set that hrtz can't edit yet (macros, G-Shift, DPI Shift) is kept as it is.
