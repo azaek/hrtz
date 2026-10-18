@@ -643,6 +643,17 @@ fn factory_settings_write_nothing_without_the_factory_profile() {
 }
 
 #[test]
+fn a_factory_profile_that_isnt_one_is_refused() {
+    for rom in [vec![0xFF; 255], vec![0x00; 255]] {
+        let mut m = SimMouse::superlight();
+        m.sectors.insert(ob::ROM_FIRST, rom);
+        let mut r = Rig::connected(m);
+        assert!(r.w.factory_reset().is_err());
+        assert_eq!(r.sector(1), fx::superlight_c547_profile(), "nothing written");
+    }
+}
+
+#[test]
 fn a_backup_holds_every_sector_and_a_restore_puts_back_what_changed() {
     let mut r = Rig::connected(SimMouse::superlight());
     assert!(r.state().capabilities.unwrap().backups);
