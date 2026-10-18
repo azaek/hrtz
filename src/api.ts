@@ -321,6 +321,8 @@ export type AutoReason = { kind: "first" } | { kind: "restore"; note: string; cr
 export interface BackupMeta {
   id: string;
   created: string;
+  /** The mouse it's from; none for a backup from before several mice (a Zaopin's). */
+  key: string | null;
   model: string;
   firmware: string;
   profile: number | null;

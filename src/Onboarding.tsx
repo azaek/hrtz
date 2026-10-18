@@ -247,7 +247,7 @@ export function Onboarding() {
       const one = found.length === 1 ? found[0] : null;
       const untested = found.filter((d) => supported.some((m) => ofModel(d.key, m.key) && !m.tested));
       // Only a mouse whose memory can be backed up waits for its first backup.
-      const backedUp = (d: DeviceState) => !d.capabilities?.backups || !!backups?.some((b) => b.model === d.model);
+      const backedUp = (d: DeviceState) => !d.capabilities?.backups || !!backups?.some((b) => (b.key ? b.key === d.key : b.model === d.model));
       const waiting = found.some((d) => !backedUp(d));
       const backing = found.some((d) => d.capabilities?.backups);
       // A maker's app in the way of a mouse found: Zaopin's app fights hrtz for a Zaopin; G HUB edits

@@ -37,6 +37,15 @@ export const familyOf = (key: string | null | undefined): "compx" | "hidpp" | un
   return key && /^(?:hidpp|sim)\/[0-9a-f]{4}\//.test(key) ? "hidpp" : undefined;
 };
 
+/** The key a mouse's model shares: a Zaopin's key is its model's (`compx/7-4`); a Logitech's drops
+ *  its unit ID (`hidpp/c094/43c2f6b0` is `hidpp/c094`). */
+export const modelKeyOf = (key: string): string => (familyOf(key) === "hidpp" ? key.replace(/\/[^/]*$/, "") : key);
+
+/** Whether backup `b` is for mouse `d`'s model: by key, or (from before several mice, with no key)
+ *  a Zaopin of the same model name. */
+export const backupFits = (b: { key: string | null; model: string }, d: { key?: string | null; model: string | null }): boolean =>
+  b.key ? !!d.key && modelKeyOf(b.key) === modelKeyOf(d.key) : familyOf(d.key) === "compx" && b.model === d.model;
+
 /** Whether a connected mouse's key is of the model `model` names: the same key, or (Logitech's,
  *  which add the mouse's own unit ID) that key and more. */
 export const ofModel = (key: string | null | undefined, model: string): boolean => !!key && (key === model || key.startsWith(`${model}/`));

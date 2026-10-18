@@ -77,7 +77,7 @@ const SUPERLIGHT: DeviceState = {
     longRange: false,
     pairing: false,
     factoryReset: false,
-    backups: false,
+    backups: true,
   },
 } as unknown as DeviceState;
 const device = (new URLSearchParams(location.search).get("mouse") === "superlight" ? SUPERLIGHT : deviceJson) as unknown as DeviceState;
@@ -134,7 +134,7 @@ export const real = {
       },
     }));
   })(),
-  backups: (backupsJson as unknown as { meta: BackupMeta; settings: Settings }[]).map((b) => ({ ...b.meta, auto: b.meta.auto ?? null, settings: kindFirst(b.settings) })),
+  backups: (backupsJson as unknown as { meta: BackupMeta; settings: Settings }[]).map((b) => ({ ...b.meta, key: b.meta.key ?? null, auto: b.meta.auto ?? null, settings: kindFirst(b.settings) })),
   apps: appsJson as { exe: string; name: string; path: string; icon: string | null }[],
   games: gamesJson as unknown as Record<string, GameSensitivity | null>,
   pointer: pointerJson as PointerSettings,
@@ -199,6 +199,7 @@ export async function saveBackup(note: string, auto: AutoReason | null = null): 
   const b: Backup = {
     id: idOf(created),
     created,
+    key: fake.device.key ?? null,
     model: fake.device.model ?? "",
     firmware: fake.device.firmware ?? "",
     profile: fake.device.profile,

@@ -14,6 +14,7 @@ import {
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api, type BackupMeta } from "@/api";
 import { Group, SettingCard } from "@/components";
+import { backupFits, familyOf } from "@/models";
 import { afterMenu, CardList, CardListRow, CardNote, MoreMenu, ProgressLine, UndoNote, type MoreMenuItem } from "@/kit";
 import { run, useStore } from "@/store";
 import { changes } from "./changes";
@@ -57,7 +58,8 @@ export function BackupsPanel() {
   const online = !!device?.online;
   const can = online && !busy;
   const model = device?.connected ? (device.model ?? null) : null;
-  const list = b.list;
+  // The model shown: its backups are the ones that go back onto it.
+  const list = device ? (b.list?.filter((x) => backupFits(x, device)) ?? null) : b.list;
   const yours = list?.filter((x) => !x.auto) ?? [];
   const auto = list?.filter((x) => x.auto) ?? [];
 
@@ -77,9 +79,10 @@ export function BackupsPanel() {
     if (!r) return;
     await b.refresh();
     if (r.written === 0) return setRestored({ card, text: `The mouse already matches ${name}.`, saved: null });
-    const c = before && then && buttons ? changes(before, then, buttons) : [];
-    const what =
-      c.length === 0 ? "Settings already matched. Macros and shortcuts were rewritten." : c.length === 1 ? `${c[0][0]}: ${c[0][1]} → ${c[0][2]}.` : `${c.length} settings changed.`;
+    const c = before && then ? changes(before, then, buttons ?? []) : [];
+    // A Zaopin's image holds macros and shortcuts too; a Logitech's, its other profiles.
+    const rest = familyOf(device?.key) === "compx" ? "Macros and shortcuts were rewritten." : "Its other profiles were rewritten.";
+    const what = c.length === 0 ? `Settings already matched. ${rest}` : c.length === 1 ? `${c[0][0]}: ${c[0][1]} → ${c[0][2]}.` : `${c.length} settings changed.`;
     setRestored({ card, text: `Restored ${name}. ${what}`, saved: r.saved });
   };
   const undoRestore = async () => {

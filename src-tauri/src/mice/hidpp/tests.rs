@@ -428,7 +428,8 @@ fn a_superlight_on_its_receiver_is_met_and_read() {
     let dpi = caps.dpi.unwrap();
     assert_eq!((dpi.min, dpi.max, dpi.step, dpi.max_stages, dpi.colors), (100, 25600, 50, 5, false));
     assert_eq!(caps.polling.unwrap().rates, [125, 250, 500, 1000]);
-    assert!(!caps.backups && !caps.factory_reset && !caps.pairing && caps.lod.is_none() && caps.buttons.is_none());
+    assert!(caps.backups, "its onboard memory");
+    assert!(!caps.factory_reset && !caps.pairing && caps.lod.is_none() && caps.buttons.is_none());
 
     let st = r.settings();
     assert_eq!(st.polling_hz, Some(1000));
@@ -543,6 +544,37 @@ fn sleep_and_wake_through_the_receiver() {
 
 /// On the user's Superlight (2026-10-18), asking a sleeping mouse every quarter second woke it, or
 /// caught it checking in, and reading it whole each time kept it from sleeping.
+#[test]
+fn a_backup_holds_every_sector_and_a_restore_puts_back_what_changed() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    assert!(r.state().capabilities.unwrap().backups);
+    let before = r.w.read_full_image().unwrap();
+    let img = super::backup::split(&before).unwrap();
+    assert_eq!(img.sectors.len(), 16, "getInfo says 16");
+    assert_eq!(img.sectors[1], r.sector(1).as_slice());
+    assert!(super::backup::erased(img.sectors[15]), "never written");
+    let held = super::backup::settings(&before, Some(0), false).unwrap();
+    assert_eq!(held.stages.unwrap()[0].dpi, 1600);
+
+    r.w.apply_settings(&Settings { polling_hz: Some(500), ..r.settings() }).unwrap();
+    assert_eq!(r.settings().polling_hz, Some(500));
+    let (from, _) = r.mark();
+    assert_eq!(r.w.restore_image(&before).unwrap(), 1, "only the profile changed");
+    assert_eq!(r.settings().polling_hz, Some(1000), "read again after");
+    assert!(r.profile_calls_since(from).contains(&ob::func::SET_CURRENT), "and run again");
+    assert_eq!(r.w.restore_image(&before).unwrap(), 0, "already matches");
+}
+
+#[test]
+fn a_backup_from_a_mouse_laid_out_otherwise_is_refused() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    let other = Rig::connected(SimMouse::superlight2()).w.read_full_image();
+    let mut other = other.unwrap();
+    assert!(r.w.restore_image(&other).is_err(), "a SUPERLIGHT 2's");
+    other.truncate(100);
+    assert!(r.w.restore_image(&other).is_err(), "cut short");
+}
+
 /// G HUB with its On-board memory mode off puts the mouse in host mode (GHUB.md): hrtz says so,
 /// and sees it let go.
 #[test]

@@ -666,6 +666,32 @@ pub struct BackupDevice {
     pub device_type: u8,
     pub firmware: String,
     pub profile_index: Option<u8>,
+    /// The mouse it's from (`DeviceState::key`). Backups from before several mice have none: they
+    /// belong to whichever Zaopin of their model connects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    /// Its model's name, for a family whose IDs above don't say (a Logitech's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// On its cable when backed up: a Logitech's rate is kept per link.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wired: bool,
+}
+
+impl BackupDevice {
+    /// The key its model shares (`compx/7-4`, `hidpp/c094`); none for a backup from before keys.
+    pub fn model_key(&self) -> Option<String> {
+        self.key.as_deref().map(model_key)
+    }
+}
+
+/// The key a mouse's model shares: a Zaopin's key is its model's (`compx/7-4`); a Logitech's adds
+/// its unit ID (`hidpp/c094/43c2f6b0`), which goes.
+pub fn model_key(key: &str) -> String {
+    match crate::mice::family_of(key) {
+        Some("hidpp") => key.rsplit_once('/').map_or(key, |(model, _)| model).to_string(),
+        _ => key.to_string(),
+    }
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -673,6 +699,8 @@ pub struct BackupDevice {
 pub struct BackupMeta {
     pub id: String,
     pub created: String,
+    /// The mouse it's from; none for a backup from before several mice.
+    pub key: Option<String>,
     pub model: String,
     pub firmware: String,
     pub profile: Option<u8>,
@@ -681,7 +709,10 @@ pub struct BackupMeta {
     pub auto: Option<AutoReason>,
 }
 
+/// A Zaopin's whole flash, shared with `scripts/backup.py`.
 const FORMAT: &str = "zaopin-flash-backup/1";
+/// A Logitech's onboard memory (`mice::hidpp::backup`).
+const LOGITECH_FORMAT: &str = "logitech-onboard-backup/1";
 
 #[derive(Clone)]
 pub struct Backups {
@@ -724,10 +755,10 @@ impl Backups {
         self.write_new(image, device, note, None)
     }
 
-    /// A backup hrtz saves by itself. Only the newest `AUTO_KEPT` of these are kept.
+    /// A backup hrtz saves by itself. Only the newest `AUTO_KEPT` of these are kept, per mouse.
     pub fn create_auto(&self, image: &[u8], device: BackupDevice, reason: AutoReason) -> Result<BackupMeta> {
         let m = self.write_new(image, device, "", Some(reason))?;
-        for old in self.list().into_iter().filter(|b| b.auto.is_some()).skip(AUTO_KEPT) {
+        for old in self.list().into_iter().filter(|b| b.auto.is_some() && b.key == m.key).skip(AUTO_KEPT) {
             let _ = self.delete(&old.id);
         }
         Ok(m)
@@ -742,8 +773,9 @@ impl Backups {
     ) -> Result<BackupMeta> {
         fs::create_dir_all(&self.dir)?;
         let now = chrono::Local::now();
+        let logitech = device.key.as_deref().and_then(crate::mice::family_of) == Some("hidpp");
         let file = BackupFile {
-            format: FORMAT.into(),
+            format: if logitech { LOGITECH_FORMAT } else { FORMAT }.into(),
             created: now.format("%Y-%m-%dT%H:%M:%S").to_string(),
             device,
             note: note.trim().to_string(),
@@ -783,8 +815,13 @@ impl Backups {
         Ok((file, image))
     }
 
+    /// What the backup's profile held, as the mouse's pages show it.
     pub fn settings(&self, id: &str) -> Result<Settings> {
-        Ok(image::decode(&self.load(id)?.1))
+        let (file, image) = self.load(id)?;
+        if file.format == LOGITECH_FORMAT {
+            return crate::mice::hidpp::backup::settings(&image, file.device.profile_index, file.device.wired);
+        }
+        Ok(image::decode(&image))
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
@@ -850,7 +887,7 @@ fn sanitize(s: &str) -> String {
 
 fn read_backup(path: &Path) -> Result<BackupFile> {
     let file: BackupFile = serde_json::from_slice(&fs::read(path)?).context("not a backup file")?;
-    if file.format != FORMAT {
+    if file.format != FORMAT && file.format != LOGITECH_FORMAT {
         bail!("unsupported backup format {}", file.format);
     }
     Ok(file)
@@ -858,7 +895,9 @@ fn read_backup(path: &Path) -> Result<BackupFile> {
 
 fn image_of(file: &BackupFile) -> Result<Vec<u8>> {
     let image = base64::engine::general_purpose::STANDARD.decode(&file.flash_base64)?;
-    if image.len() != FLASH_SIZE {
+    if file.format == LOGITECH_FORMAT {
+        crate::mice::hidpp::backup::split(&image)?;
+    } else if image.len() != FLASH_SIZE {
         bail!("backup holds {} bytes, expected {FLASH_SIZE}", image.len());
     }
     if hex_sha256(&image) != file.sha256 {
@@ -879,7 +918,8 @@ fn meta(id: String, f: &BackupFile) -> BackupMeta {
     BackupMeta {
         id,
         created: f.created.clone(),
-        model: models::model_name(f.device.mid).to_string(),
+        key: f.device.key.clone(),
+        model: f.device.model.clone().unwrap_or_else(|| models::model_name(f.device.mid).to_string()),
         firmware: firmware_text(&f.device.firmware),
         profile: f.device.profile_index,
         note: f.note.clone(),
@@ -1223,7 +1263,16 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("hrtz-test-{}", std::process::id()));
         let b = Backups::new(dir.clone());
         let image: &[u8] = &crate::mice::compx::image::sample_image();
-        let dev = BackupDevice { cid: 7, mid: 4, device_type: 5, firmware: "0x0217".into(), profile_index: Some(0) };
+        let dev = BackupDevice {
+            cid: 7,
+            mid: 4,
+            device_type: 5,
+            firmware: "0x0217".into(),
+            profile_index: Some(0),
+            key: None,
+            model: None,
+            wired: false,
+        };
         let m = b.create(image, dev, "test").unwrap();
         let (_, back) = b.load(&m.id).unwrap();
         assert_eq!(back, image.to_vec());
@@ -1240,7 +1289,16 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("hrtz-auto-{}", std::process::id()));
         let b = Backups::new(dir.clone());
         let image: &[u8] = &crate::mice::compx::image::sample_image();
-        let dev = || BackupDevice { cid: 7, mid: 4, device_type: 5, firmware: "2.17".into(), profile_index: Some(0) };
+        let dev = || BackupDevice {
+            cid: 7,
+            mid: 4,
+            device_type: 5,
+            firmware: "2.17".into(),
+            profile_index: Some(0),
+            key: Some("compx/7-4".into()),
+            model: None,
+            wired: false,
+        };
         let yours = b.create(image, dev(), "Mine").unwrap();
         // Several in the same second: each gets its own name instead of replacing the last.
         let first = b.create_auto(image, dev(), AutoReason::First).unwrap();
@@ -1251,6 +1309,16 @@ mod tests {
         assert_eq!(list.iter().filter(|m| m.auto.is_some()).count(), AUTO_KEPT);
         assert!(list.iter().any(|m| m.id == yours.id), "yours are never pruned");
         assert!(list.iter().all(|m| m.id != first.id), "the oldest automatic one went");
+        // Another mouse's are counted apart.
+        let other = BackupDevice { key: Some("compx/7-3".into()), ..dev() };
+        let theirs = b.create_auto(image, other, AutoReason::First).unwrap();
+        assert!(b.list().iter().any(|m| m.id == theirs.id));
+        assert_eq!(
+            b.list().iter().filter(|m| m.auto.is_some() && m.key.as_deref() == Some("compx/7-4")).count(),
+            AUTO_KEPT
+        );
+        b.delete(&theirs.id).unwrap();
+        let list = b.list();
 
         // A name makes an automatic backup yours; an empty one doesn't.
         let auto = list.iter().find(|m| m.auto.is_some()).unwrap().id.clone();
@@ -1258,6 +1326,46 @@ mod tests {
         let kept = b.rename(&auto, " Tournament ").unwrap();
         assert_eq!((kept.note.as_str(), kept.auto), ("Tournament", None));
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_logitech_backup_keeps_its_mouse_and_what_its_profile_held() {
+        use crate::mice::hidpp::{backup, fixtures as fx};
+        let dir = std::env::temp_dir().join(format!("hrtz-logi-{}", std::process::id()));
+        let b = Backups::new(dir.clone());
+        // getInfo's reply, then 16 sectors: the directory, the user's profile, the rest erased.
+        let mut image = fx::superlight_info();
+        image.resize(backup::INFO_LEN, 0);
+        image.extend(fx::superlight_c547_directory());
+        image.extend(fx::superlight_c547_profile());
+        image.extend(std::iter::repeat_n(0xFF, 14 * 255));
+        let dev = BackupDevice {
+            cid: 0,
+            mid: 0,
+            device_type: 0,
+            firmware: "MPM 25.02".into(),
+            profile_index: Some(0),
+            key: Some("hidpp/c094/1a2b3c4d".into()),
+            model: Some("PRO X SUPERLIGHT".into()),
+            wired: false,
+        };
+        let m = b.create(&image, dev, "").unwrap();
+        assert_eq!((m.model.as_str(), m.key.as_deref()), ("PRO X SUPERLIGHT", Some("hidpp/c094/1a2b3c4d")));
+        let (file, back) = b.load(&m.id).unwrap();
+        assert_eq!(file.format, LOGITECH_FORMAT);
+        assert_eq!(back, image);
+        assert_eq!(file.device.model_key().as_deref(), Some("hidpp/c094"));
+        let s = b.settings(&m.id).unwrap();
+        assert_eq!((s.polling_hz, s.dpi_stage_count), (Some(1000), Some(1)));
+        assert_eq!(s.stages.unwrap()[0].dpi, 1600, "the user's profile, as the probe read it");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_models_key_drops_a_logitechs_unit() {
+        assert_eq!(model_key("hidpp/c094/43c2f6b0"), "hidpp/c094");
+        assert_eq!(model_key("sim/c094/1a2b3c4d"), "sim/c094");
+        assert_eq!(model_key("compx/7-4"), "compx/7-4");
     }
 
     #[test]

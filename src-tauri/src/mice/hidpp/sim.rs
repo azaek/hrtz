@@ -326,7 +326,10 @@ impl SimMouse {
             }
             func::READ => {
                 let offset = u16::from_be_bytes([at(2), at(3)]) as usize;
-                let bytes = self.sectors.get(&sector).ok_or(0x02)?;
+                // A sector never written reads erased, up to the count getInfo gives.
+                let erased = vec![0xFF; ob::Info::parse(&self.info).sector_len()];
+                let held = (sector < self.info.get(6).copied().unwrap_or(0) as u16).then_some(&erased);
+                let bytes = self.sectors.get(&sector).or(held).ok_or(0x02)?;
                 // memoryRead refuses a read past the sector's end.
                 bytes.get(offset..offset + ob::CHUNK).map(<[u8]>::to_vec).ok_or(0x02)
             }

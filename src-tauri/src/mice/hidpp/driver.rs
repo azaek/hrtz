@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, anyhow, bail};
 use hidapi::{HidApi, HidDevice};
 
+use super::backup;
 use super::models;
 use super::onboard::{self as ob, Entry, Info, Plan, Stage};
 use super::protocol::{self as p, Charge, Refusal, feature};
@@ -819,6 +820,7 @@ impl Connected {
         let (format, profile, index, count) = (o.info.format, o.profile(), o.index(), o.directory.len());
         let mut settings = Settings::default();
         caps.profiles = (count > 0).then_some(count.min(u8::MAX as usize) as u8);
+        caps.backups = ob::writable(format);
         if ob::writable(format) {
             let limits = self.dpi_limits(format)?;
             let rates =
@@ -1115,6 +1117,57 @@ impl Driver for Connected {
         }
         let live = self.live()?;
         self.show(board, live)
+    }
+
+    /// The onboard memory for a backup: getInfo's reply, then every sector in order (`backup.rs`).
+    /// Erased sectors read as 0xFF.
+    fn read_image(&mut self, board: &Board, progress: bool) -> Result<Vec<u8>> {
+        let fi = self.t.feature(feature::ONBOARD_PROFILES)?;
+        if fi == 0 {
+            bail!("This mouse keeps no profiles to back up.");
+        }
+        let mut image = self.t.request(fi, ob::func::INFO, &[])?;
+        image.resize(backup::INFO_LEN, 0);
+        let info = Info::parse(&image);
+        if !ob::writable(info.format) {
+            bail!("hrtz can't back up this mouse yet (profile format {}).", info.format);
+        }
+        let (count, len) = (info.sector_count as usize, info.sector_len());
+        for s in 0..count {
+            image.extend(self.read_sector(fi, s as u16, len)?);
+            if progress {
+                board.publish(Some(DeviceEvent::Progress { done: s + 1, total: count }));
+            }
+        }
+        Ok(image)
+    }
+
+    /// Put back a backup: the sectors of `target` that differ from `current` (both as read), each
+    /// read back after. An erased one is left as it is: the mouse checks every write's checksum,
+    /// which erased bytes don't carry. Then the mouse runs its profile again, and it's read whole.
+    fn write_image(&mut self, board: &Board, current: &[u8], target: &[u8]) -> Result<usize> {
+        let (now, then) = (backup::split(current)?, backup::split(target)?);
+        if now.head != then.head {
+            bail!("This backup is from a mouse whose memory is laid out differently.");
+        }
+        let fi = self.t.feature(feature::ONBOARD_PROFILES)?;
+        let changed: Vec<usize> = (0..then.sectors.len())
+            .filter(|i| now.sectors[*i] != then.sectors[*i] && !backup::erased(then.sectors[*i]))
+            .collect();
+        for (n, i) in changed.iter().enumerate() {
+            let (sector, bytes) = (*i as u16, then.sectors[*i]);
+            self.write_sector(fi, sector, bytes)?;
+            if self.read_sector(fi, sector, bytes.len())? != bytes {
+                bail!("The mouse didn't keep sector {sector} as written.");
+            }
+            board.publish(Some(DeviceEvent::Progress { done: n + 1, total: changed.len() }));
+        }
+        if !changed.is_empty() {
+            let current = self.current_sector(fi)?;
+            let _ = self.t.request(fi, ob::func::SET_CURRENT, &current.to_be_bytes());
+            self.load(board)?;
+        }
+        Ok(changed.len())
     }
 
     /// Switch to the profile at `index` in the directory. This writes nothing to flash.

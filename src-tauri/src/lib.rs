@@ -84,7 +84,8 @@ struct Ctx {
     tray_level: Mutex<Option<(TrayLevel, TrayStyle, bool)>>,
     hud: hud::Hud,
     /// Models (`mid`) checked this run for a first backup, so it's looked into once.
-    met: Mutex<HashSet<u8>>,
+    /// The mice (keys) checked for their first backup this run.
+    met: Mutex<HashSet<String>>,
     /// The mice hrtz has met, with what it keeps for each (`mice.json`).
     known: RwLock<KnownMice>,
     /// The mice connected now, so when one goes it's noted as last seen then.
@@ -386,6 +387,9 @@ fn backup_device(s: &DeviceState) -> BackupDevice {
         device_type: s.device_type,
         firmware: s.firmware.clone().unwrap_or_default(),
         profile_index: s.profile,
+        key: s.key.clone(),
+        model: s.model.clone(),
+        wired: s.capabilities.as_ref().is_some_and(|c| c.wired),
     }
 }
 
@@ -411,10 +415,17 @@ struct Restored {
 async fn restore_backup(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, id: String) -> CmdResult<Restored> {
     let (file, image) = ctx.backups.load(&id).map_err(err)?;
     let current = engine_of(&ctx, mouse.as_deref())?.snapshot();
-    if current.connected && current.mid != file.device.mid {
+    // The same model: by key, or for a backup from before keys, a Zaopin of its model.
+    let same = match (file.device.model_key(), current.key.as_deref()) {
+        (Some(theirs), Some(ours)) => theirs == store::model_key(ours),
+        (None, Some(ours)) => mice::family_of(ours) == Some("compx") && current.mid == file.device.mid,
+        (_, None) => true,
+    };
+    if current.connected && !same {
+        let theirs =
+            file.device.model.clone().unwrap_or_else(|| mice::compx::models::model_name(file.device.mid).into());
         return Err(format!(
-            "This backup is for a {}, but a {} is connected.",
-            mice::compx::models::model_name(file.device.mid),
+            "This backup is for a {theirs}, but a {} is connected.",
             current.model.unwrap_or_default()
         ));
     }
@@ -1076,18 +1087,22 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
         || !s.online
         || s.settings.is_none()
         || s.key.as_deref().and_then(mice::family_of).is_some_and(|f| ctx.status.read().vendor_apps.contains(&f))
-        || !ctx.met.lock().insert(s.mid)
     {
         return;
     }
-    let model = mice::compx::models::model_name(s.mid);
-    if ctx.backups.list().iter().any(|b| b.model == model) {
+    let Some(key) = s.key.clone() else { return };
+    if !ctx.met.lock().insert(key.clone()) {
         return;
     }
-    let (app, ctx, mid, key) = (app.clone(), ctx.clone(), s.mid, s.key.clone());
+    // Its own, or (from before several mice, with no key) one of its model's.
+    let model = s.model.clone().unwrap_or_default();
+    if ctx.backups.list().iter().any(|b| b.key.as_deref().map_or(b.model == model, |k| k == key)) {
+        return;
+    }
+    let (app, ctx) = (app.clone(), ctx.clone());
     tauri::async_runtime::spawn(async move {
         let backups = ctx.backups.clone();
-        let saved = on_device(&ctx, key.as_deref(), move |w| {
+        let saved = on_device(&ctx, Some(&key), move |w| {
             let image = w.read_full_image_quietly()?;
             backups.create_auto(&image, backup_device(&w.snapshot()), AutoReason::First)
         })
@@ -1098,7 +1113,7 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
             }
             // Try again on the next connection.
             Err(_) => {
-                ctx.met.lock().remove(&mid);
+                ctx.met.lock().remove(&key);
             }
         }
     });
