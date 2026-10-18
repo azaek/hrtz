@@ -299,6 +299,10 @@ fn get_mice(ctx: State<'_, Arc<Ctx>>) -> Vec<KnownMouse> {
 fn supported_mice() -> Vec<mice::model::Supported> {
     let mut all = mice::compx::models::supported();
     all.extend(mice::hidpp::models::supported());
+    // Dev builds, `HRTZ_UNTESTED=1`: every model as untested, to try Help test on a tested mouse.
+    if cfg!(debug_assertions) && std::env::var_os("HRTZ_UNTESTED").is_some() {
+        all.iter_mut().for_each(|m| m.tested = false);
+    }
     all
 }
 
