@@ -297,6 +297,53 @@ fn supported_mice() -> Vec<mice::model::Supported> {
     all
 }
 
+/// Remove mouse `key`, which isn't connected, from hrtz: what's kept for it (its prefs, its
+/// battery history) goes, and it's met as new if it comes back. Returns what was kept, for Undo.
+/// Its battery files are set aside until hrtz next starts.
+#[tauri::command]
+fn forget_mouse(app: AppHandle, ctx: State<'_, Arc<Ctx>>, key: String) -> CmdResult<KnownMouse> {
+    if ctx.hub.engine(&key).is_some_and(|e| e.snapshot().connected) {
+        return Err("Unplug it first: a connected mouse comes straight back.".into());
+    }
+    let gone = ctx.known.write().forget(&key).ok_or("hrtz doesn't know this mouse.")?;
+    set_aside_battery(&ctx.data_dir, &key, true);
+    commit_mice(&app, &ctx);
+    Ok(gone)
+}
+
+/// Put back a mouse just removed (Undo), with its battery history.
+#[tauri::command]
+fn restore_mouse(app: AppHandle, ctx: State<'_, Arc<Ctx>>, mouse: KnownMouse) -> CmdResult<()> {
+    let key = mouse.key.clone();
+    if ctx.known.write().restore(mouse) {
+        set_aside_battery(&ctx.data_dir, &key, false);
+        commit_mice(&app, &ctx);
+    }
+    Ok(())
+}
+
+/// Mouse `key`'s battery files, set aside as `.removed` or put back.
+fn set_aside_battery(data_dir: &std::path::Path, key: &str, aside: bool) {
+    let (estimate, log) = mice::engine::battery_files(data_dir, key);
+    for f in [estimate, log] {
+        let removed = PathBuf::from(format!("{}.removed", f.display()));
+        let (from, to) = if aside { (&f, &removed) } else { (&removed, &f) };
+        if from.exists() {
+            let _ = std::fs::rename(from, to);
+        }
+    }
+}
+
+/// What removed mice left set aside: past Undo once hrtz starts again.
+fn clear_removed(data_dir: &std::path::Path) {
+    let Ok(dir) = std::fs::read_dir(data_dir.join("battery")) else { return };
+    for f in dir.flatten() {
+        if f.file_name().to_string_lossy().ends_with(".removed") {
+            let _ = std::fs::remove_file(f.path());
+        }
+    }
+}
+
 #[tauri::command]
 fn set_mouse_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, key: String, prefs: MousePrefs) -> CmdResult<()> {
     if ctx.known.write().set_prefs(&key, prefs) {
@@ -1391,6 +1438,7 @@ pub fn run() {
             let prefs_path = config_dir.join("prefs.json");
             let notify_handle = handle.clone();
             std::fs::create_dir_all(&data_dir)?;
+            clear_removed(&data_dir);
             // What a prefs file from before several mice held for its mouse is kept for the first
             // Zaopin to connect, before the prefs are saved without it.
             let (prefs, legacy) = Prefs::load_with_legacy(&prefs_path);
@@ -1548,6 +1596,8 @@ pub fn run() {
             get_prefs,
             get_mice,
             supported_mice,
+            forget_mouse,
+            restore_mouse,
             set_mouse_prefs,
             set_prefs,
             list_backups,

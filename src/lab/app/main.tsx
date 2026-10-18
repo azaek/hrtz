@@ -9,7 +9,7 @@ import { ProfilesPage } from "@/pages/Profiles";
 import { SensorPage } from "@/pages/Sensor";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { OPEN_WHATS_NEW } from "@/WhatsNew";
-import { startFlow, type Step } from "@/store";
+import { pickMouse, startFlow, type Step } from "@/store";
 import { env, fake, plugInto, pushDevice, startFakeBackend } from "../fake/backend";
 import { Frame, PanelButton, PanelTitle } from "../Frame";
 import "../../base.css";
@@ -114,8 +114,19 @@ SCENARIOS.backup = async () => {
 SCENARIOS.update = async () => {
   [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Check for updates"))?.click();
 };
+// Removes the mouse shown, which isn't connected (with ?select=<its key>).
+SCENARIOS.remove = async () => {
+  click("Remove");
+  await wait(600);
+};
 window.addEventListener("load", async () => {
   await wait(1200);
+  // `?select=<key>`: show that mouse, as the switcher would.
+  const select = params.get("select");
+  if (select) {
+    pickMouse(select);
+    await wait(300);
+  }
   const play = params.get("play");
   if (play && SCENARIOS[play]) await SCENARIOS[play]();
   const scroll = Number(params.get("scroll"));

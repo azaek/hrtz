@@ -11,6 +11,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - Setting up a mouse is a full-page guide, on first run and for each new mouse, with its first backup.
 - Each mouse keeps its own profile names, app rules, battery saver and battery history.
 - A mouse that isn't connected shows its last settings.
+- Remove a mouse you no longer use: Settings shows Remove while it's unplugged, with Undo.
 - The tray, the HUD and the pop-ups follow the mouse you're using.
 - Logitech's PRO X SUPERLIGHT and PRO X SUPERLIGHT 2, on their LIGHTSPEED receivers or cables: DPI stages, polling rate, profiles and battery. Settings are saved in the mouse's own profile, so they stay without hrtz running. The SUPERLIGHT 2 hasn't been tried on a real one yet.
 

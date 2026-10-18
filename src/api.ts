@@ -589,6 +589,10 @@ export const api = {
   mice: () => invoke<KnownMouse[]>("get_mice"),
   supportedMice: () => invoke<Supported[]>("supported_mice"),
   setMousePrefs: (key: string, prefs: MousePrefs) => invoke<void>("set_mouse_prefs", { key, prefs }),
+  /** Remove a mouse that isn't connected: what's kept for it goes. Returns that, for Undo. */
+  forgetMouse: (key: string) => invoke<KnownMouse>("forget_mouse", { key }),
+  /** Put back a mouse just removed. */
+  restoreMouse: (mouse: KnownMouse) => invoke<void>("restore_mouse", { mouse }),
   listBackups: () => invoke<BackupMeta[]>("list_backups"),
   createBackup: (note: string) => invoke<BackupMeta>("create_backup", { mouse, note }),
   /** Saves the mouse as it is first (an automatic backup), unless it already matches. */

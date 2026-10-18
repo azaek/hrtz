@@ -128,6 +128,31 @@ export function pickMouse(key: string) {
   reshow();
 }
 
+/** Remove mouse `key` (not connected) from hrtz. Returns what was kept for it, for Undo; null if
+ *  it couldn't be, as said in a toast. */
+export async function forgetMouse(key: string): Promise<KnownMouse | null> {
+  try {
+    const gone = await api.forgetMouse(key);
+    set({ mice: state.mice.filter((m) => m.key !== key), selected: state.selected === key ? null : state.selected });
+    reshow();
+    return gone;
+  } catch (e) {
+    toast(message(e), "error");
+    return null;
+  }
+}
+
+/** Put back a mouse just removed, and show it again. */
+export async function restoreMouse(mouse: KnownMouse) {
+  try {
+    await api.restoreMouse(mouse);
+    set({ mice: state.mice.some((m) => m.key === mouse.key) ? state.mice : [...state.mice, mouse], selected: mouse.key });
+    reshow();
+  } catch (e) {
+    toast(message(e), "error");
+  }
+}
+
 /** Open the onboarding: first run from its welcome, a new mouse from connecting it (or straight to
  *  it, when it's just been plugged in). */
 export function startFlow(mode: Flow["mode"], step?: Step, except?: string) {

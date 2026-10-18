@@ -753,6 +753,21 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       changed();
       return null;
     }
+    case "forget_mouse": {
+      const key = (args as { key: string }).key;
+      const gone = fake.mice.find((m) => m.key === key);
+      if (!gone) throw "hrtz doesn't know this mouse.";
+      if (fake.device.connected && fake.device.key === key) throw "Unplug it first: a connected mouse comes straight back.";
+      fake.mice = fake.mice.filter((m) => m.key !== key);
+      void emit("mice", fake.mice);
+      return clone(gone);
+    }
+    case "restore_mouse": {
+      const mouse = (args as { mouse: KnownMouse }).mouse;
+      if (!fake.mice.some((m) => m.key === mouse.key)) fake.mice = [...fake.mice, { ...mouse, last: mouse.last ?? null }];
+      void emit("mice", fake.mice);
+      return null;
+    }
     case "get_prefs":
       return fake.prefs;
     case "set_prefs":

@@ -587,6 +587,22 @@ impl KnownMice {
         }
     }
 
+    /// Forget mouse `key`, with what's kept for it: if it comes back it's met as new. Returns what
+    /// was kept, for Undo.
+    pub fn forget(&mut self, key: &str) -> Option<KnownMouse> {
+        let i = self.file.mice.iter().position(|m| m.key == key)?;
+        Some(self.file.mice.remove(i))
+    }
+
+    /// Put back a mouse just forgotten (Undo). Not if it's been met again meanwhile.
+    pub fn restore(&mut self, mouse: KnownMouse) -> bool {
+        if self.file.mice.iter().any(|m| m.key == mouse.key) {
+            return false;
+        }
+        self.file.mice.push(mouse);
+        true
+    }
+
     /// Change a known mouse's prefs. Returns whether anything changed.
     pub fn set_prefs(&mut self, key: &str, prefs: MousePrefs) -> bool {
         let Some(m) = self.file.mice.iter_mut().find(|m| m.key == key) else { return false };
@@ -1064,6 +1080,25 @@ mod tests {
         assert!(!known.hold_legacy(MousePrefs::default()), "once mice are known, nothing more to hold");
         assert!(known.fill_rule("CS2.exe", "Counter-Strike 2", r"C:\cs2.exe"));
         assert_eq!(known.rule_exes(), ["cs2.exe"]);
+    }
+
+    #[test]
+    fn a_forgotten_mouse_is_met_as_new_unless_put_back() {
+        let mut known = KnownMice::load(None);
+        known.meet("compx/7-3", "Z2 mini", 10);
+        known.meet("hidpp/c094/1a2b3c4d", "PRO X SUPERLIGHT", 20);
+        let names = MousePrefs { profile_names: vec!["Aim".into()], ..MousePrefs::default() };
+        known.set_prefs("compx/7-3", names.clone());
+        let gone = known.forget("compx/7-3").unwrap();
+        assert_eq!(gone.prefs, names, "what it kept goes with it");
+        assert!(known.forget("compx/7-3").is_none());
+        assert_eq!(known.list().len(), 1);
+        assert!(known.restore(gone.clone()), "Undo");
+        assert_eq!(known.prefs("compx/7-3"), names);
+        assert!(!known.restore(gone), "not twice");
+        known.forget("compx/7-3");
+        assert_eq!(known.meet("compx/7-3", "Z2 mini", 30), Met::New, "back as a new mouse");
+        assert_eq!(known.prefs("compx/7-3"), MousePrefs::default());
     }
 
     #[test]

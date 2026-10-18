@@ -5,6 +5,7 @@ import {
   ArrowRotateClockwise20Regular,
   Bug20Regular,
   DataUsage20Regular,
+  Delete20Regular,
   Desktop20Regular,
   Info20Regular,
   PersonFeedback20Regular,
@@ -14,13 +15,14 @@ import {
 } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { api, message, on, type Prefs } from "@/api";
+import { api, message, on, type KnownMouse, type Prefs } from "@/api";
 import { Choice, Group, SettingCard } from "@/components";
+import { UndoNote } from "@/kit";
 import { linkName } from "@/links";
 import { familyOf, ofModel } from "@/models";
 import { reportUrl, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
-import { run, savePrefs, toast, useStore } from "@/store";
+import { forgetMouse, restoreMouse, run, savePrefs, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
 import { AppCard } from "./AppCard";
 
@@ -44,6 +46,18 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   // Pairing: the seconds the receiver keeps looking, and how the last try went.
   const [pairing, setPairing] = useState<number | null>(null);
   const [paired, setPaired] = useState<boolean | null>(null);
+  // A mouse just removed, for Undo, which lasts 6 s as other removals' do.
+  const [removed, setRemoved] = useState<KnownMouse | null>(null);
+  useEffect(() => {
+    if (!removed) return;
+    const t = setTimeout(() => setRemoved(null), 6000);
+    return () => clearTimeout(t);
+  }, [removed]);
+  const remove = async (key: string) => setRemoved(await forgetMouse(key));
+  const undoRemove = (m: KnownMouse) => {
+    setRemoved(null);
+    void restoreMouse(m);
+  };
   useEffect(() => {
     const off = on.pairing(setPairing);
     return () => void off.then((f) => f());
@@ -154,6 +168,11 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       </Group>
 
       <Group title="Mouse">
+        {removed && (
+          <div className="tw px-1 py-1 text-xs">
+            <UndoNote onUndo={() => undoRemove(removed)}>Removed {removed.model}.</UndoNote>
+          </div>
+        )}
         {can("longRange") && (
           <SettingCard
             icon={<Wifi120Regular />}
@@ -212,6 +231,18 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
           >
             <Button disabled={!device?.online || busy} onClick={() => setConfirmReset(true)}>
               Restore
+            </Button>
+          </SettingCard>
+        )}
+        {/* Only a mouse that isn't plugged in: a connected one would be met again at once. */}
+        {device?.key && !device.connected && (
+          <SettingCard
+            icon={<Delete20Regular />}
+            title="Remove this mouse"
+            description="Takes it off the list with its profile names, app rules and battery history. Backups and the settings on the mouse stay."
+          >
+            <Button disabled={busy} onClick={() => void remove(device.key!)}>
+              Remove
             </Button>
           </SettingCard>
         )}
