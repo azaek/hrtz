@@ -520,6 +520,8 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
     for f in BATTERIES {
         battery |= t.feature(f)? != 0;
     }
+    // Looked up so its word that the mouse linked up again is known for what it is.
+    t.feature(feature::WIRELESS_STATUS)?;
     #[cfg(windows)]
     let port = opened.port.as_ref().map(|p| p.path.clone());
     #[cfg(not(windows))]
@@ -1038,6 +1040,8 @@ impl Driver for Connected {
         for e in &events {
             match self.t.feature_at(e[2]) {
                 Some(f) if BATTERIES.contains(&f) => follow.battery = true,
+                // Linked up again: no need to wait to see it used before asking.
+                Some(feature::WIRELESS_STATUS) => self.asleep_since = None,
                 // What the Superlights announce for a profile or DPI switch is to be seen on
                 // hardware (PLAN-mice.md, section 6): any of these, and the profile is read again.
                 Some(feature::ONBOARD_PROFILES | feature::ADJUSTABLE_DPI | feature::EXTENDED_DPI) => moved = true,

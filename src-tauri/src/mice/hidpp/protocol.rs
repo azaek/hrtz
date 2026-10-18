@@ -50,6 +50,9 @@ pub mod feature {
     pub const REPORT_RATE: u16 = 0x8060;
     pub const EXTENDED_REPORT_RATE: u16 = 0x8061;
     pub const ONBOARD_PROFILES: u16 = 0x8100;
+    /// Wireless device status: the mouse says by itself when it links up again (woken, or back in
+    /// range).
+    pub const WIRELESS_STATUS: u16 = 0x1D4B;
 }
 
 /// Our function byte: the function in the high nibble, our software ID in the low one.

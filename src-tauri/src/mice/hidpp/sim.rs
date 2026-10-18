@@ -161,7 +161,17 @@ impl SimMouse {
         } else {
             (feature::ADJUSTABLE_DPI, feature::REPORT_RATE)
         };
-        vec![feature::ROOT, 0x0001, feature::FIRMWARE, feature::NAME, battery, dpi, rate, feature::ONBOARD_PROFILES]
+        vec![
+            feature::ROOT,
+            0x0001,
+            feature::FIRMWARE,
+            feature::NAME,
+            battery,
+            dpi,
+            rate,
+            feature::ONBOARD_PROFILES,
+            feature::WIRELESS_STATUS,
+        ]
     }
 
     /// The DPI it runs: what its stage slot holds in the profile in use.
@@ -182,6 +192,13 @@ impl SimMouse {
         let fi = self.index_of(feature::ONBOARD_PROFILES);
         let [hi, lo] = sector.to_be_bytes();
         self.out.push_back(long(self.slot, fi, 0x00, &[hi, lo]));
+    }
+
+    #[cfg(test)]
+    /// Linked up again, and the mouse says so (0x1D4B's status event: reconnection).
+    pub fn reconnect_event(&mut self) {
+        let fi = self.index_of(feature::WIRELESS_STATUS);
+        self.out.push_back(long(self.slot, fi, 0x00, &[0x01, 0x00, 0x00]));
     }
 
     #[cfg(test)]

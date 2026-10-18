@@ -688,6 +688,21 @@ fn taken_over_while_asleep_is_seen_when_it_wakes() {
 }
 
 #[test]
+fn a_sleeping_mouse_that_says_its_linked_up_again_is_asked_at_once() {
+    let port = "PCIROOT(0)#TEST(relink)";
+    let mut r = Rig::connected(SimMouse { port: Some(port.into()), ..SimMouse::superlight() });
+    r.mouse.lock().online = false;
+    r.w.housekeeping();
+    assert!(!r.state().online);
+    // Woken by a click that raw input missed (another window had it, say): only its word.
+    r.mouse.lock().online = true;
+    r.mouse.lock().reconnect_event();
+    r.w.drain_unsolicited();
+    r.w.housekeeping();
+    assert!(r.state().online);
+}
+
+#[test]
 fn a_sleeping_mouse_is_left_alone_until_its_used() {
     let port = "PCIROOT(0)#TEST(sleep)";
     let mut r = Rig::connected(SimMouse { port: Some(port.into()), ..SimMouse::superlight() });
