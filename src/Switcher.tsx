@@ -23,7 +23,7 @@ import { MousePicture } from "./DrawnMouse";
 import { seenAt } from "./format";
 import { linkName } from "./links";
 import { artOf, ofModel } from "./models";
-import { pickMouse, startFlow, useMouse, useStore } from "./store";
+import { goTo, pickMouse, startFlow, useMouse, useStore } from "./store";
 import { FLYOUT_PADDING } from "./kit";
 
 const useStyles = makeStyles({
@@ -46,9 +46,18 @@ const useStyles = makeStyles({
     margin: `${tokens.spacingVerticalM} 0 ${tokens.spacingVerticalXS}`,
     color: tokens.colorNeutralForeground3,
   },
-  /** The picture's area, the card's full width: the "Not tested" chip sits in its corner. */
-  artRow: { position: "relative", display: "flex", justifyContent: "center" },
-  untested: { position: "absolute", top: tokens.spacingVerticalS, right: tokens.spacingHorizontalS },
+  /** The card, with the "Not tested" chip over its corner: beside the switcher's button, not in it. */
+  cardWrap: { position: "relative" },
+  untested: {
+    position: "absolute",
+    top: tokens.spacingVerticalS,
+    right: tokens.spacingHorizontalS,
+    padding: 0,
+    border: "none",
+    background: "none",
+    cursor: "pointer",
+    borderRadius: tokens.borderRadiusMedium,
+  },
   device: {
     display: "flex",
     flexDirection: "column",
@@ -126,16 +135,18 @@ function RateBadge({ d }: { d: DeviceState }) {
   );
 }
 
-/** A model hrtz lists but hasn't been tried on: Settings has its check. */
-function UntestedBadge({ d }: { d: DeviceState }) {
+/** A model hrtz lists but hasn't been tried on: the chip opens Settings at its check. */
+function UntestedBadge({ d }: { d: DeviceState | null }) {
   const s = useStyles();
-  const untested = useStore((st) => st.supported.some((m) => ofModel(d.key, m.key) && !m.tested));
+  const untested = useStore((st) => !!d?.connected && st.supported.some((m) => ofModel(d.key, m.key) && !m.tested));
   if (!untested) return null;
   const label = "hrtz hasn't been tried on this model yet. Help test it in Settings.";
   return (
-    <Badge className={mergeClasses(s.rate, s.rateIdle, s.untested)} appearance="tint" shape="rounded" color="informative" title={label} aria-label={label}>
-      Not tested
-    </Badge>
+    <button className={s.untested} title={label} aria-label={label} onClick={() => goTo("settings", "help-test")}>
+      <Badge appearance="tint" shape="rounded" color="warning">
+        Not tested
+      </Badge>
+    </button>
   );
 }
 
@@ -148,11 +159,8 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
   const b = d?.connected ? d.battery : null;
   return (
     <div className={s.card} role="button" tabIndex={0} {...rest}>
-      <div className={s.artRow}>
-        <div className={s.art}>
-          <MousePicture image={artOf(d?.key, d?.variant)?.image} width={176} none={!d} />
-        </div>
-        {d?.connected && <UntestedBadge d={d} />}
+      <div className={s.art}>
+        <MousePicture image={artOf(d?.key, d?.variant)?.image} width={176} none={!d} />
       </div>
       <div className={s.device}>
         <div className={s.modelRow}>
@@ -219,9 +227,12 @@ export function Switcher() {
       checkedValues={{ mouse: device?.key ? [device.key] : [] }}
       onCheckedValueChange={(_, d) => d.checkedItems[0] && pickMouse(d.checkedItems[0])}
     >
-      <MenuTrigger disableButtonEnhancement>
-        <MouseCard d={device} aria-label="Switch mouse" />
-      </MenuTrigger>
+      <div className={s.cardWrap}>
+        <MenuTrigger disableButtonEnhancement>
+          <MouseCard d={device} aria-label="Switch mouse" />
+        </MenuTrigger>
+        <UntestedBadge d={device} />
+      </div>
       <MenuPopover className={s.popover}>
         <MenuList className={s.list}>
           <div className={s.mice}>

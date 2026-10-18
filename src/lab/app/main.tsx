@@ -114,6 +114,11 @@ SCENARIOS.backup = async () => {
 SCENARIOS.update = async () => {
   [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Check for updates"))?.click();
 };
+// The "Not tested" badge: opens Settings at Help test (with ?mouse=superlight&untested).
+SCENARIOS.badge = async () => {
+  document.querySelector<HTMLElement>('[aria-label^="hrtz hasn"]')?.click();
+  await wait(700);
+};
 // Help test from start to finish, on Settings (with ?mouse=superlight&untested): circles, then each
 // button it can see pressed in turn.
 SCENARIOS.participate = async () => {

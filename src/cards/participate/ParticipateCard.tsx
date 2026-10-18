@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Caption1, Link } from "@fluentui/react-components";
 import { CheckmarkCircle16Filled, Circle16Regular, DismissCircle16Filled, PersonFeedback20Regular } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -7,7 +7,7 @@ import { api, message, type DeviceState } from "@/api";
 import { SettingCard } from "@/components";
 import { StepCard } from "@/kit";
 import { reportUrl } from "@/report";
-import { toast } from "@/store";
+import { focusDone, toast, useStore } from "@/store";
 import { buildReport, reportName, summaryLines, summaryText } from "./report";
 import { useParticipate } from "./useParticipate";
 
@@ -31,6 +31,18 @@ const DOING: Record<string, string> = {
 export function ParticipateCard({ device }: { device: DeviceState }) {
   const p = useParticipate();
   const [saved, setSaved] = useState<string | null>(null);
+  // Opened from the "Not tested" badge: brought into view, and lit for a moment.
+  const focus = useStore((x) => x.nav?.focus);
+  const ref = useRef<HTMLDivElement>(null);
+  const [lit, setLit] = useState(false);
+  useEffect(() => {
+    if (focus !== "help-test") return;
+    ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setLit(true);
+    focusDone();
+    const t = setTimeout(() => setLit(false), 1800);
+    return () => clearTimeout(t);
+  }, [focus]);
   const running = p.stage !== "idle" && p.stage !== "done";
 
   const save = async () => {
@@ -64,6 +76,14 @@ export function ParticipateCard({ device }: { device: DeviceState }) {
       : "A 2-minute check of what works on this model, saved as a report for GitHub. It changes one DPI stage and puts it back.";
 
   return (
+    <div
+      ref={ref}
+      style={{
+        borderRadius: "var(--borderRadiusLarge)",
+        transition: "box-shadow 600ms ease-out",
+        boxShadow: lit ? "0 0 0 3px color-mix(in srgb, var(--colorPaletteMarigoldBorderActive) 45%, transparent)" : "0 0 0 3px transparent",
+      }}
+    >
     <SettingCard
       stacked={running || p.stage === "done"}
       icon={<PersonFeedback20Regular />}
@@ -125,5 +145,6 @@ export function ParticipateCard({ device }: { device: DeviceState }) {
         </Button>
       )}
     </SettingCard>
+    </div>
   );
 }
