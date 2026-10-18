@@ -120,7 +120,7 @@ impl Finder for HidppFinder {
             #[cfg(not(windows))]
             let used = false;
             if !used && t.elapsed() < QUIET_RETRY {
-                bail!("The mouse is asleep. Move it to wake it.");
+                return Err(crate::mice::Waiting.into());
             }
         }
         let api = self.api()?;

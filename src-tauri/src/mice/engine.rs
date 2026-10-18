@@ -279,9 +279,9 @@ impl Worker {
                 Ok(()) => self.connect_error = None,
                 Err(e) => {
                     // Each new reason once, so a receiver that won't answer can be told from one
-                    // that isn't plugged in.
+                    // that isn't plugged in. Waiting to ask again isn't a reason.
                     let why = format!("{e:#}");
-                    if self.connect_error.as_deref() != Some(why.as_str()) {
+                    if !e.is::<super::Waiting>() && self.connect_error.as_deref() != Some(why.as_str()) {
                         eprintln!("connect failed: {why}");
                         self.connect_error = Some(why);
                     }

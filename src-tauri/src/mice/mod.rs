@@ -51,6 +51,19 @@ mod family_tests {
     }
 }
 
+/// A finder not asking yet, on purpose: a mouse that didn't answer is left alone until it's used
+/// (asking a sleeping one can wake it). The reason it didn't answer was logged already.
+#[derive(Debug)]
+pub struct Waiting;
+
+impl std::fmt::Display for Waiting {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("The mouse is asleep. Move it to wake it.")
+    }
+}
+
+impl std::error::Error for Waiting {}
+
 /// One open connection to a receiver, or to a mouse on its cable: reports out, reports in.
 pub trait Link: Send {
     fn write(&mut self, report: &[u8]) -> Result<()>;
