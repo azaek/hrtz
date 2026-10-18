@@ -19,6 +19,13 @@ pub use engine::{Battery, Board, DeviceEvent, DeviceState, Engine, Notify, Worke
 pub use hub::Hub;
 use model::Settings;
 
+/// Whether a mouse's key is a Zaopin's: `compx/7-4`, or simulated, `sim/7-4` (a simulated
+/// Logitech's is `sim/c094/…`).
+pub fn is_zaopin(key: &str) -> bool {
+    let rest = key.strip_prefix("compx/").or_else(|| key.strip_prefix("sim/"));
+    rest.and_then(|r| r.split_once('-')).is_some_and(|(c, m)| c.parse::<u8>().is_ok() && m.parse::<u8>().is_ok())
+}
+
 /// One open connection to a receiver, or to a mouse on its cable: reports out, reports in.
 pub trait Link: Send {
     fn write(&mut self, report: &[u8]) -> Result<()>;

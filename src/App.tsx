@@ -22,6 +22,7 @@ import { BatteryPage } from "./pages/Battery";
 import { HudPage } from "./pages/Hud";
 import { SettingsPage } from "./pages/SettingsPage";
 import type { Capabilities } from "./api";
+import { familyOf } from "./models";
 import { Onboarding } from "./Onboarding";
 import { Switcher } from "./Switcher";
 import { WhatsNew } from "./WhatsNew";
@@ -214,7 +215,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
         </header>
         <div className={s.scroller}>
           <div className={s.page}>
-            {vendor && (
+            {vendor && familyOf(device?.key) === "compx" && (
               <Notice tone="warning" icon={<Warning16Filled />} title="Zaopin's app is running">
                 Quit it from its tray icon. Both apps use the same channel and overwrite each other's changes.
               </Notice>

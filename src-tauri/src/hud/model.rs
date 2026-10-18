@@ -155,6 +155,8 @@ impl Facts {
             (Some((level, false)), Some(hz)) => life_h(hz).map(|h| h * level as f64 / 100.0),
             _ => None,
         };
+        // Zaopin's app gets in the way of a Zaopin only.
+        let vendor_app = vendor_app && s.key.as_deref().is_some_and(crate::mice::is_zaopin);
         Self {
             link,
             long_range: s.long_range == Some(true),
@@ -619,6 +621,7 @@ mod tests {
             ..image::decode(&[0xFF; crate::mice::compx::protocol::FLASH_SIZE])
         };
         let s = DeviceState {
+            key: Some("compx/7-4".into()),
             connected: true,
             online: true,
             battery: Some(Battery { level: 80, raw_level: 80, charging: false, millivolts: 4000 }),
@@ -636,6 +639,8 @@ mod tests {
         assert_eq!(f.profile.as_deref(), Some("Profile 3"));
         assert!((f.time_left_h.unwrap() - 9.6).abs() < 1e-9);
         assert!(f.saver && f.vendor_app && f.link == Link::Receiver);
+        let logitech = DeviceState { key: Some("hidpp/c094/1a2b3c4d".into()), ..s.clone() };
+        assert!(!Facts::of(&logitech, &p, &m, true, |_| None).vendor_app, "Zaopin's app is no matter to a Logitech");
         let asleep = Facts::of(&DeviceState { online: false, ..s.clone() }, &p, &m, false, |_| None);
         assert_eq!(asleep.link, Link::Away);
         assert_eq!(Facts::of(&DeviceState::default(), &p, &m, false, |_| None).link, Link::NoReceiver);

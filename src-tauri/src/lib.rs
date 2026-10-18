@@ -912,7 +912,7 @@ fn fit_tray_profiles(ctx: &Ctx, tray: &TrayIcon, items: &mut Vec<CheckMenuItem<t
 }
 
 fn tooltip(s: &DeviceState) -> String {
-    let model = s.model.clone().unwrap_or_else(|| "Zaopin mouse".into());
+    let model = s.model.clone().unwrap_or_else(|| "Mouse".into());
     match (&s.battery, s.connected, s.online) {
         (_, false, _) => "hrtz: no mouse connected".into(),
         (Some(b), true, true) => {

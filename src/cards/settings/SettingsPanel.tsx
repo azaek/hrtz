@@ -71,6 +71,9 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const untested = device?.connected && supported.some((m) => ofModel(device.key, m.key) && !m.tested) ? device.model : null;
   const caps = device?.capabilities;
   const wired = !!caps?.wired;
+  // The small print names the maker of the mouse shown.
+  const family = familyOf(device?.key);
+  const maker = family ? { compx: "Zaopin", hidpp: "Logitech" }[family] : null;
   // A row this mouse can't use is left out; with no mouse they all show, waiting for one.
   const can = (feature: "longRange" | "pairing" | "factoryReset" | "backups") => !caps || caps[feature];
   const noLongRange = !device?.connected || device.longRange === null || wired;
@@ -244,7 +247,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       </Group>
 
       <Caption1 style={{ ...muted, padding: "8px 2px 0" }}>
-        hrtz isn't affiliated with Zaopin, Logitech or any other mouse maker. Mouse images and model names belong to their makers and are shown only to identify your mouse.
+        hrtz isn't affiliated with {maker ? `${maker} or any other mouse maker` : "any mouse maker"}. Mouse images and model names belong to their makers and are shown only to identify your mouse.
       </Caption1>
 
       {/* Factory reset is device-wide, so it's the one thing that asks first. */}
