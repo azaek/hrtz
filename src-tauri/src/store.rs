@@ -131,6 +131,21 @@ impl Default for MousePrefs {
 }
 
 impl MousePrefs {
+    /// Take the names saved on the mouse (by profile; none where it has none). Returns whether any
+    /// name changed.
+    pub fn take_names(&mut self, on_mouse: &[Option<String>]) -> bool {
+        let mut changed = false;
+        for (i, name) in on_mouse.iter().enumerate() {
+            if let (Some(name), Some(ours)) = (name, self.profile_names.get_mut(i))
+                && ours != name
+            {
+                *ours = name.clone();
+                changed = true;
+            }
+        }
+        changed
+    }
+
     /// Its fields as they were in `prefs.json`, from before several mice.
     const FIELDS: [&str; 9] = [
         "rulesEnabled",
@@ -1359,6 +1374,15 @@ mod tests {
         assert_eq!((s.polling_hz, s.dpi_stage_count), (Some(1000), Some(1)));
         assert_eq!(s.stages.unwrap()[0].dpi, 1600, "the user's profile, as the probe read it");
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn names_on_the_mouse_become_hrtzs() {
+        let mut p = MousePrefs { profile_names: vec!["Aim".into(), "Profile 2".into()], ..MousePrefs::default() };
+        assert!(!p.take_names(&[None, None]), "none on the mouse: ours stay");
+        assert!(p.take_names(&[None, Some("Tracking".into())]));
+        assert_eq!(p.profile_names, ["Aim", "Tracking"]);
+        assert!(!p.take_names(&[None, Some("Tracking".into()), Some("Extra".into())]), "only profiles it has");
     }
 
     #[test]

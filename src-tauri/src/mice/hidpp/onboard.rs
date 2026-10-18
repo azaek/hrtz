@@ -34,6 +34,38 @@ pub mod func {
 pub const MODE_ONBOARD: u8 = 0x01;
 pub const MODE_HOST: u8 = 0x02;
 
+/// Where a profile keeps its name, in both layouts: 24 UTF-16 units from 0xA0, zero-filled.
+pub const NAME_AT: usize = 0xA0;
+pub const NAME_LEN: usize = 0x30;
+/// One unit is kept for the terminator.
+pub const NAME_MAX_CHARS: usize = NAME_LEN / 2 - 1;
+/// What G HUB writes into a profile it hasn't been given a name for: no name.
+const NAME_PLACEHOLDER: &str = "PROFILE_NAME_DEFAULT";
+
+/// A profile's name, from its name bytes (`NAME_LEN` of them): none when erased, empty, or G HUB's
+/// placeholder.
+pub fn decode_name(bytes: &[u8]) -> Option<String> {
+    if bytes.is_empty() || bytes.iter().all(|b| *b == 0xFF) {
+        return None;
+    }
+    let units: Vec<u16> =
+        bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|u| *u != 0).collect();
+    let name = String::from_utf16_lossy(&units).trim().to_string();
+    (!name.is_empty() && name != NAME_PLACEHOLDER).then_some(name)
+}
+
+/// Put `name` into a profile sector, its checksum after. What doesn't fit goes: characters past
+/// the 23rd, and any outside the basic range (an emoji takes two units).
+pub fn encode_name(sector: &mut [u8], name: &str) {
+    let region = &mut sector[NAME_AT..NAME_AT + NAME_LEN];
+    region.fill(0);
+    let units = name.trim().chars().filter(|c| (*c as u32) <= 0xFFFF).take(NAME_MAX_CHARS).map(|c| c as u16);
+    for (i, u) in units.enumerate() {
+        region[i * 2..i * 2 + 2].copy_from_slice(&u.to_le_bytes());
+    }
+    apply_crc(sector);
+}
+
 /// Where the factory (ROM) profiles are read: 0x0101 for the first. G HUB falls back to them when a
 /// profile won't read (GHUB.md); libratbag reads them the same way. Not written.
 pub const ROM_FIRST: u16 = 0x0101;

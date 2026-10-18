@@ -107,7 +107,7 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
           <Pane aria-label={name}>
             <PaneHeader
               strong
-              title={renaming ? <NameField value={name} index={sel} onSave={rename} onDone={() => setRenaming(false)} /> : <span style={truncate}>{name}</span>}
+              title={renaming ? <NameField value={name} index={sel} maxLength={device.profileNames ? 23 : undefined} onSave={rename} onDone={() => setRenaming(false)} /> : <span style={truncate}>{name}</span>}
               description={`Profile ${sel + 1} on the mouse`}
               actions={
                 <div className="flex shrink-0 items-center gap-1">

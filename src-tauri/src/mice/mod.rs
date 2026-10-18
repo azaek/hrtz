@@ -157,6 +157,10 @@ pub trait Driver: Send {
     fn factory_reset(&mut self, _board: &Board) -> Result<()> {
         unsupported()
     }
+    /// Save profile names on the mouse, where it keeps them.
+    fn set_profile_names(&mut self, _board: &Board, _names: &[String]) -> Result<()> {
+        unsupported()
+    }
 
     /// All of the mouse's memory, for a backup; `progress` shows a progress bar.
     fn read_image(&mut self, _board: &Board, _progress: bool) -> Result<Vec<u8>> {

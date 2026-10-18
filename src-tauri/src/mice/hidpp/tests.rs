@@ -575,6 +575,38 @@ fn a_button_set_here_is_written_into_the_profile_and_kept() {
 }
 
 #[test]
+fn a_profile_name_reads_back_as_written_and_g_hubs_stand_in_is_none() {
+    assert_eq!(
+        ob::decode_name(&fx::superlight_c547_profile()[ob::NAME_AT..ob::NAME_AT + ob::NAME_LEN]),
+        None,
+        "PROFILE_NAME_DEFAULT"
+    );
+    assert_eq!(ob::decode_name(&[0xFF; ob::NAME_LEN]), None, "erased");
+    let mut sector = fx::superlight_c547_profile();
+    ob::encode_name(&mut sector, "  Aim 🎯 practice for the long weekend  ");
+    let name = ob::decode_name(&sector[ob::NAME_AT..ob::NAME_AT + ob::NAME_LEN]).unwrap();
+    assert_eq!(name, "Aim  practice for the l", "23 characters, no emoji");
+    assert!(ob::crc_ok(&sector));
+}
+
+#[test]
+fn names_saved_here_go_onto_the_mouse_and_read_back() {
+    let mut r = Rig::connected(SimMouse::superlight());
+    assert_eq!(r.state().profile_names.unwrap(), vec![None; 5], "G HUB's stand-in, and erased");
+    let (from, _) = r.mark();
+    let names: Vec<String> = ["Aim", "Profile 2", "Profile 3", "Work", "Profile 5"].map(String::from).to_vec();
+    r.w.set_profile_names(&names).unwrap();
+    let on_mouse = r.state().profile_names.unwrap();
+    assert_eq!(on_mouse, [Some("Aim".into()), None, None, Some("Work".into()), None]);
+    assert_eq!(
+        r.profile_calls_since(from).iter().filter(|f| **f == ob::func::WRITE_END).count(),
+        2,
+        "only the two renamed"
+    );
+    assert!(ob::crc_ok(&r.sector(1)) && ob::crc_ok(&r.sector(4)));
+}
+
+#[test]
 fn factory_settings_put_the_factory_profile_over_every_profile() {
     let mut r = Rig::connected(SimMouse::superlight());
     assert!(r.state().capabilities.unwrap().factory_reset, "getInfo counts one factory profile");

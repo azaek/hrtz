@@ -141,6 +141,9 @@ export interface DeviceState {
   firmware: string | null;
   battery: Battery | null;
   profile: number | null;
+  /** The names saved on the mouse, by profile, where it keeps them (a Logitech's). hrtz's names
+   *  (`MousePrefs.profileNames`) take them, and go onto the mouse when renamed here. */
+  profileNames?: (string | null)[] | null;
   longRange: boolean | null;
   /** Software drives the mouse live instead of its own memory: a Logitech in host mode, G HUB's
    *  doing with its On-board memory mode off. What's set here applies once it lets go. */

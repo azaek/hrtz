@@ -4,7 +4,20 @@ import { Input } from "@fluentui/react-components";
  * A profile's name as a field, opened by Rename: the name starts selected, Enter or leaving the
  * field saves, Escape cancels. An empty name goes back to "Profile N".
  */
-export function NameField({ value, index, onSave, onDone }: { value: string; index: number; onSave: (name: string) => void; onDone: () => void }) {
+export function NameField({
+  value,
+  index,
+  maxLength,
+  onSave,
+  onDone,
+}: {
+  value: string;
+  index: number;
+  /** As long as the mouse keeps a name (a Logitech's 23 characters); no limit for names kept here. */
+  maxLength?: number;
+  onSave: (name: string) => void;
+  onDone: () => void;
+}) {
   const save = (v: string) => {
     const name = v.trim() || `Profile ${index + 1}`;
     if (name !== value) onSave(name);
@@ -14,6 +27,7 @@ export function NameField({ value, index, onSave, onDone }: { value: string; ind
     <Input
       autoFocus
       defaultValue={value}
+      maxLength={maxLength}
       aria-label={`Name for profile ${index + 1}`}
       style={{ width: "100%", maxWidth: 280 }}
       onFocus={(e) => e.currentTarget.select()}

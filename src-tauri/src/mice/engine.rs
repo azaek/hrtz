@@ -62,6 +62,10 @@ pub struct DeviceState {
     pub firmware: Option<String>,
     pub battery: Option<Battery>,
     pub profile: Option<u8>,
+    /// The names saved on the mouse, by profile, where it keeps them (a Logitech's): none for a
+    /// profile without one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_names: Option<Vec<Option<String>>>,
     pub long_range: Option<bool>,
     /// Software drives the mouse live instead of its own memory: a Logitech in host mode, G HUB's
     /// doing with its On-board memory mode off. What's set here applies once it lets go.
@@ -423,6 +427,14 @@ impl Worker {
         self.log_battery();
         self.board.publish(None);
         Ok(self.board.read().settings.clone().unwrap())
+    }
+
+    /// Save profile names on the mouse, where it keeps them (by profile; one unchanged is left).
+    pub fn set_profile_names(&mut self, names: &[String]) -> Result<()> {
+        self.require_online()?;
+        self.drive(|d, b| d.set_profile_names(b, names))?;
+        self.board.publish(None);
+        Ok(())
     }
 
     pub fn set_profile(&mut self, index: u8) -> Result<()> {

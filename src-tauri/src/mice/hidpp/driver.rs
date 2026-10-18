@@ -611,6 +611,29 @@ struct Connected {
 const MODE_EVERY: Duration = Duration::from_secs(5);
 
 impl Connected {
+    /// Each profile's name: the name bytes alone of each, the profile in use from what's read.
+    fn read_names(&mut self) -> Result<Option<Vec<Option<String>>>> {
+        let Some(o) = &self.onboard else { return Ok(None) };
+        let (fi, sector, bytes, entries) = (o.feature, o.sector, o.bytes.clone(), o.directory.clone());
+        let mut names = Vec::with_capacity(entries.len());
+        for e in entries {
+            let region = if e.sector == sector {
+                bytes.get(ob::NAME_AT..ob::NAME_AT + ob::NAME_LEN).map(<[u8]>::to_vec).unwrap_or_default()
+            } else {
+                let mut r = Vec::with_capacity(ob::NAME_LEN);
+                for at in (ob::NAME_AT..ob::NAME_AT + ob::NAME_LEN).step_by(ob::CHUNK) {
+                    let [s_hi, s_lo] = e.sector.to_be_bytes();
+                    let [a_hi, a_lo] = (at as u16).to_be_bytes();
+                    let chunk = self.t.request(fi, ob::func::READ, &[s_hi, s_lo, a_hi, a_lo])?;
+                    r.extend(chunk.iter().take(ob::CHUNK));
+                }
+                r
+            };
+            names.push(ob::decode_name(&region));
+        }
+        Ok(Some(names))
+    }
+
     /// Whether software drives the mouse live (host mode) instead of its onboard profile, posted
     /// for the UI. Returns whether that changed.
     fn read_mode(&mut self, board: &Board) -> Result<bool> {
@@ -941,6 +964,8 @@ impl Driver for Connected {
         let firmware = firmware(&mut self.t)?;
         self.onboard = self.read_onboard()?;
         self.read_mode(board)?;
+        let names = self.read_names()?;
+        board.set(|s| s.profile_names = names);
         let live = self.live()?;
         board.set(|s| {
             s.online = true;
@@ -1224,6 +1249,47 @@ impl Driver for Connected {
         }
         self.t.request(fi, ob::func::SET_CURRENT, &directory[0].sector.to_be_bytes())?;
         self.load(board)
+    }
+
+    /// Save profile names: each profile whose name differs is rewritten, checked, and read again.
+    fn set_profile_names(&mut self, board: &Board, names: &[String]) -> Result<()> {
+        let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;
+        let (fi, len, current, entries) = (o.feature, o.info.sector_len(), o.sector, o.directory.clone());
+        if !ob::writable(o.info.format) {
+            bail!("hrtz can't change this mouse's profiles yet (profile format {}).", o.info.format);
+        }
+        let on_mouse = board.read().profile_names.clone().unwrap_or_default();
+        for (i, (e, name)) in entries.iter().zip(names).enumerate() {
+            let theirs = on_mouse.get(i).cloned().flatten();
+            // The same, or hrtz's own stand-in for a profile the mouse keeps no name for.
+            if theirs.as_deref() == Some(name.trim())
+                || (theirs.is_none() && name.trim() == format!("Profile {}", i + 1))
+            {
+                continue;
+            }
+            let before = self.read_sector(fi, e.sector, len)?;
+            if !ob::crc_ok(&before) {
+                bail!("Profile {} failed its checksum, so hrtz won't write over it.", i + 1);
+            }
+            let mut bytes = before.clone();
+            ob::encode_name(&mut bytes, name);
+            if bytes == before {
+                continue;
+            }
+            self.write_sector(fi, e.sector, &bytes)?;
+            if self.read_sector(fi, e.sector, len)? != bytes {
+                let _ = self.write_sector(fi, e.sector, &before);
+                bail!("The mouse didn't keep profile {}'s name, so it was put back.", i + 1);
+            }
+            if e.sector == current
+                && let Some(o) = self.onboard.as_mut()
+            {
+                o.bytes = bytes;
+            }
+        }
+        let names = self.read_names()?;
+        board.set(|s| s.profile_names = names);
+        Ok(())
     }
 
     /// Switch to the profile at `index` in the directory. This writes nothing to flash.

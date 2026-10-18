@@ -86,6 +86,9 @@ struct Ctx {
     /// Models (`mid`) checked this run for a first backup, so it's looked into once.
     /// The mice (keys) checked for their first backup this run.
     met: Mutex<HashSet<String>>,
+    /// Mice (keys) with profile names renamed here and not on the mouse yet, and those being written.
+    names_pending: Mutex<HashSet<String>>,
+    names_writing: Mutex<HashSet<String>>,
     /// The mice hrtz has met, with what it keeps for each (`mice.json`).
     known: RwLock<KnownMice>,
     /// The mice connected now, so when one goes it's noted as last seen then.
@@ -348,10 +351,37 @@ fn clear_removed(data_dir: &std::path::Path) {
 
 #[tauri::command]
 fn set_mouse_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, key: String, prefs: MousePrefs) -> CmdResult<()> {
+    let renamed = ctx.known.read().prefs(&key).profile_names != prefs.profile_names;
     if ctx.known.write().set_prefs(&key, prefs) {
         commit_mice(&app, &ctx);
     }
+    // A mouse that keeps names gets them too, now or once it's awake.
+    if renamed && mice::family_of(&key) == Some("hidpp") {
+        ctx.names_pending.lock().insert(key.clone());
+        push_names(&ctx, &key);
+    }
     Ok(())
+}
+
+/// Write mouse `key`'s names from hrtz to the mouse, if it's awake and they're waiting to go.
+fn push_names(ctx: &Arc<Ctx>, key: &str) {
+    let awake = ctx.hub.engine(key).is_some_and(|e| e.snapshot().online);
+    if !awake || !ctx.names_pending.lock().contains(key) || !ctx.names_writing.lock().insert(key.to_string()) {
+        return;
+    }
+    let names = ctx.known.read().prefs(key).profile_names;
+    let (ctx, key) = (ctx.clone(), key.to_string());
+    tauri::async_runtime::spawn(async move {
+        let done = on_device(&ctx, Some(&key), move |w| w.set_profile_names(&names)).await;
+        ctx.names_writing.lock().remove(&key);
+        match done {
+            Ok(()) => {
+                ctx.names_pending.lock().remove(&key);
+            }
+            // Kept waiting: tried again when the mouse next reports in.
+            Err(e) => eprintln!("profile names not saved on the mouse yet: {e}"),
+        }
+    });
 }
 
 #[tauri::command]
@@ -1004,6 +1034,18 @@ fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>
             mouse = next;
         }
     }
+    // Names the mouse keeps (set in G HUB, say) become hrtz's, unless a rename here is on its way.
+    if let (true, Some(key), Some(names)) = (s.online, &s.key, &s.profile_names) {
+        if ctx.names_pending.lock().contains(key) {
+            push_names(&ctx, key);
+        } else {
+            let mut next = mouse.clone();
+            if next.take_names(names) {
+                commit_mouse_prefs(app, &ctx, key, next.clone());
+                mouse = next;
+            }
+        }
+    }
 
     // Remember what the profile in use holds: the mouse reports only that one, and the Profiles
     // page shows the rest from these.
@@ -1492,6 +1534,8 @@ pub fn run() {
                 tray_level: Mutex::new(None),
                 hud,
                 met: Mutex::new(HashSet::new()),
+                names_pending: Mutex::new(HashSet::new()),
+                names_writing: Mutex::new(HashSet::new()),
                 known: RwLock::new(known),
                 connected: Mutex::new(HashSet::new()),
             });
@@ -1764,6 +1808,7 @@ mod lab {
                 millivolts: last["mv"].as_u64().unwrap() as u16,
             }),
             profile: Some(0),
+            profile_names: None,
             long_range: Some(false),
             host_mode: false,
             settings: Some(newest),
