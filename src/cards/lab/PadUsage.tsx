@@ -8,6 +8,7 @@ import {
   Dropdown,
   Link,
   makeStyles,
+  mergeClasses,
   Option,
   Subtitle2,
   InteractionTag,
@@ -33,7 +34,9 @@ const APP_KEY = "hrtz.padApp";
 const ALL = "__all";
 
 type Edge = "top" | "bottom" | "left" | "right";
-const STEPS: { key: "home" | Edge; text: string }[] = [
+type Mark = "home" | Edge;
+const EDGES: Edge[] = ["top", "bottom", "left", "right"];
+const STEPS: { key: Mark; text: string }[] = [
   { key: "home", text: "Put the mouse where you usually rest it when you play, then press Space." },
   { key: "top", text: "Without lifting, slide it to the top edge of the area you use and press Space." },
   { key: "bottom", text: "Slide it to the bottom edge and press Space." },
@@ -76,8 +79,9 @@ const useStyles = makeStyles({
   value: { fontVariantNumeric: "tabular-nums" },
   actions: { display: "flex", alignItems: "center", gap: tokens.spacingHorizontalL },
   steps: { display: "flex", gap: "6px" },
-  step: { width: "24px", height: "4px", borderRadius: "2px", backgroundColor: tokens.colorNeutralStroke1 },
-  stepDone: { backgroundColor: tokens.colorBrandBackground },
+  step: { width: "24px", height: "4px", borderRadius: "2px", backgroundColor: tokens.colorNeutralStroke2 },
+  // Neutral, like the kit's ProgressLine: progress never takes the accent.
+  stepDone: { backgroundColor: tokens.colorNeutralForeground3 },
   error: { color: tokens.colorPaletteRedForeground1 },
   picker: { minWidth: "220px", alignSelf: "flex-start" },
   pickerValue: { display: "inline-flex", alignItems: "center", gap: tokens.spacingHorizontalS, minWidth: 0 },
@@ -126,8 +130,11 @@ function percentile(bins: number[], share: number): number | null {
   return bins.length - 1;
 }
 
+/** What didn't add up, and the marks to take again. */
+type Redo = { error: string; redo: Mark[] };
+
 /** Turn the four edge positions (sensor counts from the resting spot) into a calibration. */
-function solve(p: Record<Edge, [number, number]>, dpi: number): PadCalibration | string {
+function solve(p: Record<Edge, [number, number]>, dpi: number): PadCalibration | Redo {
   const k = 2.54 / dpi;
   const up = [p.top[0] - p.bottom[0], p.top[1] - p.bottom[1]];
   const across = [p.right[0] - p.left[0], p.right[1] - p.left[1]];
@@ -136,16 +143,18 @@ function solve(p: Record<Edge, [number, number]>, dpi: number): PadCalibration |
   const ar = -Math.atan2(across[1], across[0]);
   const skew = Math.abs(((au - ar + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) * (180 / Math.PI);
   if (skew > 20) {
-    return `Your up-down and side-to-side slides came out ${Math.round(skew)}° off square. Redo them, sliding straight to each edge.`;
+    return { error: `Your up-down and side-to-side slides came out ${Math.round(skew)}° off square. Mark the edges again, sliding straight to each.`, redo: EDGES };
   }
   const angle = Math.atan2(Math.sin(au) + Math.sin(ar), Math.cos(au) + Math.cos(ar));
   const [c, s] = [Math.cos(angle), Math.sin(angle)];
   const rot = ([x, y]: [number, number]) => [(x * c - y * s) * k, (x * s + y * c) * k];
   const cal = { angle, top: -rot(p.top)[1], bottom: rot(p.bottom)[1], left: -rot(p.left)[0], right: rot(p.right)[0], version: 2 };
-  const short = (["top", "bottom", "left", "right"] as const).find((e) => cal[e] < 3);
-  if (short) return `The ${short} edge came out ${Math.max(0, cal[short]).toFixed(1)} cm from your spot. Start again and slide all the way to each edge.`;
+  const short = EDGES.find((e) => cal[e] < 3);
+  if (short) return { error: `The ${short} edge came out only ${Math.max(0, cal[short]).toFixed(1)} cm from your spot. Mark it again.`, redo: [short] };
   const [w, h] = [cal.left + cal.right, cal.top + cal.bottom];
-  if (w > 120 || h > 120) return `That came out ${Math.round(w)} × ${Math.round(h)} cm, bigger than any pad. Start again and keep the mouse down the whole time.`;
+  if (w > 120 || h > 120) {
+    return { error: `That came out ${Math.round(w)} × ${Math.round(h)} cm, bigger than any pad. Start again from your spot, keeping the mouse down the whole time.`, redo: ["home"] };
+  }
   return cal;
 }
 
@@ -171,10 +180,17 @@ export function PadUsage({ dpi, onResult }: { dpi: number } & TestProps) {
   const prefs = useStore((x) => x.prefs);
   const [pad, setPad] = useState<PadView | null>(null);
   const [step, setStep] = useState<number | null>(null);
+  // The step for the key handlers, which change marks and so stay out of state updaters.
+  const stepRef = useRef<number | null>(null);
+  const go = (i: number | null) => {
+    stepRef.current = i;
+    setStep(i);
+  };
   const [review, setReview] = useState<PadCalibration | null>(null);
   const [error, setError] = useState("");
   const pos = useRef<[number, number]>([0, 0]);
-  const marks = useRef<Partial<Record<Edge, [number, number]>>>({});
+  /** Positions from the resting spot, by step. Marking the spot again starts the edges over. */
+  const marks = useRef<Partial<Record<Mark, [number, number]>>>({});
   const [, redraw] = useState(0);
   const [app, setApp] = useState<string | null>(() => localStorage.getItem(APP_KEY));
   const choose = (exe: string | null) => {
@@ -222,33 +238,52 @@ export function PadUsage({ dpi, onResult }: { dpi: number } & TestProps) {
       redraw((n) => n + 1);
     },
   );
+  // Each Space marks the step shown and moves to the first one not marked yet. Once all are, the
+  // result is checked, and what doesn't add up is asked again on its own.
+  const firstUnmarked = () => STEPS.findIndex((x) => !marks.current[x.key]);
+  const mark = () => {
+    const i = stepRef.current;
+    if (i === null) return;
+    const at = STEPS[i].key;
+    if (at === "home") {
+      pos.current = [0, 0];
+      marks.current = { home: [0, 0] };
+    } else marks.current[at] = [...pos.current];
+    setError("");
+    if (firstUnmarked() >= 0) return go(firstUnmarked());
+    const result = solve(marks.current as Record<Edge, [number, number]>, dpi);
+    if ("error" in result) {
+      setError(result.error);
+      if (result.redo.includes("home")) marks.current = {};
+      for (const m of result.redo) delete marks.current[m];
+      return go(firstUnmarked());
+    }
+    setReview(result);
+    go(null);
+  };
+  // Back to the step before, to mark it again; the spot again starts over.
+  const back = () => {
+    const i = stepRef.current;
+    if (!i) return;
+    const prev = STEPS[i - 1].key;
+    if (prev === "home") marks.current = {};
+    else delete marks.current[prev];
+    setError("");
+    go(i - 1);
+  };
+  const cancel = () => {
+    go(null);
+    setError("");
+  };
   useEffect(() => {
     if (!calibrating) return;
     const key = (e: KeyboardEvent) => {
-      if (e.code === "Escape") {
-        e.preventDefault();
-        setStep(null);
-        return;
-      }
-      if (e.code !== "Space") return;
-      // Space would otherwise press whichever button has focus.
+      // Space would otherwise press whichever button has focus, and Backspace go back in a field.
+      const action = { Escape: cancel, Space: mark, Backspace: back }[e.code];
+      if (!action) return;
       e.preventDefault();
       e.stopPropagation();
-      setStep((i) => {
-        if (i === null) return null;
-        const at = STEPS[i].key;
-        if (at === "home") pos.current = [0, 0];
-        else marks.current[at] = [...pos.current];
-        if (i < STEPS.length - 1) return i + 1;
-        const result = solve(marks.current as Record<Edge, [number, number]>, dpi);
-        if (typeof result === "string") {
-          setError(result);
-        } else {
-          setError("");
-          setReview(result);
-        }
-        return null;
-      });
+      action();
     };
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
@@ -259,7 +294,7 @@ export function PadUsage({ dpi, onResult }: { dpi: number } & TestProps) {
     pos.current = [0, 0];
     setError("");
     setReview(null);
-    setStep(0);
+    go(0);
   };
 
   const cal = pad?.calibration ?? null;
@@ -271,17 +306,19 @@ export function PadUsage({ dpi, onResult }: { dpi: number } & TestProps) {
     content = (
       <>
         <div className={s.steps} aria-hidden>
-          {STEPS.map((_, i) => (
-            <span key={i} className={i <= step! ? `${s.step} ${s.stepDone}` : s.step} />
+          {STEPS.map((x, i) => (
+            <span key={i} className={mergeClasses(s.step, (marks.current[x.key] || i === step) && s.stepDone)} />
           ))}
         </div>
         <Body1Strong aria-live="polite">{STEPS[step!].text}</Body1Strong>
+        {error && <Caption1 className={s.error}>{error}</Caption1>}
         <Caption1 className={s.muted}>
           Step {step! + 1} of {STEPS.length}
-          {step! > 0 ? ` · ${fromSpot.toFixed(1)} cm from your spot` : ""} · Esc cancels
+          {step! > 0 ? ` · ${fromSpot.toFixed(1)} cm from your spot · Backspace goes back` : ""} · Esc cancels
         </Caption1>
         <div className={s.actions}>
-          <Button onClick={() => setStep(null)}>Cancel</Button>
+          {step! > 0 && <Button onClick={back}>Back</Button>}
+          <Button onClick={cancel}>Cancel</Button>
         </div>
       </>
     );

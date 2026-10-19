@@ -9,6 +9,12 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ### New
 - The DPI light on Zaopin mice, which shows the colour of the stage in use: turn it off, steady or breathing, and set its brightness or breathing speed, on the Sensor page.
 
+### Improved
+- Mousepad calibration: go back a step with Back or Backspace to mark it again. When the result doesn't add up, only the steps that need it are asked again, not the whole calibration.
+
+### Fixed
+- Mousepad calibration's progress marks fill in as you go.
+
 ## 0.3.0 — 2026-10-19
 
 ### New
