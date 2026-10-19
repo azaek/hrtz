@@ -14,6 +14,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 
 ### Fixed
 - Mousepad calibration's progress marks fill in as you go.
+- Undo on the Buttons page puts back what a button did before, after a change or Restore default buttons.
 
 ## 0.3.0 — 2026-10-19
 

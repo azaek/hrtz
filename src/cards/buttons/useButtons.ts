@@ -22,11 +22,11 @@ export function useButtons(s: Settings, physical: [number, string][]) {
   useEffect(() => () => clearTimeout(timer.current ?? 0), []);
 
   const nameOf = (i: number) => physical.find(([b]) => b === i)?.[1] ?? `Button ${i + 1}`;
-  const write = (buttons: ButtonAction[], undoText: string) => {
+  const write = (next: ButtonAction[], undoText: string) => {
     setUndo({ text: undoText, prev: buttons });
     clearTimeout(timer.current ?? 0);
     timer.current = window.setTimeout(() => setUndo(null), UNDO_MS);
-    commit({ ...s, buttons });
+    commit({ ...s, buttons: next });
   };
   const onlyLeft = (i: number) => isLeftClick(buttons[i]) && physical.filter(([b]) => isLeftClick(buttons[b])).length === 1;
 
