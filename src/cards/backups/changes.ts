@@ -9,6 +9,7 @@ import { hzText } from "@/rates";
 const LOD = { "0.7mm": "0.7 mm", "1mm": "1 mm", "2mm": "2 mm" };
 const MODE = { lp: "Low power", hp: "High performance", corded: "Corded" };
 const onOff = (b: boolean) => (b ? "On" : "Off");
+const EFFECT = { off: "Off", steady: "Steady", breathing: "Breathing" };
 
 /** `f(v)`, or nothing when the setting isn't there. */
 const show = <T,>(v: T | undefined, f: (v: T) => string) => (v === undefined ? undefined : f(v));
@@ -28,6 +29,9 @@ export function changes(now: Settings, then: Settings, buttonNames: [number, str
     cmp(`Stage ${i + 1} DPI`, show(a?.dpi, fmtDpi), show(b?.dpi, fmtDpi));
     cmp(`Stage ${i + 1} colour`, show(a?.color, (c) => swatchName(LED_PALETTE, c)), show(b?.color, (c) => swatchName(LED_PALETTE, c)));
   }
+  cmp("DPI light", show(now.dpiLight?.effect, (v) => EFFECT[v]), show(then.dpiLight?.effect, (v) => EFFECT[v]));
+  cmp("DPI light brightness", show(now.dpiLight?.brightness, String), show(then.dpiLight?.brightness, String));
+  cmp("DPI light speed", show(now.dpiLight?.speed, String), show(then.dpiLight?.speed, String));
   cmp("Lift-off distance", show(now.lod, (v) => LOD[v]), show(then.lod, (v) => LOD[v]));
   cmp("Sensor mode", show(now.sensorMode, (v) => MODE[v]), show(then.sensorMode, (v) => MODE[v]));
   cmp("Motion sync", show(now.motionSync, onOff), show(then.motionSync, onOff));

@@ -3,7 +3,8 @@
 
 use super::protocol::{CONFIG_REGION, FLASH_SIZE, checksum, group_valid};
 use crate::mice::model::{
-    ButtonAction, Capabilities, DpiAction, DpiStage, Lod, MouseButton, ScrollDirection, SensorMode, Settings,
+    ButtonAction, Capabilities, DpiAction, DpiLight, DpiStage, LightEffect, Lod, MouseButton, ScrollDirection,
+    SensorMode, Settings,
 };
 
 /// The settings as the codec works on them: every value present, as the image holds them.
@@ -13,6 +14,7 @@ struct Fields {
     dpi_stage_count: u8,
     dpi_stage: u8,
     stages: Vec<DpiStage>,
+    dpi_light: DpiLight,
     lod: Lod,
     sensor_mode: SensorMode,
     debounce_ms: u8,
@@ -33,6 +35,7 @@ impl Fields {
             dpi_stage_count: new.dpi_stage_count.unwrap_or(self.dpi_stage_count),
             dpi_stage: new.dpi_stage.unwrap_or(self.dpi_stage),
             stages: new.stages.clone().unwrap_or_else(|| self.stages.clone()),
+            dpi_light: new.dpi_light.unwrap_or(self.dpi_light),
             lod: new.lod.unwrap_or(self.lod),
             sensor_mode: new.sensor_mode.unwrap_or(self.sensor_mode),
             debounce_ms: new.debounce_ms.unwrap_or(self.debounce_ms),
@@ -55,6 +58,7 @@ impl From<Fields> for Settings {
             dpi_stage_count: Some(f.dpi_stage_count),
             dpi_stage: Some(f.dpi_stage),
             stages: Some(f.stages),
+            dpi_light: Some(f.dpi_light),
             lod: Some(f.lod),
             sensor_mode: Some(f.sensor_mode),
             debounce_ms: Some(f.debounce_ms),
@@ -92,6 +96,8 @@ pub const PEAK_TIMEOUTS_S: [u32; 6] = [30, 60, 120, 300, 600, 900];
 /// Z1 PRO MAX from 10 to 120 (scripts/sleep_timer.py, 2026-10-17); it comes set to 10.
 pub const SLEEP_TIMES_S: [u32; 4] = [10, 30, 60, 120];
 pub const MAX_STAGES: usize = 8;
+/// The DPI light's ten brightness steps, as the vendor app writes them.
+const BRIGHTNESS: [u8; 10] = [16, 30, 60, 90, 128, 150, 180, 210, 230, 255];
 pub const BUTTON_SLOTS: usize = 16;
 
 mod addr {
@@ -101,6 +107,8 @@ mod addr {
     pub const LOD: usize = 0x0A;
     pub const DPI: usize = 0x0C;
     pub const DPI_COLOR: usize = 0x2C;
+    /// Pairs: effect (1 steady, 2 breathing), brightness, speed, on.
+    pub const DPI_LIGHT: usize = 0x4C;
     pub const BUTTONS: usize = 0x60;
     pub const DEBOUNCE: usize = 0xA9;
     pub const MOTION_SYNC: usize = 0xAB;
@@ -147,6 +155,23 @@ fn polling_hz(code: u8) -> Option<u32> {
     POLLING.iter().find(|p| p.1 == code).map(|p| p.0)
 }
 
+/// Off unless it's on with an effect the vendor app offers; its defaults where a check byte is wrong.
+fn decode_light(f: &[u8]) -> DpiLight {
+    let a = addr::DPI_LIGHT;
+    let on = pair(f, a + 6).is_some_and(|v| v != 0);
+    DpiLight {
+        effect: match (on, pair(f, a)) {
+            (true, Some(1)) => LightEffect::Steady,
+            (true, Some(2)) => LightEffect::Breathing,
+            _ => LightEffect::Off,
+        },
+        // The nearest step to what's stored.
+        brightness: pair(f, a + 2)
+            .map_or(5, |v| (1..=10).min_by_key(|l| (BRIGHTNESS[*l as usize - 1] as i16 - v as i16).abs()).unwrap_or(5)),
+        speed: pair(f, a + 4).filter(|v| (1..=5).contains(v)).unwrap_or(3),
+    }
+}
+
 fn decode_fields(f: &[u8]) -> Fields {
     assert!(f.len() >= CONFIG_REGION.max(addr::SHORTCUTS + BUTTON_SLOTS * addr::SHORTCUT_LEN));
     let stage_count = pair(f, addr::STAGE_COUNT).filter(|n| (1..=8).contains(n)).unwrap_or(6);
@@ -164,6 +189,7 @@ fn decode_fields(f: &[u8]) -> Fields {
         dpi_stage_count: stage_count,
         dpi_stage: pair(f, addr::STAGE).filter(|s| *s < stage_count).unwrap_or(0),
         stages,
+        dpi_light: decode_light(f),
         lod: match pair(f, addr::LOD) {
             Some(3) => Lod::Low,
             Some(2) => Lod::High,
@@ -330,6 +356,9 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
         }
         parse_color(&st.color).ok_or_else(|| format!("{} is not a #RRGGBB colour", st.color))?;
     }
+    if !(1..=10).contains(&s.dpi_light.brightness) || !(1..=5).contains(&s.dpi_light.speed) {
+        return Err("the DPI light's brightness is 1-10 and its speed 1-5".into());
+    }
     if s.debounce_ms > 20 {
         return Err("debounce must be 0-20 ms".into());
     }
@@ -405,6 +434,15 @@ fn encode_fields(s: &Fields, image: &[u8]) -> Vec<u8> {
     pair_if(s.peak_timeout_enabled != old.peak_timeout_enabled, addr::PEAK_ENABLE, s.peak_timeout_enabled as u8);
     pair_if(s.peak_timeout_s != old.peak_timeout_s, addr::PEAK_TIMEOUT, (s.peak_timeout_s / 10) as u8);
     pair_if(s.sleep_s != old.sleep_s, addr::SLEEP, s.sleep_s as u8);
+    // Off only switches the light off and keeps its effect, as the vendor app does.
+    let (light, was) = (s.dpi_light, old.dpi_light);
+    let on = light.effect != LightEffect::Off;
+    let effect = if light.effect == LightEffect::Breathing { 2 } else { 1 };
+    pair_if(light.effect != was.effect && on, addr::DPI_LIGHT, effect);
+    pair_if(light.effect != was.effect, addr::DPI_LIGHT + 6, on as u8);
+    let brightness = BRIGHTNESS[light.brightness.clamp(1, 10) as usize - 1];
+    pair_if(light.brightness != was.brightness, addr::DPI_LIGHT + 2, brightness);
+    pair_if(light.speed != was.speed, addr::DPI_LIGHT + 4, light.speed);
     for (i, st) in s.stages.iter().enumerate().take(MAX_STAGES) {
         if old.stages.get(i) != Some(st) {
             let (x, ex) = dpi_encode(st.dpi);
@@ -563,6 +601,34 @@ mod tests {
         assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10), vec![(0xBB, vec![30, 0x37])]);
         s.sleep_s = 120;
         assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10), vec![(0xBB, vec![120, 0xDD])]);
+    }
+
+    #[test]
+    fn dpi_light_reads_and_writes_only_what_changed() {
+        let light = decode_fields(&FIXTURE).dpi_light;
+        assert_eq!(light, DpiLight { effect: LightEffect::Steady, brightness: 5, speed: 3 });
+        let with = |l: DpiLight, img: &[u8]| {
+            let mut s = decode_fields(img);
+            s.dpi_light = l;
+            encode_fields(&s, img)
+        };
+        // Off clears the switch and keeps the effect, as the vendor app does.
+        let off = with(DpiLight { effect: LightEffect::Off, ..light }, &FIXTURE);
+        assert_eq!(diff(&FIXTURE, &off, 10), vec![(0x52, vec![0, 0x55])]);
+        assert_eq!(decode_fields(&off).dpi_light.effect, LightEffect::Off);
+        let breathing = with(DpiLight { effect: LightEffect::Breathing, ..light }, &off);
+        assert_eq!(diff(&off, &breathing, 2), vec![(0x4C, vec![2, 0x53]), (0x52, vec![1, 0x54])]);
+        let bright = with(DpiLight { brightness: 10, ..light }, &FIXTURE);
+        assert_eq!(diff(&FIXTURE, &bright, 10), vec![(0x4E, vec![255, 0x56])]);
+        let fast = with(DpiLight { speed: 5, ..light }, &FIXTURE);
+        assert_eq!(diff(&FIXTURE, &fast, 10), vec![(0x50, vec![5, 0x50])]);
+    }
+
+    #[test]
+    fn a_dpi_light_with_a_bad_check_byte_reads_as_off() {
+        let mut img = FIXTURE.clone();
+        img[0x53] ^= 1;
+        assert_eq!(decode_fields(&img).dpi_light.effect, LightEffect::Off);
     }
 
     #[test]

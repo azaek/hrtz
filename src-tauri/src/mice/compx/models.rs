@@ -47,6 +47,8 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
             step: 50,
             max_stages: MAX_STAGES as u8,
             colors: true,
+            // "DPI Light Effects" in the vendor app, for every model.
+            light: true,
         }),
         polling: Some(PollingCaps { rates: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= max_polling_hz).collect() }),
         lod: Some(lod),

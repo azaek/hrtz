@@ -1,7 +1,10 @@
 import { Body1, Dropdown, Option, Switch } from "@fluentui/react-components";
 import {
   ArrowSync20Regular,
+  BrightnessHigh20Regular,
   Flash20Regular,
+  HeartPulse20Regular,
+  Lightbulb20Regular,
   Line20Regular,
   Pulse20Regular,
   Ruler20Regular,
@@ -143,6 +146,35 @@ export function SensorPage() {
     </SettingCard>
   );
   const dpi = caps.dpi && s.stages && <DpiStagesCard s={s} caps={caps} />;
+  const light = caps.dpi?.light ? s.dpiLight : undefined;
+  const lightEffect = light && (
+    <SettingCard
+      icon={<Lightbulb20Regular />}
+      title="DPI light"
+      description={light.effect === "off" ? "Off, so the stage colours don't show." : "Shows the colour of the DPI stage in use."}
+    >
+      <Choice
+        label="DPI light"
+        value={light.effect}
+        options={[
+          { value: "off" as const, label: "Off" },
+          { value: "steady" as const, label: "Steady" },
+          { value: "breathing" as const, label: "Breathing" },
+        ]}
+        onChange={(effect) => update({ dpiLight: { ...light, effect } })}
+      />
+    </SettingCard>
+  );
+  const brightness = light?.effect === "steady" && (
+    <SettingCard icon={<BrightnessHigh20Regular />} title="Brightness" description="How bright the DPI light is.">
+      <NumberStepper label="Brightness" min={1} max={10} value={light.brightness} onChange={(brightness) => update({ dpiLight: { ...light, brightness } })} />
+    </SettingCard>
+  );
+  const speed = light?.effect === "breathing" && (
+    <SettingCard icon={<HeartPulse20Regular />} title="Breathing speed" description="How fast the DPI light breathes.">
+      <NumberStepper label="Breathing speed" min={1} max={5} value={light.speed} onChange={(speed) => update({ dpiLight: { ...light, speed } })} />
+    </SettingCard>
+  );
   const tracking = [dpi, polling, liftOff, sensorMode, motionSync, angleSnapping, ripple].some(Boolean);
   const clicks = [debounce, peak].some(Boolean);
 
@@ -157,6 +189,13 @@ export function SensorPage() {
           {motionSync}
           {angleSnapping}
           {ripple}
+        </Group>
+      )}
+      {lightEffect && (
+        <Group title="Light">
+          {lightEffect}
+          {brightness}
+          {speed}
         </Group>
       )}
       {clicks && (

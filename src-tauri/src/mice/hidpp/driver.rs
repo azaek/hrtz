@@ -870,6 +870,7 @@ impl Connected {
                 step: l.step,
                 max_stages: l.max_stages,
                 colors: false,
+                light: false,
             });
             caps.polling = (!rates.is_empty()).then_some(PollingCaps { rates });
             settings.polling_hz = if self.wired && ob::v6(format) { profile.rate_wired } else { profile.rate_wireless };

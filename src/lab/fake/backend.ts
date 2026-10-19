@@ -41,8 +41,14 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** The dumps went through serde_json's sorted maps, which put `button` before `kind`. The app's
  *  own replies put `kind` first, and the app compares actions by their JSON, so put it back. A dump
- *  from before "Sleep after" (2026-10-17) gets the 10 s the mouse comes with. */
-const kindFirst = (s: Settings): Settings => ({ ...s, sleepS: s.sleepS ?? 10, buttons: s.buttons?.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction) });
+ *  from before "Sleep after" (2026-10-17) gets the 10 s the mouse comes with, and one from before
+ *  the DPI light (2026-10-19) gets it off, as this PC's mouse has it. */
+const kindFirst = (s: Settings): Settings => ({
+  ...s,
+  sleepS: s.sleepS ?? 10,
+  dpiLight: s.dpiLight ?? { effect: "off", brightness: 5, speed: 3 },
+  buttons: s.buttons?.map(({ kind, ...rest }) => ({ kind, ...rest }) as ButtonAction),
+});
 /** `?mouse=superlight`: a PRO X SUPERLIGHT on its receiver instead of this PC's mouse, as the
  *  Logitech driver reads the simulated one (src-tauri/src/mice/hidpp/sim.rs). */
 const SUPERLIGHT: DeviceState = {
@@ -76,7 +82,7 @@ const SUPERLIGHT: DeviceState = {
   capabilities: {
     wired: false,
     buttons: ["Left", "Right", "Wheel click", "Back", "Forward"].map((n, i) => [i, n]),
-    dpi: { min: 100, max: 25600, step: 50, maxStages: 5, colors: false },
+    dpi: { min: 100, max: 25600, step: 50, maxStages: 5, colors: false, light: false },
     polling: { rates: [125, 250, 500, 1000] },
     motionSync: false,
     angleSnapping: false,
@@ -110,7 +116,15 @@ export const real = {
     ...device,
     // A dump from before the sleep timer was offered: a Zaopin's choices. A Logitech has none.
     settings: device.settings && (device === SUPERLIGHT ? device.settings : kindFirst(device.settings)),
-    capabilities: device.capabilities && (device === SUPERLIGHT ? device.capabilities : { ...device.capabilities, sleepTimesS: device.capabilities.sleepTimesS ?? [10, 30, 60, 120] }),
+    capabilities:
+      device.capabilities &&
+      (device === SUPERLIGHT
+        ? device.capabilities
+        : {
+            ...device.capabilities,
+            sleepTimesS: device.capabilities.sleepTimesS ?? [10, 30, 60, 120],
+            dpi: device.capabilities.dpi && { ...device.capabilities.dpi, light: device.capabilities.dpi.light ?? true },
+          }),
     port: device.port ?? LAB_PORT,
   } as DeviceState,
   prefs: (() => {

@@ -27,6 +27,17 @@ export interface DpiStage {
   color: string;
 }
 
+export type LightEffect = "off" | "steady" | "breathing";
+
+/** The light that shows the colour of the DPI stage in use. */
+export interface DpiLight {
+  effect: LightEffect;
+  /** 1-10, for steady. */
+  brightness: number;
+  /** 1-5, for breathing. */
+  speed: number;
+}
+
 /** What the mouse holds now. A setting this mouse doesn't have is missing, and its card isn't shown.
  *  Sent back whole to change something; a missing setting stays as the mouse has it. */
 export interface Settings {
@@ -37,6 +48,7 @@ export interface Settings {
   dpiStage?: number;
   /** Every stage slot the mouse has, used or not. */
   stages?: DpiStage[];
+  dpiLight?: DpiLight;
   lod?: Lod;
   sensorMode?: SensorMode;
   debounceMs?: number;
@@ -64,6 +76,8 @@ export interface Capabilities {
     maxStages: number;
     /** Each stage has a colour for the mouse's light. */
     colors: boolean;
+    /** That light can be turned off, steady or breathing (`Settings.dpiLight`). */
+    light: boolean;
   };
   /** The rates this connection carries, lowest first. The mouse may hold a higher one, set for its
    *  other connection. */

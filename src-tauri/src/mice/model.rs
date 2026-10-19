@@ -29,6 +29,25 @@ pub struct DpiStage {
     pub color: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LightEffect {
+    Off,
+    Steady,
+    Breathing,
+}
+
+/// The light that shows the colour of the DPI stage in use.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DpiLight {
+    pub effect: LightEffect,
+    /// 1-10, for Steady.
+    pub brightness: u8,
+    /// 1-5, for Breathing.
+    pub speed: u8,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum ButtonAction {
@@ -135,6 +154,8 @@ pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stages: Option<Vec<DpiStage>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub dpi_light: Option<DpiLight>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub lod: Option<Lod>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensor_mode: Option<SensorMode>,
@@ -233,6 +254,8 @@ pub struct DpiCaps {
     pub max_stages: u8,
     /// Each stage has a colour for the mouse's light.
     pub colors: bool,
+    /// That light can be turned off, steady or breathing (`Settings::dpi_light`).
+    pub light: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
