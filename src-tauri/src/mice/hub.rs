@@ -83,7 +83,10 @@ impl Hub {
         self.conns
             .read()
             .iter()
-            .filter(|c| c.engine.state.read().key.is_none())
+            .filter(|c| {
+                let s = c.engine.state.read();
+                s.key.is_none() && !s.foreign
+            })
             .filter_map(|c| crate::usb::port_of(&c.id).map(|p| p.path))
             .collect()
     }
@@ -128,7 +131,7 @@ impl Hub {
         pick(&|s| s.connected && s.key.is_some() && s.key == in_use)
             .or_else(|| pick(&|s| s.connected && s.online && s.key.is_some()))
             .or_else(|| pick(&|s| s.connected && s.key.is_some()))
-            .or_else(|| conns.first().map(|c| c.engine.clone()))
+            .or_else(|| pick(&|s| !s.foreign))
     }
 
     /// The primary mouse's state; a default (nothing connected) when there's none.

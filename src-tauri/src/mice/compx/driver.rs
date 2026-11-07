@@ -29,7 +29,7 @@ impl Family for Compx {
     }
 
     fn finder(&self, id: &str) -> Box<dyn crate::mice::Finder> {
-        Box::new(HidFinder { api: None, path: id.to_string() })
+        Box::new(HidFinder { api: None, path: id.to_string(), refused: None })
     }
 }
 
@@ -37,7 +37,25 @@ impl Family for Compx {
 pub struct HidFinder {
     api: Option<HidApi>,
     path: String,
+    /// Set once the receiver turns out to be another maker's: it isn't asked again while it stays
+    /// plugged in, so hrtz doesn't keep interrupting that maker's own app.
+    refused: Option<NotZaopin>,
 }
+
+/// A receiver or mouse on Zaopin's vendor ID whose handshake says it's another maker's.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct NotZaopin {
+    cid: u8,
+    mid: u8,
+}
+
+impl std::fmt::Display for NotZaopin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "not a Zaopin mouse (CID {}, MID {}), so it's left alone", self.cid, self.mid)
+    }
+}
+
+impl std::error::Error for NotZaopin {}
 
 impl HidFinder {
     fn api(&mut self) -> Result<&mut HidApi> {
@@ -54,6 +72,9 @@ fn is_config_interface(d: &hidapi::DeviceInfo) -> bool {
 
 impl Finder for HidFinder {
     fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
+        if let Some(n) = self.refused {
+            return Err(n.into());
+        }
         let path = self.path.clone();
         let api = self.api()?;
         api.refresh_devices()?;
@@ -71,7 +92,7 @@ impl Finder for HidFinder {
             #[cfg(windows)]
             port: crate::usb::port_of(&info.path().to_string_lossy()),
         };
-        connect(opened, board)
+        connect(opened, board).inspect_err(|e| self.refused = e.downcast_ref::<NotZaopin>().copied())
     }
 
     fn count(&mut self) -> usize {
@@ -108,6 +129,10 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
     let r = m.transact(&p::packet(cmd::HANDSHAKE, 0, &nonce, Some(8)), REPLY_TIMEOUT)?;
     let d = p::payload(&r);
     let (cid, mid, device_type) = (d[4], d[5], d[6]);
+    if !models::is_zaopin(cid, mid) {
+        board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
+        return Err(NotZaopin { cid, mid }.into());
+    }
     board.set(|s| {
         *s = DeviceState {
             key: Some(format!("{}/{cid}-{mid}", opened.family)),

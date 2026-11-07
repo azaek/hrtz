@@ -1869,6 +1869,7 @@ mod lab {
             capabilities: Some(models::capabilities(4, 5)),
             // The stand-in backend says where the receiver is.
             port: None,
+            foreign: false,
         };
         write("device.json", serde_json::to_value(&state).unwrap());
 

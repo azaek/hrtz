@@ -109,6 +109,26 @@ fn an_asleep_mouse_shows_connected_and_isnt_read() {
 }
 
 #[test]
+fn another_makers_mouse_is_left_alone() {
+    // VGN, Lamzu and others answer on Zaopin's vendor ID and interface, with their own CID.
+    let r = Rig::connected(SimMouse { cid: 2, mid: 1, ..Default::default() });
+    let s = r.state();
+    assert!(!s.connected && s.key.is_none() && s.model.is_none() && s.settings.is_none());
+    assert!(s.foreign, "kept apart from a mouse that hasn't answered yet");
+    assert_eq!(r.mouse.lock().commands_since(0), [cmd::HANDSHAKE], "nothing asked after the handshake");
+    assert!(r.events_since(0).is_empty());
+}
+
+#[test]
+fn a_receiver_with_no_mouse_paired_is_still_taken() {
+    // It answers CID 0 and MID 0; the vendor app lists it too, so a mouse can be paired to it.
+    let r = Rig::connected(SimMouse { cid: 0, mid: 0, online: false, ..Default::default() });
+    let s = r.state();
+    assert!(s.connected && !s.foreign);
+    assert_eq!(s.key.as_deref(), Some("compx/0-0"));
+}
+
+#[test]
 fn waking_shows_awake_at_once_then_the_settings() {
     let mut r = Rig::connected(SimMouse { online: false, ..Default::default() });
     let (_, seen) = r.mark();

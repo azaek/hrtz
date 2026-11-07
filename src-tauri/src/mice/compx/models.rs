@@ -3,8 +3,19 @@
 use super::image::{MAX_STAGES, PEAK_TIMEOUTS_S, POLLING, SLEEP_TIMES_S};
 use crate::mice::model::{Capabilities, DpiCaps, Lod, PollingCaps, Range, SensorMode, SensorModeCaps, Supported};
 
+/// Zaopin's maker ID, from the handshake: every Zaopin model has it.
+pub const CID: u8 = 7;
+
+/// Whether the handshake's IDs are Zaopin's. Other makers' mice (VGN, Lamzu's Atlantis, some Pulsar
+/// and ATK models) use the same vendor ID, interface and messages, each with its own memory layout,
+/// so as in the vendor app only CID 7 is taken. CID 0 with MID 0 is a receiver with no mouse paired,
+/// which the vendor app lists too, so a mouse can be paired to it.
+pub fn is_zaopin(cid: u8, mid: u8) -> bool {
+    cid == CID || (cid == 0 && mid == 0)
+}
+
 /// Zaopin's models, by MID, and whether each has been tried on the real mouse (the Z1 PRO MAX
-/// only, so far). The CID of every one is 7.
+/// only, so far).
 pub fn supported() -> Vec<Supported> {
     [(4, true), (1, false), (2, false), (5, false), (3, false), (6, false)]
         .into_iter()
@@ -12,7 +23,7 @@ pub fn supported() -> Vec<Supported> {
             family: "compx",
             brand: "Zaopin",
             model: model_name(mid),
-            key: format!("compx/7-{mid}"),
+            key: format!("compx/{CID}-{mid}"),
             tested,
         })
         .collect()

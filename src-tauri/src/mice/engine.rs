@@ -76,6 +76,10 @@ pub struct DeviceState {
     /// Where the receiver (or the mouse, on its cable) is plugged in.
     #[cfg(windows)]
     pub port: Option<crate::usb::UsbPort>,
+    /// Another maker's receiver or mouse on a family's interface, left alone: it isn't a mouse
+    /// waiting to wake, and the UI never hears of it.
+    #[serde(skip)]
+    pub foreign: bool,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -345,13 +349,13 @@ impl Worker {
 
     /// Let go of the connection. The state keeps who the mouse was, so the UI knows which went.
     fn disconnect(&mut self) {
-        let (was, key) = {
+        let (was, key, foreign) = {
             let s = self.board.read();
-            (s.connected, s.key.clone())
+            (s.connected, s.key.clone(), s.foreign)
         };
         self.driver = None;
         self.loaded = false;
-        self.board.set(|s| *s = DeviceState { key, ..DeviceState::default() });
+        self.board.set(|s| *s = DeviceState { key, foreign, ..DeviceState::default() });
         if was {
             self.board.publish(None);
         }

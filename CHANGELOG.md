@@ -15,6 +15,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ### Fixed
 - Mousepad calibration's progress marks fill in as you go.
 - Undo on the Buttons page puts back what a button did before, after a change or Restore default buttons.
+- Another maker's mouse is no longer taken for a Zaopin. Some VGN, Lamzu, Pulsar and ATK mice share Zaopin's USB ID, and hrtz now leaves them alone.
 
 ## 0.3.0 — 2026-10-19
 
