@@ -1507,6 +1507,24 @@ fn quit(app: &AppHandle) {
     app.exit(0);
 }
 
+/// Start with Windows: the `hrtz` entry in the user's Run key, starting this copy in the tray.
+/// Only an installed (release) build has it. A dev build's entry would point at `target\debug`,
+/// which needs Vite running, and would take the installed copy's place, since both share the name.
+/// An entry that's on is pointed at this copy each time it starts: one written by another copy
+/// (a dev build, an install moved) would start that one at sign-in while the switch here said on.
+#[cfg(not(debug_assertions))]
+fn start_with_windows(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+    app.plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))?;
+    let entry = app.autolaunch();
+    if entry.is_enabled().unwrap_or(false)
+        && let Err(e) = entry.enable()
+    {
+        eprintln!("start with Windows: couldn't point the entry at this copy: {e}");
+    }
+    Ok(())
+}
+
 pub fn run() {
     let context = tauri::generate_context!();
     tauri::Builder::default()
@@ -1517,11 +1535,9 @@ pub fn run() {
         // Updates: a signed manifest on the GitHub release, then a restart into the new version.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--minimized"]),
-        ))
         .setup(move |app| {
+            #[cfg(not(debug_assertions))]
+            start_with_windows(app.handle())?;
             let handle = app.handle().clone();
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_data_dir()?;

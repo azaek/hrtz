@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Body1, Body1Strong, Button, Caption1, Caption1Strong, Link, makeStyles, mergeClasses, Spinner, Switch, Title1, tokens } from "@fluentui/react-components";
 import { Checkmark16Regular, Warning16Filled } from "@fluentui/react-icons";
-import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { enable, disable } from "@tauri-apps/plugin-autostart";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, message, on, type BackupMeta, type DeviceState } from "./api";
 import { Emblem } from "./brand";
@@ -168,14 +168,12 @@ export function Onboarding() {
     const off = on.backups(read);
     return () => void off.then((f) => f());
   }, []);
-  useEffect(() => {
-    isEnabled().then(setStartup, () => {});
-  }, []);
-
   const finish = async () => {
     if (prefs) {
+      // Start with Windows is on unless turned off here (DECISIONS.md), even on a PC that has no
+      // entry yet. A dev build doesn't have it: its entry would point at the dev build.
       try {
-        await (startup ? enable() : disable());
+        if (!import.meta.env.DEV) await (startup ? enable() : disable());
       } catch (e) {
         toast(message(e), "error");
       }
