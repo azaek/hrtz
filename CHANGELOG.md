@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.4.0 — 2026-11-09
 
 ### New
 - SignalRGB can now set the DPI light on Zaopin mice, along with the rest of your lighting. Turn it on in Sensor → Light.
