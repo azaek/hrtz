@@ -14,6 +14,8 @@ import {
 } from "@fluentui/react-icons";
 import { init, startFlow, useStore } from "./store";
 import { HeaderActionsSlot, NavRow, Notice, StatusPill, ToastBridge } from "./components";
+import { NewBadge } from "./kit";
+import { useNewPages } from "./news";
 import { SensorPage } from "./pages/Sensor";
 import { ButtonsPage } from "./pages/Buttons";
 import { ProfilesPage } from "./pages/Profiles";
@@ -143,6 +145,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   const [ready, setReady] = useState(false);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const device = useStore((st) => st.device);
+  const newPages = useNewPages(device?.capabilities);
   const vendorApps = useStore((st) => st.status.vendorApps);
   const flow = useStore((st) => st.flow);
   // A page asked for from elsewhere (the "Not tested" badge).
@@ -258,7 +261,14 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
           }}
         >
           {PAGES.filter((p) => !device?.capabilities || (NEEDS[p.id]?.(device.capabilities) ?? true)).map((p) => (
-            <NavRow key={p.id} icon={p.icon} label={p.label} selected={page === p.id} onClick={() => setPage(p.id)} />
+            <NavRow
+              key={p.id}
+              icon={p.icon}
+              label={p.label}
+              selected={page === p.id}
+              badge={newPages.has(p.id) ? <NewBadge /> : undefined}
+              onClick={() => setPage(p.id)}
+            />
           ))}
         </div>
         <SidebarFooter />

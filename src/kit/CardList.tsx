@@ -1,4 +1,4 @@
-import { useState, type ComponentProps, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode, type Ref } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +70,17 @@ export function HoverSwap({ rest, active }: { rest: ReactNode; active: (setInUse
 
 /** A soft badge with the accent dot: the app's one accent mark, for "this is the current one"
  *  (the stage the mouse is using). */
+/** "New", beside a feature until it's been seen (`news.ts`): filled with the accent, so it stands
+ *  apart from `AccentBadge`'s "in use" (the user's call, 2026-11-10). `ref` is for watching whether
+ *  it's on screen. */
+export function NewBadge({ ref }: { ref?: Ref<HTMLSpanElement> }) {
+  return (
+    <span ref={ref} style={{ display: "inline-flex", verticalAlign: "middle" }}>
+      <Badge className="tw h-4 rounded-[3px] bg-brand px-1 text-[10px] leading-none font-semibold text-background">New</Badge>
+    </span>
+  );
+}
+
 export function AccentBadge({ children }: { children: ReactNode }) {
   return (
     <Badge variant="secondary" className="tw gap-1.5 text-brand">

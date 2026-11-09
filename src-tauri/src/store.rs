@@ -94,6 +94,8 @@ pub struct Prefs {
     pub hud: HudPrefs,
     /// SignalRGB sets the DPI lights (see `signalrgb`).
     pub signalrgb: bool,
+    /// The new features whose "New" badge has been seen (the window's `news.ts`).
+    pub seen: Vec<String>,
 }
 
 /// What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch
@@ -423,6 +425,7 @@ impl Default for Prefs {
             share_data: false,
             hud: HudPrefs::default(),
             signalrgb: false,
+            seen: Vec::new(),
         }
     }
 }

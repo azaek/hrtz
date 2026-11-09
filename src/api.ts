@@ -224,6 +224,8 @@ export interface Prefs {
   hud: HudPrefs;
   /** SignalRGB sets the DPI lights. */
   signalrgb: boolean;
+  /** The new features whose "New" badge has been seen (`news.ts`). */
+  seen: string[];
 }
 
 /** What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch

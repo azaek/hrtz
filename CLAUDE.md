@@ -55,7 +55,8 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 | Items inside a card | `CardList` (edge to edge, hairline separators, optional `footer`) and `CardListRow` (hover wash only) |
 | The line under a list | `CardNote` (a note, amber when it's a warning, or a hint) or `UndoNote` (after a removal) |
 | A control that appears on hover in a row | `HoverSwap`: the quiet text normally, the control on hover or while in use |
-| "This is the current one" | `AccentBadge`, the only place the accent colour shows |
+| "This is the current one" | `AccentBadge`: the accent's text on a neutral chip |
+| A feature new to the user | `NewBadge`, filled with the accent, from an entry in `src/news.ts`: on its page in the sidebar and beside its card, until the card has been on screen |
 | A card surface a SettingCard doesn't fit (master and detail) | `Pane` with `PaneHeader` and `PaneFooter`: the card's fill, edge and corners. A master list shorter than the window takes `sticky`, so it stays in view while a long detail scrolls. |
 | One of several kinds, each with an icon | `TileChoice`: icon tiles in a grid; the chosen one takes the tile tint |
 | An edge or corner of the screen | `AnchorPicker`: a 3 × 3 grid of 32px buttons, centre empty; the chosen one takes the tile tint |
@@ -76,7 +77,7 @@ Something two cards need belongs in the kit, not inside one card. Add it to `src
   - Hover and press are faint neutral washes. Nothing turns accent-coloured on hover (`base.css` covers Fluent menus and options).
   - Rows only get a hover wash; clicking into a row doesn't mark it.
   - Selection and focus follow `states.css` and `states.json`. Don't add rings or hard outlines.
-- **One accent** (`--brand`, from `states.json`), and only for the current item, such as the stage in use.
+- **One accent** (`--brand`, from `states.json`), and only for the current item, such as the stage in use, and the "New" badge.
 - **Surfaces sit on Mica.** Fills are translucent, and hairlines use `var(--border)`.
 - **Radii:** controls and menu items 4px, flyouts 8px. Fluent cards keep their own.
 - **Flyouts that can grow tall** (a list or search) use Fluent positioning with `autoSize: "height"` and `overflowBoundaryPadding: FLYOUT_PADDING` (from the kit), so they shrink to fit below the title bar. Only their list scrolls.

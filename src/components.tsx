@@ -301,7 +301,7 @@ export function PageActions({ children }: { children: ReactNode }) {
 }
 
 /** A navigation row, as in WinUI's NavigationView. Look and selected state come from states.css. */
-export function NavRow(props: { icon: ReactNode; label: string; selected: boolean; onClick?: () => void }) {
+export function NavRow(props: { icon: ReactNode; label: string; selected: boolean; badge?: ReactNode; onClick?: () => void }) {
   return (
     <button
       className="st-row"
@@ -311,6 +311,7 @@ export function NavRow(props: { icon: ReactNode; label: string; selected: boolea
     >
       <span className="st-row__icon">{props.icon}</span>
       <Body1>{props.label}</Body1>
+      {props.badge && <span style={{ marginLeft: "auto" }}>{props.badge}</span>}
     </button>
   );
 }

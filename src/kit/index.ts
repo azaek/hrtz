@@ -5,7 +5,7 @@ export { IconButton } from "./IconButton";
 export { MoreMenu, afterMenu, type MoreMenuItem } from "./MoreMenu";
 export { ColorMenu, Dot, swatchName, type Swatch } from "./ColorMenu";
 export { NumberStepper } from "./NumberStepper";
-export { CardList, CardListRow, CardNote, UndoNote, HoverSwap, AccentBadge } from "./CardList";
+export { CardList, CardListRow, CardNote, UndoNote, HoverSwap, AccentBadge, NewBadge } from "./CardList";
 export { Pane, PaneHeader, PaneFooter } from "./Pane";
 export { TileChoice } from "./TileChoice";
 export { AnchorPicker, type Anchor } from "./AnchorPicker";

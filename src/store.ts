@@ -256,6 +256,13 @@ export async function savePrefs(next: Prefs) {
   }
 }
 
+/** Note that new feature `id`'s "New" badge has been seen (`news.ts`), so it isn't shown again. */
+export function markSeen(id: string) {
+  const p = state.prefs;
+  if (!p || p.seen?.includes(id)) return;
+  void savePrefs({ ...p, seen: [...(p.seen ?? []), id] });
+}
+
 /** The connected mouse as hrtz knows it (its key and prefs); null with none connected. The
  *  stored object itself, so it only changes when the mice do. */
 export function useMouse(): KnownMouse | null {

@@ -4,6 +4,8 @@ import { Color20Regular } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, message } from "@/api";
 import { SettingCard } from "@/components";
+import { NewBadge } from "@/kit";
+import { useSeen } from "@/news";
 import { savePrefs, toast, useStore } from "@/store";
 
 /** Whether SignalRGB is setting mouse `key`'s light now, so the page's own light controls step
@@ -21,6 +23,7 @@ export function SignalRgbCard({ mouseKey }: { mouseKey: string | null | undefine
   const prefs = useStore((x) => x.prefs);
   const link = useStore((x) => x.status.signalrgb);
   const driving = useSetBySignalRgb(mouseKey);
+  const news = useSeen("signalrgb");
   if (!prefs) return null;
   const on = prefs.signalrgb;
 
@@ -52,7 +55,16 @@ export function SignalRgbCard({ mouseKey }: { mouseKey: string | null | undefine
   }
 
   return (
-    <SettingCard icon={<Color20Regular />} title="SignalRGB" description={description}>
+    <SettingCard
+      icon={<Color20Regular />}
+      title={
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          SignalRGB
+          {news.isNew && <NewBadge ref={news.ref} />}
+        </span>
+      }
+      description={description}
+    >
       {action}
       <Switch checked={on} onChange={(_, d) => void savePrefs({ ...prefs, signalrgb: d.checked })} aria-label="Let SignalRGB set the DPI light" />
     </SettingCard>
