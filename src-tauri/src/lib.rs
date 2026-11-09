@@ -865,8 +865,8 @@ fn notify_saver(app: &AppHandle, level: u8, to: u32, from: u32, model: &str) {
     let _ = app
         .notification()
         .builder()
-        .title(format!("Battery saver lowered polling to {} Hz", fmt_hz(to)))
-        .body(format!("Battery at {level}%. Your {model} returns to {} Hz when charged.", fmt_hz(from)))
+        .title(format!("Battery saver lowered polling to {}", hud::model::rate(to)))
+        .body(format!("Battery at {level}%. Your {model} returns to {} when charged.", hud::model::rate(from)))
         .show();
 }
 
@@ -911,8 +911,8 @@ fn test_popup(app: AppHandle, ctx: State<'_, Arc<Ctx>>, kind: String) -> CmdResu
 }
 
 /// 8000 → "8,000".
-fn fmt_hz(hz: u32) -> String {
-    let s = hz.to_string();
+fn thousands(n: u32) -> String {
+    let s = n.to_string();
     let mut out = String::new();
     for (i, c) in s.chars().enumerate() {
         if i > 0 && (s.len() - i).is_multiple_of(3) {
@@ -1048,7 +1048,12 @@ fn tooltip(s: &DeviceState) -> String {
     match (&s.battery, s.connected, s.online) {
         (_, false, _) => "hrtz: no mouse connected".into(),
         (Some(b), true, true) => {
-            let hz = s.settings.as_ref().and_then(|x| x.polling_hz).map(|hz| format!(" · {hz} Hz")).unwrap_or_default();
+            let hz = s
+                .settings
+                .as_ref()
+                .and_then(|x| x.polling_hz)
+                .map(|hz| format!(" · {}", hud::model::rate(hz)))
+                .unwrap_or_default();
             let charging = if b.charging { " charging" } else { "" };
             format!("{model}: {}%{charging}{hz}", b.level)
         }
@@ -1230,10 +1235,10 @@ fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs, mouse: &
     }
     let payload = match e {
         DeviceEvent::Dpi { stage, dpi } => {
-            Osd { kind: "dpi", title: format!("{} DPI", fmt_hz(*dpi)), detail: format!("Stage {}", stage + 1) }
+            Osd { kind: "dpi", title: format!("{} DPI", thousands(*dpi)), detail: format!("Stage {}", stage + 1) }
         }
         DeviceEvent::Polling { hz } => {
-            Osd { kind: "polling", title: format!("{} Hz", fmt_hz(*hz)), detail: "Polling rate".into() }
+            Osd { kind: "polling", title: hud::model::rate(*hz), detail: "Polling rate".into() }
         }
         DeviceEvent::Profile { index } => {
             Osd { kind: "profile", title: mouse.profile_name(*index), detail: format!("Profile {}", index + 1) }
