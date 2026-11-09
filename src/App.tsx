@@ -45,7 +45,7 @@ const PAGES: { id: PageId; label: string; icon: ReactElement }[] = [
   { id: "buttons", label: "Buttons", icon: <CursorClick20Regular /> },
   { id: "profiles", label: "Profiles", icon: <Stack20Regular /> },
   { id: "battery", label: "Battery", icon: <Battery820Regular /> },
-  { id: "hud", label: "HUD", icon: <Games20Regular /> },
+  { id: "hud", label: "HUD & Tray", icon: <Games20Regular /> },
   // Tools that work but are still taking shape.
   { id: "lab", label: "Lab", icon: <Beaker20Regular /> },
   { id: "settings", label: "Settings", icon: <Settings20Regular /> },

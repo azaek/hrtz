@@ -6,7 +6,6 @@ import {
   Bug20Regular,
   DataUsage20Regular,
   Delete20Regular,
-  Desktop20Regular,
   Info20Regular,
   PlugConnected20Regular,
   Power20Regular,
@@ -14,9 +13,9 @@ import {
 } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { api, message, on, type KnownMouse, type Prefs, type TrayStyle } from "@/api";
+import { api, message, on, type KnownMouse, type Prefs } from "@/api";
 import { Group, SettingCard } from "@/components";
-import { TileChoice, UndoNote } from "@/kit";
+import { UndoNote } from "@/kit";
 import { linkName } from "@/links";
 import { familyOf, ofModel } from "@/models";
 import { reportUrl, type ReportForm } from "@/report";
@@ -25,14 +24,6 @@ import { forgetMouse, restoreMouse, run, savePrefs, toast, useStore } from "@/st
 import { BackupsPanel } from "../backups/BackupsPanel";
 import { ParticipateCard } from "../participate/ParticipateCard";
 import { AppCard } from "./AppCard";
-
-/** The tray icon's styles, as the tiles name them. */
-const TRAY_STYLES: { value: TrayStyle; label: string }[] = [
-  { value: "percent", label: "Percentage" },
-  { value: "battery", label: "Battery" },
-  { value: "logo", label: "Logo" },
-  { value: "logobar", label: "Logo and bar" },
-];
 
 const muted = { color: "var(--colorNeutralForeground3)" };
 
@@ -50,7 +41,6 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const progress = useStore((x) => x.progress);
-  const [previews, setPreviews] = useState<Awaited<ReturnType<typeof api.trayPreviews>> | null>(null);
   // Pairing: the seconds the receiver keeps looking, and how the last try went.
   const [pairing, setPairing] = useState<number | null>(null);
   const [paired, setPaired] = useState<boolean | null>(null);
@@ -77,11 +67,6 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
     setPairing(null);
     if (ok !== undefined) setPaired(ok);
   };
-  // The previews show the battery as it is, so redraw them when it changes.
-  const batteryKey = `${device?.battery?.level}-${device?.battery?.charging}-${device?.online}-${prefs.lowBatteryPercent}`;
-  useEffect(() => {
-    api.trayPreviews().then(setPreviews, () => setPreviews(null));
-  }, [batteryKey]);
   useEffect(() => {
     isEnabled().then(setAutostart, () => setAutostart(null));
   }, []);
@@ -109,15 +94,6 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         .filter(Boolean)
         .join(" · ")
     : null;
-  // The icon as the taskbar draws it. A light taskbar's dark icon gets its light backing, or it
-  // would vanish on the dark choice.
-  const trayIcon = (src?: string) =>
-    src ? (
-      <span className="grid size-5 place-items-center rounded-[3px]" style={{ background: previews?.taskbar === "light" ? "#f3f3f3" : undefined }}>
-        <img src={src} alt="" width={16} height={16} />
-      </span>
-    ) : null;
-
   return (
     <>
       <AppCard />
@@ -147,22 +123,6 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         >
           <Switch checked={prefs.osd} onChange={(_, d) => set({ osd: d.checked })} aria-label="DPI and profile pop-up" />
         </SettingCard>
-        <SettingCard
-          stacked
-          icon={<Desktop20Regular />}
-          title="Tray icon"
-          description="Hover for battery, polling rate and connection."
-          below={
-            <div style={{ marginTop: 12 }}>
-              <TileChoice
-                label="Tray icon style"
-                value={prefs.trayStyle}
-                options={TRAY_STYLES.map((t) => ({ value: t.value, label: t.label, icon: trayIcon(previews?.[t.value]) ?? <span className="size-5" /> }))}
-                onChange={(trayStyle) => set({ trayStyle })}
-              />
-            </div>
-          }
-        />
       </Group>
 
       <Group title="Mouse">

@@ -1000,7 +1000,7 @@ fn refresh_tray(ctx: &Ctx, s: &DeviceState) {
             let _ = tray.set_icon(Some(tray_image(key.0, key.1)));
             *last = Some(key);
         }
-        let _ = tray.set_tooltip(Some(tooltip(s)));
+        let _ = tray.set_tooltip(Some(tooltip(&tooltip_mice(ctx, s))));
         if let Some(n) = s.capabilities.as_ref().and_then(|c| c.profiles) {
             fit_tray_profiles(ctx, tray, items, (n as usize).clamp(1, 8));
         }
@@ -1011,6 +1011,21 @@ fn refresh_tray(ctx: &Ctx, s: &DeviceState) {
             let _ = item.set_enabled(s.online);
         }
     }
+}
+
+/// Every mouse for the tooltip, `first` (the one the tray follows) first, each with its profile's
+/// name where it has profiles.
+fn tooltip_mice(ctx: &Ctx, first: &DeviceState) -> Vec<(DeviceState, Option<String>)> {
+    let mut states = ctx.hub.states();
+    states.sort_by_key(|s| s.key != first.key);
+    states
+        .into_iter()
+        .map(|s| {
+            let several = s.capabilities.as_ref().and_then(|c| c.profiles).is_some_and(|n| n > 1);
+            let name = s.profile.filter(|_| several).map(|i| mouse_prefs(ctx, &s).profile_name(i));
+            (s, name)
+        })
+        .collect()
 }
 
 /// The tray lists as many profiles as the mouse shown has: items past them go, new ones go after
@@ -1043,22 +1058,39 @@ fn fit_tray_profiles(ctx: &Ctx, tray: &TrayIcon, items: &mut Vec<CheckMenuItem<t
     }
 }
 
-fn tooltip(s: &DeviceState) -> String {
-    let model = s.model.clone().unwrap_or_else(|| "Mouse".into());
-    match (&s.battery, s.connected, s.online) {
-        (_, false, _) => "hrtz: no mouse connected".into(),
-        (Some(b), true, true) => {
-            let hz = s
-                .settings
-                .as_ref()
-                .and_then(|x| x.polling_hz)
-                .map(|hz| format!(" · {}", hud::model::rate(hz)))
-                .unwrap_or_default();
-            let charging = if b.charging { " charging" } else { "" };
-            format!("{model}: {}%{charging}{hz}", b.level)
-        }
-        _ => format!("{model}: asleep, move it to wake"),
-    }
+/// The tray's tooltip: each connected mouse on a line of its own, the one the tray follows first,
+/// with its battery, polling rate, DPI and profile (`profile` is its name, where the mouse has
+/// profiles). Windows cuts a tooltip at 127 characters, so a long one drops the profiles, then the
+/// DPI.
+fn tooltip(mice: &[(DeviceState, Option<String>)]) -> String {
+    let lines = |dpi: bool, profile: bool| -> String {
+        let shown: Vec<String> = mice
+            .iter()
+            .filter(|(s, _)| s.connected && s.key.is_some())
+            .map(|(s, name)| {
+                let model = s.model.clone().unwrap_or_else(|| "Mouse".into());
+                let Some(b) = s.battery.as_ref().filter(|_| s.online) else { return format!("{model}: asleep") };
+                let mut parts = vec![format!("{}%{}", b.level, if b.charging { " charging" } else { "" })];
+                let settings = s.settings.as_ref();
+                if let Some(hz) = settings.and_then(|x| x.polling_hz) {
+                    parts.push(hud::model::rate(hz));
+                }
+                if let Some(d) = settings.and_then(|x| x.dpi()).filter(|_| dpi) {
+                    parts.push(format!("{} DPI", thousands(d)));
+                }
+                if let Some(n) = name.as_ref().filter(|_| profile) {
+                    parts.push(n.clone());
+                }
+                format!("{model}: {}", parts.join(" · "))
+            })
+            .collect();
+        if shown.is_empty() { "hrtz: no mouse connected".into() } else { shown.join("\n") }
+    };
+    let fits = |t: &String| t.chars().count() <= 127;
+    [lines(true, true), lines(true, false), lines(false, false)]
+        .into_iter()
+        .find(fits)
+        .unwrap_or_else(|| lines(false, false).chars().take(127).collect())
 }
 
 fn on_device_change(app: &AppHandle, s: &DeviceState, event: Option<DeviceEvent>) {
@@ -1949,5 +1981,52 @@ mod lab {
             .collect();
         write("apps.json", serde_json::Value::Array(apps));
         eprintln!("wrote {}", out.canonicalize().unwrap().display());
+    }
+}
+
+#[cfg(test)]
+mod tray_tooltip {
+    use super::*;
+    use mice::Battery;
+    use mice::model::DpiStage;
+
+    fn mouse(key: &str, model: &str, level: u8, hz: u32, dpi: u32) -> DeviceState {
+        DeviceState {
+            key: Some(key.into()),
+            connected: true,
+            online: true,
+            model: Some(model.into()),
+            battery: Some(Battery { level, raw_level: level, charging: false, millivolts: 3800 }),
+            settings: Some(Settings {
+                polling_hz: Some(hz),
+                dpi_stage: Some(0),
+                stages: Some(vec![DpiStage { dpi, color: "#FFFFFF".into() }]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn each_mouse_gets_a_line() {
+        let z = (mouse("compx/7-4", "Z1 PRO MAX", 61, 8000, 1600), Some("Valorant".into()));
+        let mut asleep = mouse("hidpp/c547", "PRO X SUPERLIGHT", 40, 1000, 800);
+        asleep.online = false;
+        assert_eq!(
+            tooltip(&[z.clone(), (asleep, None)]),
+            "Z1 PRO MAX: 61% · 8K Hz · 1,600 DPI · Valorant\nPRO X SUPERLIGHT: asleep"
+        );
+        assert_eq!(tooltip(&[]), "hrtz: no mouse connected");
+    }
+
+    #[test]
+    fn a_long_tooltip_drops_profiles_then_dpi() {
+        let long = "A profile with a very long name indeed".to_string();
+        let mice: Vec<_> = (0..3)
+            .map(|i| (mouse(&format!("compx/7-{i}"), "Z1 PRO MAX", 61, 8000, 1600), Some(long.clone())))
+            .collect();
+        let t = tooltip(&mice);
+        assert!(t.chars().count() <= 127, "{t}");
+        assert!(!t.contains("very long") && t.contains("DPI"), "{t}");
     }
 }

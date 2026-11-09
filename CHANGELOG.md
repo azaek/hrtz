@@ -8,7 +8,10 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 
 ### New
 - SignalRGB can now set the DPI light on Zaopin mice, along with the rest of your lighting. Turn it on in Sensor → Light.
-- More tray icons to choose from, in Settings → Tray icon.
+- More tray icons to choose from, under HUD & Tray.
+
+### Improved
+- Hover the tray icon to see every connected mouse, with its DPI and profile.
 
 ## 0.3.1 — 2026-11-08
 
