@@ -1,11 +1,11 @@
-name: Ask for a mouse
-description: A mouse hrtz doesn't run yet.
+name: Request support for a mouse
+description: Your mouse isn't supported yet.
 labels: ["mouse request"]
 body:
   - type: markdown
     attributes:
       value: |
-        In hrtz, **Settings → Help → Inspect a mouse** saves a report of how your mouse describes itself to Windows. Nothing is sent to the mouse to make it. Drag the file into the box below: it's what lets us add your mouse.
+        In hrtz, click **Inspect a mouse** in the title bar, save your mouse's report, and drag the file into the box below. It's what lets us add support for your mouse.
   - type: input
     id: mouse
     attributes:

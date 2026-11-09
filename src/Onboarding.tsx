@@ -219,7 +219,7 @@ export function Onboarding() {
                 <Caption1 className={s.muted}>
                   Don't see yours?{" "}
                   <Link as="button" onClick={askForIt}>
-                    Ask for it
+                    Request support
                   </Link>
                 </Caption1>
               </>

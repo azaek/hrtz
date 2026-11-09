@@ -54,7 +54,7 @@ const hex = (n: number) => n.toString(16).toUpperCase().padStart(4, "0");
 const ids = (m: Inspected) => `${hex(m.vendorId)}:${hex(m.productId)}`;
 
 /**
- * Inspect a mouse: for asking for a mouse hrtz doesn't run yet. It lists the mice and receivers
+ * Inspect a mouse: for requesting support for a mouse that isn't supported yet. It lists the mice and receivers
  * Windows sees, saves one's report (what it tells Windows about itself, with nothing sent to it),
  * and opens the request form on GitHub. A full page, like the onboarding.
  */
@@ -109,9 +109,9 @@ export function Inspector() {
               Inspect a mouse
             </Title1>
             <Body1 className={s.muted}>
-              To ask for a mouse hrtz doesn't run yet, save its report and attach it to a request on GitHub. The report is what the mouse tells Windows about itself.
-              Nothing is sent to the mouse, and the file stays on your PC until you send it.
+              Is your mouse not supported yet? Save a report for it, then request support on GitHub and attach the report. It's what lets us add your mouse.
             </Body1>
+            <Caption1 className={s.muted}>The report holds your mouse's model details. Saving it changes nothing on the mouse, and nothing leaves your PC until you attach it.</Caption1>
             {mice === null ? (
               <div className={s.status}>
                 <Spinner size="extra-tiny" />
@@ -126,7 +126,7 @@ export function Inspector() {
                     <span className={s.rowText}>
                       <Body1>{m.name}</Body1>
                       <Caption1 className={s.muted}>
-                        {ids(m)} · {m.supported ? `Runs in hrtz as the ${m.supported}` : "Not supported yet"}
+                        {ids(m)} · {m.supported ? `Supported (${m.supported})` : "Not supported yet"}
                       </Caption1>
                     </span>
                     <Button onClick={() => void saveReport(m)}>Save report</Button>
@@ -135,14 +135,14 @@ export function Inspector() {
               </div>
             )}
             <Caption1 className={s.muted} aria-live="polite">
-              {saved ? `Saved ${saved.file}. Next, ask for the ${saved.mouse.name} on GitHub and drag the file into the request.` : "A keyboard can show up here too, as many have a mouse built in."}
+              {saved ? `Report saved as ${saved.file}. Now request support on GitHub and attach it.` : "Keyboards can show up here too, since many include a mouse."}
             </Caption1>
           </div>
         </div>
         <div className={s.footer}>
           <Button onClick={() => setInspecting(false)}>Back</Button>
           <Button appearance="primary" onClick={ask}>
-            Ask for it on GitHub
+            Request support on GitHub
           </Button>
         </div>
       </div>

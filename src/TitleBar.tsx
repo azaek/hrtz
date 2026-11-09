@@ -80,7 +80,7 @@ export function TitleBar() {
       <Wordmark size={16} className={s.brand} />
       <div className={s.tools}>
         {!inspecting && (
-          <button className={s.tool} title="Save a report to ask for a mouse hrtz doesn't run yet" onClick={() => setInspecting(true)}>
+          <button className={s.tool} title="Request support for a mouse that isn't supported yet" onClick={() => setInspecting(true)}>
             <DocumentSearch16Regular />
             Inspect a mouse
           </button>

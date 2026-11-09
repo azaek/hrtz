@@ -229,7 +229,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         <SettingCard icon={<Bug20Regular />} title="Report a problem" description="Opens a GitHub issue with your hrtz version, mouse and Windows filled in.">
           <Button onClick={() => report("bug_report")}>Report</Button>
         </SettingCard>
-        <SettingCard icon={<SearchInfo20Regular />} title="Inspect a mouse" description="For a mouse hrtz doesn't run yet: save its report and ask for it.">
+        <SettingCard icon={<SearchInfo20Regular />} title="Inspect a mouse" description="Mouse not supported yet? Save a report and request support.">
           <Button onClick={() => setInspecting(true)}>Inspect</Button>
         </SettingCard>
       </Group>

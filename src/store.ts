@@ -172,7 +172,7 @@ export async function restoreMouse(mouse: KnownMouse) {
 
 let navN = 0;
 /** Open `page`, and bring the card `focus` names into view there. */
-/** Open or close Inspect a mouse, the screen for asking for a mouse hrtz doesn't run yet. */
+/** Open or close Inspect a mouse, the screen for requesting support for a mouse. */
 export function setInspecting(inspecting: boolean) {
   set({ inspecting });
 }
