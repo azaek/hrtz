@@ -2,13 +2,11 @@
 
 Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The app's "What's new" window reads this file, so write for the people using it.
 
-Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
-
-## Unreleased
+Notes for the next version go under `## Unreleased
 
 ### New
-- SignalRGB sets the DPI light on Zaopin mice with the rest of your lighting: solid colours, Pulse (as the light breathing) and lighting off. Turn it on under Sensor → Light, and add hrtz to SignalRGB from there. Animated effects keep the last solid colour, and your own light comes back when SignalRGB quits or the link is off.
-- Two more tray icons, in Settings → Tray icon: the hrtz logo filling up with the battery, and the logo over a battery bar. Both turn red when the battery is low and blue while charging. New installs start with the logo and bar.
+- SignalRGB can now set the DPI light on Zaopin mice, along with the rest of your lighting. Turn it on in Sensor → Light.
+- More tray icons to choose from, in Settings → Tray icon.
 
 ## 0.3.1 — 2026-11-08
 

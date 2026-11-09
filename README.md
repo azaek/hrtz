@@ -44,8 +44,9 @@ Each mouse gets what it has; hrtz shows only the settings yours does.
 - **Sensor:** DPI stages you can type or drag, and the polling rate (up to 8,000 Hz on a mouse that
   has it). On a Zaopin also a colour for each stage, lift-off distance, sensor mode, motion sync,
   angle snapping, ripple control, click debounce, and the peak performance timeout.
-- **SignalRGB** (Zaopin): SignalRGB sets the DPI light with the rest of your lighting, through
-  hrtz's add-on: solid colours, Pulse and lighting off. Animated effects keep the last solid colour.
+- **SignalRGB** (Zaopin): SignalRGB sets the DPI light along with the rest of your lighting,
+  through hrtz's add-on. Solid colours and Pulse carry over. Animated effects leave the light on the
+  last solid colour.
 - **Buttons:** each button as a mouse button, DPI, scroll or tilt, a media key or a key combination.
   On a Zaopin also rapid fire, hold-for-DPI and the polling switch; on a Logitech, switching
   profiles.
