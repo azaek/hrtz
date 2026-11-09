@@ -8,6 +8,8 @@ const RIGHT =
   "M118.629 102.064C118.082 88.7644 117.809 82.1144 122.96 78.0039C128.11 73.8934 133.629 75.3895 144.666 78.3815C192.383 91.3162 226 135.728 226 188.091V216.389C226 226.372 226 231.364 224.171 235.226C222.292 239.191 219.099 242.384 215.134 244.262C211.273 246.091 206.281 246.091 196.297 246.091H149.501C137.697 246.091 131.795 246.091 128.022 242.471C124.249 238.85 124.007 232.953 123.523 221.159L118.629 102.064Z";
 const W = 226;
 const H = 247;
+/** The emblem's two halves and its size, for drawings made from it (the no-mouse placeholder). */
+export const EMBLEM = { left: LEFT, right: RIGHT, width: W, height: H };
 /** The seam at its narrowest, at the top, in emblem units. */
 const SEAM = 8.4;
 
