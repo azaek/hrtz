@@ -14,9 +14,9 @@ import {
 } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { api, message, on, type KnownMouse, type Prefs } from "@/api";
-import { Choice, Group, SettingCard } from "@/components";
-import { UndoNote } from "@/kit";
+import { api, message, on, type KnownMouse, type Prefs, type TrayStyle } from "@/api";
+import { Group, SettingCard } from "@/components";
+import { TileChoice, UndoNote } from "@/kit";
 import { linkName } from "@/links";
 import { familyOf, ofModel } from "@/models";
 import { reportUrl, type ReportForm } from "@/report";
@@ -25,6 +25,14 @@ import { forgetMouse, restoreMouse, run, savePrefs, toast, useStore } from "@/st
 import { BackupsPanel } from "../backups/BackupsPanel";
 import { ParticipateCard } from "../participate/ParticipateCard";
 import { AppCard } from "./AppCard";
+
+/** The tray icon's styles, as the tiles name them. */
+const TRAY_STYLES: { value: TrayStyle; label: string }[] = [
+  { value: "percent", label: "Percentage" },
+  { value: "battery", label: "Battery" },
+  { value: "logo", label: "Logo" },
+  { value: "logobar", label: "Logo and bar" },
+];
 
 const muted = { color: "var(--colorNeutralForeground3)" };
 
@@ -42,7 +50,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const progress = useStore((x) => x.progress);
-  const [previews, setPreviews] = useState<{ percent?: string; battery?: string; taskbar: "light" | "dark" } | null>(null);
+  const [previews, setPreviews] = useState<Awaited<ReturnType<typeof api.trayPreviews>> | null>(null);
   // Pairing: the seconds the receiver keeps looking, and how the last try went.
   const [pairing, setPairing] = useState<number | null>(null);
   const [paired, setPaired] = useState<boolean | null>(null);
@@ -139,33 +147,22 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         >
           <Switch checked={prefs.osd} onChange={(_, d) => set({ osd: d.checked })} aria-label="DPI and profile pop-up" />
         </SettingCard>
-        <SettingCard icon={<Desktop20Regular />} title="Tray icon" description="Hover for battery, polling rate and connection.">
-          <Choice
-            label="Tray icon style"
-            value={prefs.trayStyle}
-            options={[
-              {
-                value: "percent",
-                label: (
-                  <span className="tw flex items-center gap-2">
-                    {trayIcon(previews?.percent)}
-                    Percentage
-                  </span>
-                ),
-              },
-              {
-                value: "battery",
-                label: (
-                  <span className="tw flex items-center gap-2">
-                    {trayIcon(previews?.battery)}
-                    Battery
-                  </span>
-                ),
-              },
-            ]}
-            onChange={(trayStyle) => set({ trayStyle })}
-          />
-        </SettingCard>
+        <SettingCard
+          stacked
+          icon={<Desktop20Regular />}
+          title="Tray icon"
+          description="Hover for battery, polling rate and connection."
+          below={
+            <div style={{ marginTop: 12 }}>
+              <TileChoice
+                label="Tray icon style"
+                value={prefs.trayStyle}
+                options={TRAY_STYLES.map((t) => ({ value: t.value, label: t.label, icon: trayIcon(previews?.[t.value]) ?? <span className="size-5" /> }))}
+                onChange={(trayStyle) => set({ trayStyle })}
+              />
+            </div>
+          }
+        />
       </Group>
 
       <Group title="Mouse">

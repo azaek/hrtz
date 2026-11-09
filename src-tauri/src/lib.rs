@@ -603,7 +603,7 @@ fn app_icon(path: String) -> Option<String> {
     }
 }
 
-/// Both tray styles rendered for the current battery state, as PNG data URLs.
+/// Every tray style rendered for the current battery state, as PNG data URLs.
 #[tauri::command]
 fn tray_previews(ctx: State<'_, Arc<Ctx>>) -> std::collections::HashMap<&'static str, String> {
     use base64::Engine as _;
@@ -614,7 +614,12 @@ fn tray_previews(ctx: State<'_, Arc<Ctx>>) -> std::collections::HashMap<&'static
     }
     let mut out = std::collections::HashMap::new();
     out.insert("taskbar", if taskbar_light() { "light" } else { "dark" }.to_string());
-    for (name, style) in [("percent", TrayStyle::Percent), ("battery", TrayStyle::Battery)] {
+    for (name, style) in [
+        ("percent", TrayStyle::Percent),
+        ("battery", TrayStyle::Battery),
+        ("logo", TrayStyle::Logo),
+        ("logobar", TrayStyle::LogoBar),
+    ] {
         let r = tray::render_at(level, style, Some(32));
         #[cfg(windows)]
         if let Some(png) = win::encode_png(r.width, r.height, &r.rgba) {

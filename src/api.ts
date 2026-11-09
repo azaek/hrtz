@@ -203,11 +203,15 @@ export interface PadGame {
   path: string;
 }
 
+/** The tray icon: the percentage on a tile, Windows' battery glyph, the emblem filling with the
+ *  battery, or the emblem over a battery bar. */
+export type TrayStyle = "percent" | "battery" | "logo" | "logobar";
+
 export interface Prefs {
   batteryAlerts: boolean;
   lowBatteryPercent: number;
   osd: boolean;
-  trayStyle: "percent" | "battery";
+  trayStyle: TrayStyle;
   /** Track where the mouse moves on the pad, in the background too. */
   padTracking: boolean;
   /** Count double clicks over days, in the background too. */
@@ -680,7 +684,7 @@ export const api = {
   installedGames: () => invoke<InstalledGame[]>("installed_games"),
   /** Name and icon of an exe picked from disk; null if it isn't an exe. */
   appInfo: (path: string) => invoke<RunningApp | null>("app_info", { path }),
-  trayPreviews: () => invoke<{ percent?: string; battery?: string; taskbar: "light" | "dark" }>("tray_previews"),
+  trayPreviews: () => invoke<Partial<Record<TrayStyle, string>> & { taskbar: "light" | "dark" }>("tray_previews"),
   appStatus: () => invoke<AppStatus>("app_status"),
   /** Raw input for the Lab page; `rate` is the polling rate stutters are measured against. */
   meter: (on: boolean, rate?: number) => invoke<void>("meter", { on, rate, seq: seq() }),
