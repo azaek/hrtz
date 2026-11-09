@@ -7,6 +7,7 @@ pub mod hud;
 pub mod installed;
 pub mod mice;
 pub mod pad;
+pub mod signalrgb;
 pub mod store;
 pub mod tray;
 
@@ -57,11 +58,15 @@ struct AppStatus {
     quiet_ports: Vec<String>,
     /// The HUD's window is on screen now.
     hud_showing: bool,
+    /// How the SignalRGB link stands.
+    signalrgb: signalrgb::Status,
 }
 
 struct Ctx {
     /// Every mouse connection, each on its own thread.
     hub: Arc<Hub>,
+    /// SignalRGB setting the mice's DPI lights.
+    signalrgb: signalrgb::SignalRgb,
     /// Where each mouse's battery files are, for one that isn't connected.
     data_dir: PathBuf,
     prefs: RwLock<Prefs>,
@@ -102,6 +107,7 @@ struct Ctx {
 fn status_of(ctx: &Ctx) -> AppStatus {
     let mut s = ctx.status.read().clone();
     s.hud_showing = ctx.hud.showing();
+    s.signalrgb = ctx.signalrgb.status();
     s.in_use = ctx.hub.primary_state().key;
     #[cfg(windows)]
     {
@@ -408,11 +414,20 @@ fn set_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, prefs: Prefs) -> CmdResul
         let on = prefs.click_history;
         let _ = app.run_on_main_thread(move || meter::set_clicks(on));
     }
+    if prefs.signalrgb != ctx.prefs.read().signalrgb {
+        ctx.signalrgb.set_on(prefs.signalrgb);
+    }
     *ctx.prefs.write() = prefs.clone();
     refresh_tray(&ctx, &ctx.hub.primary_state());
     ctx.hud.prefs(&prefs);
     let _ = app.emit("prefs", prefs);
     Ok(())
+}
+
+/// Copy hrtz's add-on into SignalRGB's plugins folder (SignalRGB loads it when it next starts).
+#[tauri::command]
+fn install_signalrgb_addon(ctx: State<'_, Arc<Ctx>>) -> CmdResult<()> {
+    ctx.signalrgb.install().map_err(err)
 }
 
 #[tauri::command]
@@ -1562,9 +1577,16 @@ pub fn run() {
             }
             let hub = Hub::new();
             let hud = hud::Hud::new(&prefs);
+            let status_handle = handle.clone();
+            let signalrgb = signalrgb::SignalRgb::start(hub.clone(), &data_dir, prefs.signalrgb, move || {
+                if let Some(ctx) = status_handle.try_state::<Arc<Ctx>>() {
+                    let _ = status_handle.emit("app-status", status_of(&ctx));
+                }
+            });
             let (profiles, profile_asks) = std::sync::mpsc::channel();
             let ctx = Arc::new(Ctx {
                 hub: hub.clone(),
+                signalrgb,
                 data_dir: data_dir.clone(),
                 prefs: RwLock::new(prefs),
                 prefs_path,
@@ -1698,6 +1720,7 @@ pub fn run() {
             update_ready,
             prepare_update,
             apply_settings,
+            install_signalrgb_addon,
             set_profile,
             set_long_range,
             factory_reset,

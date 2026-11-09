@@ -17,6 +17,7 @@ import { commit, useStore } from "../store";
 import { topRate, type Lod, type Settings } from "../api";
 import { formatDuration } from "../format";
 import { DpiStagesCard } from "../cards/dpi-stages/DpiStagesCard";
+import { SignalRgbCard, useSetBySignalRgb } from "../cards/signalrgb/SignalRgbCard";
 import { hzText } from "../rates";
 import { NumberStepper } from "../kit";
 
@@ -29,6 +30,7 @@ export function SensorPage() {
   const s = device.settings!;
   const caps = device.capabilities!;
   const update = (patch: Partial<Settings>) => commit({ ...s, ...patch });
+  const bySignalRgb = useSetBySignalRgb(device.key);
   const disabled = !device.online;
   const top = topRate(caps);
   const mode = caps.sensorMode;
@@ -145,17 +147,20 @@ export function SensorPage() {
       <Switch checked={s.peakTimeoutEnabled} onChange={(_, d) => update({ peakTimeoutEnabled: d.checked })} aria-label="Peak performance timeout" />
     </SettingCard>
   );
-  const dpi = caps.dpi && s.stages && <DpiStagesCard s={s} caps={caps} />;
+  const dpi = caps.dpi && s.stages && <DpiStagesCard s={s} caps={caps} coloursLocked={bySignalRgb} />;
   const light = caps.dpi?.light ? s.dpiLight : undefined;
   const lightEffect = light && (
     <SettingCard
       icon={<Lightbulb20Regular />}
       title="DPI light"
-      description={light.effect === "off" ? "Off, so the stage colours don't show." : "Shows the colour of the DPI stage in use."}
+      description={
+        bySignalRgb ? "Set by SignalRGB." : light.effect === "off" ? "Off, so the stage colours don't show." : "Shows the colour of the DPI stage in use."
+      }
     >
       <Choice
         label="DPI light"
         value={light.effect}
+        disabled={bySignalRgb}
         options={[
           { value: "off" as const, label: "Off" },
           { value: "steady" as const, label: "Steady" },
@@ -172,7 +177,14 @@ export function SensorPage() {
   );
   const speed = light?.effect === "breathing" && (
     <SettingCard icon={<HeartPulse20Regular />} title="Breathing speed" description="How fast the DPI light breathes.">
-      <NumberStepper label="Breathing speed" min={1} max={5} value={light.speed} onChange={(speed) => update({ dpiLight: { ...light, speed } })} />
+      <NumberStepper
+        label="Breathing speed"
+        min={1}
+        max={5}
+        value={light.speed}
+        disabled={bySignalRgb}
+        onChange={(speed) => update({ dpiLight: { ...light, speed } })}
+      />
     </SettingCard>
   );
   const tracking = [dpi, polling, liftOff, sensorMode, motionSync, angleSnapping, ripple].some(Boolean);
@@ -196,6 +208,7 @@ export function SensorPage() {
           {lightEffect}
           {brightness}
           {speed}
+          <SignalRgbCard mouseKey={device.key} />
         </Group>
       )}
       {clicks && (

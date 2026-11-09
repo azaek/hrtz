@@ -222,6 +222,8 @@ export interface Prefs {
   shareData: boolean;
   /** The in-game HUD. */
   hud: HudPrefs;
+  /** SignalRGB sets the DPI lights. */
+  signalrgb: boolean;
 }
 
 /** What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch
@@ -372,6 +374,24 @@ export interface AppStatus {
   quietPorts?: string[];
   /** The HUD window is visible now. */
   hudShowing: boolean;
+  /** How the SignalRGB link stands. */
+  signalrgb?: SignalRgbStatus;
+}
+
+/** The SignalRGB link: SignalRGB setting the mice's DPI lights through hrtz's add-on. */
+export interface SignalRgbStatus {
+  /** The link is turned on. */
+  on: boolean;
+  /** SignalRGB is installed on this PC. */
+  installed: boolean;
+  /** hrtz's add-on in SignalRGB's plugins folder: as this hrtz has it, another version, or none. */
+  addon: "missing" | "current" | "outdated";
+  /** SignalRGB is running with the add-on loaded. */
+  connected: boolean;
+  /** The mice whose light SignalRGB is setting now (keys). */
+  driving: string[];
+  /** Why hrtz can't listen for SignalRGB. */
+  error: string | null;
 }
 
 export interface ButtonEvent {
@@ -615,6 +635,8 @@ export const api = {
   /** Every connection's state. */
   states: () => invoke<DeviceState[]>("get_states"),
   applySettings: (settings: Settings) => invoke<Settings>("apply_settings", { mouse, settings }),
+  /** Copy hrtz's add-on into SignalRGB's plugins folder; SignalRGB loads it when it next starts. */
+  installSignalRgbAddon: () => invoke<void>("install_signalrgb_addon"),
   setProfile: (index: number) => invoke<void>("set_profile", { mouse, index }),
   setLongRange: (on: boolean) => invoke<void>("set_long_range", { mouse, on }),
   factoryReset: () => invoke<void>("factory_reset", { mouse }),

@@ -16,11 +16,23 @@ export const swatchName = (palette: Swatch[], hex: string) => palette.find((p) =
  * the palette (dot and name each) with the current one checked. A colour outside the palette
  * still shows on the button, with nothing checked.
  */
-export function ColorMenu({ color, label, palette, onChange }: { color: string; label: string; palette: Swatch[]; onChange: (hex: string) => void }) {
+export function ColorMenu({
+  color,
+  label,
+  palette,
+  disabled,
+  onChange,
+}: {
+  color: string;
+  label: string;
+  palette: Swatch[];
+  disabled?: boolean;
+  onChange: (hex: string) => void;
+}) {
   return (
     <Menu positioning="below-start" checkedValues={{ colour: [color.toUpperCase()] }} onCheckedValueChange={(_, d) => d.checkedItems[0] && onChange(d.checkedItems[0])}>
       <MenuTrigger disableButtonEnhancement>
-        <IconButton icon={<Dot color={color} className="size-3.5" />} label={`${label}: ${swatchName(palette, color)}`} />
+        <IconButton icon={<Dot color={color} className="size-3.5" />} label={`${label}: ${swatchName(palette, color)}`} disabled={disabled} />
       </MenuTrigger>
       <MenuPopover>
         <MenuList>

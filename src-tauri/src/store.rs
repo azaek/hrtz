@@ -92,6 +92,8 @@ pub struct Prefs {
     pub share_data: bool,
     /// The in-game HUD (see `hud`).
     pub hud: HudPrefs,
+    /// SignalRGB sets the DPI lights (see `signalrgb`).
+    pub signalrgb: bool,
 }
 
 /// What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch
@@ -420,6 +422,7 @@ impl Default for Prefs {
             welcomed: false,
             share_data: false,
             hud: HudPrefs::default(),
+            signalrgb: false,
         }
     }
 }
