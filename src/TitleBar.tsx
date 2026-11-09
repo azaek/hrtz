@@ -7,7 +7,7 @@ import { setInspecting, useStore } from "./store";
 
 const useStyles = makeStyles({
   // The window's own title bar, as tall as Windows draws one. Dragging anywhere but the buttons
-  // moves the window, and a double-click maximizes it.
+  // moves the window. The window keeps its size: no maximize.
   bar: {
     display: "flex",
     alignItems: "stretch",
@@ -61,24 +61,20 @@ const useStyles = makeStyles({
   },
 });
 
-/** The title bar: the wordmark on the left; Inspect a mouse, then minimize, maximize and close on
- *  the right. Closing hides the window to the tray, as the native button did. */
+/** The title bar: the wordmark on the left; Inspect a mouse, then minimize and close on the right.
+ *  Closing hides the window to the tray, as the native button did. */
 export function TitleBar() {
   const s = useStyles();
   const [active, setActive] = useState(true);
-  const [maximized, setMaximized] = useState(false);
   const inspecting = useStore((x) => x.inspecting);
 
   useEffect(() => {
     const win = getCurrentWindow();
-    const sync = () => win.isMaximized().then(setMaximized, () => {});
-    sync();
-    const unlisten = [win.onResized(sync), win.onFocusChanged(({ payload }) => setActive(payload))];
-    return () => unlisten.forEach((p) => p.then((off) => off()));
+    const unlisten = win.onFocusChanged(({ payload }) => setActive(payload));
+    return () => void unlisten.then((off) => off());
   }, []);
 
   const win = getCurrentWindow();
-  const restoreLabel = maximized ? "Restore" : "Maximize";
   return (
     <div className={mergeClasses(s.bar, !active && s.inactive)} data-tauri-drag-region="deep">
       <Wordmark size={16} className={s.brand} />
@@ -93,9 +89,6 @@ export function TitleBar() {
       <div className={s.caption}>
         <button className={s.button} tabIndex={-1} title="Minimize" aria-label="Minimize" onClick={() => win.minimize()}>
           {""}
-        </button>
-        <button className={s.button} tabIndex={-1} title={restoreLabel} aria-label={restoreLabel} onClick={() => win.toggleMaximize()}>
-          {maximized ? "" : ""}
         </button>
         <button className={mergeClasses(s.button, s.close)} tabIndex={-1} title="Close" aria-label="Close" onClick={() => win.close()}>
           {""}

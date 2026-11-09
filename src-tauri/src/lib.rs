@@ -1502,6 +1502,21 @@ fn profile_switcher(app: AppHandle, asks: std::sync::mpsc::Receiver<(String, u8)
         .expect("spawn profile switcher");
 }
 
+/// The window keeps the size it's designed at (tauri.conf.json: 1080 x 720, no resizing or
+/// maximizing), unless the screen's work area is smaller: then it's made to fit, so nothing is cut
+/// off on a small laptop.
+fn fit_to_screen(win: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = win.current_monitor().or_else(|_| win.primary_monitor()) else { return };
+    let scale = monitor.scale_factor();
+    let area = monitor.work_area().size;
+    let (room_w, room_h) = (area.width as f64 / scale - 24.0, area.height as f64 / scale - 24.0);
+    let (w, h) = (1080f64.min(room_w).max(720.0), 720f64.min(room_h).max(480.0));
+    if w < 1080.0 || h < 720.0 {
+        let _ = win.set_size(tauri::LogicalSize::new(w, h));
+        let _ = win.center();
+    }
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -1723,6 +1738,9 @@ pub fn run() {
                 .build()?
                 .set_ignore_cursor_events(true)?;
 
+            if let Some(main) = app.get_webview_window("main") {
+                fit_to_screen(&main);
+            }
             #[cfg(windows)]
             {
                 if let Some(main) = app.get_webview_window("main") {
