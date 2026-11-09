@@ -4,6 +4,7 @@ pub mod clicks;
 pub mod diag;
 pub mod games;
 pub mod hud;
+pub mod inspect;
 pub mod installed;
 pub mod mice;
 pub mod pad;
@@ -422,6 +423,21 @@ fn set_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, prefs: Prefs) -> CmdResul
     ctx.hud.prefs(&prefs);
     let _ = app.emit("prefs", prefs);
     Ok(())
+}
+
+/// Every mouse or mouse receiver Windows lists, for Inspect a mouse: read from Windows' records,
+/// with nothing sent to the devices.
+#[tauri::command]
+async fn inspect_mice(ctx: State<'_, Arc<Ctx>>) -> CmdResult<Vec<inspect::Inspected>> {
+    let known = ctx.hub.connections();
+    tauri::async_runtime::spawn_blocking(move || inspect::inspect(&known)).await.map_err(|e| e.to_string())
+}
+
+/// Save Inspect a mouse's report for one device to `path`.
+#[tauri::command]
+fn save_inspection(app: AppHandle, path: String, device: serde_json::Value) -> CmdResult<()> {
+    let report = inspect::report(&device, &app.package_info().version.to_string(), &win::windows_version());
+    std::fs::write(path, serde_json::to_vec_pretty(&report).unwrap_or_default()).map_err(|e| e.to_string())
 }
 
 /// Copy hrtz's add-on into SignalRGB's plugins folder (SignalRGB loads it when it next starts).
@@ -1762,6 +1778,8 @@ pub fn run() {
             update_ready,
             prepare_update,
             apply_settings,
+            inspect_mice,
+            save_inspection,
             install_signalrgb_addon,
             set_profile,
             set_long_range,

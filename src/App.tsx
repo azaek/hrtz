@@ -13,6 +13,7 @@ import {
   WeatherMoon16Filled,
 } from "@fluentui/react-icons";
 import { init, startFlow, useStore } from "./store";
+import { Inspector } from "./Inspector";
 import { HeaderActionsSlot, NavRow, Notice, StatusPill, ToastBridge } from "./components";
 import { NewBadge } from "./kit";
 import { useNewPages } from "./news";
@@ -148,6 +149,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   const newPages = useNewPages(device?.capabilities);
   const vendorApps = useStore((st) => st.status.vendorApps);
   const flow = useStore((st) => st.flow);
+  const inspecting = useStore((st) => st.inspecting);
   // A page asked for from elsewhere (the "Not tested" badge).
   const nav = useStore((st) => st.nav);
   useEffect(() => {
@@ -227,6 +229,16 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
             <Page />
           </div>
         </div>
+      </>
+    );
+  }
+
+  // Asking for a mouse takes the whole window, over the onboarding if that's where it was opened.
+  if (inspecting) {
+    return (
+      <>
+        <Inspector />
+        <ToastBridge />
       </>
     );
   }

@@ -2,16 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Body1, Body1Strong, Button, Caption1, Caption1Strong, Link, makeStyles, mergeClasses, Spinner, Switch, Title1, tokens } from "@fluentui/react-components";
 import { Checkmark16Regular, Warning16Filled } from "@fluentui/react-icons";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, message, on, type BackupMeta, type DeviceState } from "./api";
 import { Emblem } from "./brand";
 import { Notice } from "./components";
 import { DrawnMouse, MousePicture } from "./DrawnMouse";
 import { linkName } from "./links";
 import { artOf, familyOf, ofModel } from "./models";
-import { endFlow, goStep, pickMouse, savePrefs, toast, useStore, type Step } from "./store";
+import { endFlow, goStep, pickMouse, savePrefs, setInspecting, toast, useStore, type Step } from "./store";
 import { TitleBar } from "./TitleBar";
-import { REPO_URL } from "./update";
 
 const useStyles = makeStyles({
   frame: { display: "flex", flexDirection: "column", height: "100%" },
@@ -188,7 +186,7 @@ export function Onboarding() {
   };
   const back = (to: Step) => <Button onClick={() => goStep(to)}>Back</Button>;
   const cancel = <Button onClick={endFlow}>Cancel</Button>;
-  const askForIt = () => void openUrl(`${REPO_URL}/discussions`).catch((e) => toast(message(e), "error"));
+  const askForIt = () => setInspecting(true);
 
   let shown: Shown;
   switch (flow.step) {

@@ -384,6 +384,17 @@ export interface AppStatus {
   signalrgb?: SignalRgbStatus;
 }
 
+/** A mouse or mouse receiver Windows lists, for Inspect a mouse. */
+export interface Inspected {
+  name: string;
+  vendorId: number;
+  productId: number;
+  /** The model hrtz runs it as, where it does. */
+  supported: string | null;
+  /** What its report holds: its IDs, names and each interface's report descriptor. */
+  device: unknown;
+}
+
 /** The SignalRGB link: SignalRGB setting the mice's DPI lights through hrtz's add-on. */
 export interface SignalRgbStatus {
   /** The link is turned on. */
@@ -641,6 +652,10 @@ export const api = {
   /** Every connection's state. */
   states: () => invoke<DeviceState[]>("get_states"),
   applySettings: (settings: Settings) => invoke<Settings>("apply_settings", { mouse, settings }),
+  /** Every mouse or mouse receiver Windows lists, read from Windows' records: nothing is sent to them. */
+  inspectMice: () => invoke<Inspected[]>("inspect_mice"),
+  /** Save one device's Inspect a mouse report to `path`. */
+  saveInspection: (path: string, device: unknown) => invoke<void>("save_inspection", { path, device }),
   /** Copy hrtz's add-on into SignalRGB's plugins folder; SignalRGB loads it when it next starts. */
   installSignalRgbAddon: () => invoke<void>("install_signalrgb_addon"),
   setProfile: (index: number) => invoke<void>("set_profile", { mouse, index }),

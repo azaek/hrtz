@@ -31,6 +31,9 @@ hrtz is in beta. If you have one of the mice above, these help most:
   Settings → Mouse → **Help test your …**: a 2-minute check on a full screen (move the mouse, press
   each button, and hrtz changes one DPI stage and puts it back) saves a report and opens a GitHub
   issue to send it in. A few of those and a model moves to Tested.
+- **A mouse hrtz doesn't run yet:** **Inspect a mouse**, in the title bar, saves a report of what
+  your mouse tells Windows about itself (nothing is sent to the mouse) and opens a request to attach
+  it to.
 - **Something wrong:** Settings → **Report a problem** opens an issue with your hrtz version, mouse,
   firmware and Windows filled in.
 - **Questions and ideas:** [Discussions](https://github.com/azaek/hrtz/discussions).

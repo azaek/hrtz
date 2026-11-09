@@ -1,0 +1,49 @@
+name: Ask for a mouse
+description: A mouse hrtz doesn't run yet.
+labels: ["mouse request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        In hrtz, **Settings → Help → Inspect a mouse** saves a report of how your mouse describes itself to Windows. Nothing is sent to the mouse to make it. Drag the file into the box below: it's what lets us add your mouse.
+  - type: input
+    id: mouse
+    attributes:
+      label: Mouse
+      description: Its brand and model, as on the box.
+      placeholder: ATK U2 Plus
+    validations:
+      required: true
+  - type: input
+    id: ids
+    attributes:
+      label: IDs
+      description: Filled in by hrtz, from the report.
+      placeholder: 373B:110D
+  - type: textarea
+    id: report
+    attributes:
+      label: Report
+      description: Drag the file hrtz saved in here.
+    validations:
+      required: true
+  - type: input
+    id: connection
+    attributes:
+      label: Connection
+      description: Receiver, cable or Bluetooth.
+      placeholder: 2.4 GHz receiver
+  - type: checkboxes
+    id: test
+    attributes:
+      label: Testing
+      options:
+        - label: I can try an early version on my mouse and send what hrtz shows.
+  - type: input
+    id: version
+    attributes:
+      label: hrtz version
+  - type: input
+    id: windows
+    attributes:
+      label: Windows

@@ -4,7 +4,7 @@ import { linkName } from "./links";
 import { REPO_URL } from "./update";
 
 
-export type ReportForm = "bug_report" | "mouse_report";
+export type ReportForm = "bug_report" | "mouse_report" | "mouse_request";
 
 /**
  * A new GitHub issue on one of the forms in .github/ISSUE_TEMPLATE, its fields filled in with what

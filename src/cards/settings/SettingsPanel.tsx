@@ -4,6 +4,7 @@ import {
   Alert20Regular,
   ArrowRotateClockwise20Regular,
   Bug20Regular,
+  SearchInfo20Regular,
   DataUsage20Regular,
   Delete20Regular,
   Info20Regular,
@@ -20,7 +21,7 @@ import { linkName } from "@/links";
 import { familyOf, ofModel } from "@/models";
 import { reportUrl, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
-import { forgetMouse, restoreMouse, run, savePrefs, toast, useStore } from "@/store";
+import { forgetMouse, restoreMouse, run, savePrefs, setInspecting, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
 import { ParticipateCard } from "../participate/ParticipateCard";
 import { AppCard } from "./AppCard";
@@ -227,6 +228,9 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       <Group title="Help">
         <SettingCard icon={<Bug20Regular />} title="Report a problem" description="Opens a GitHub issue with your hrtz version, mouse and Windows filled in.">
           <Button onClick={() => report("bug_report")}>Report</Button>
+        </SettingCard>
+        <SettingCard icon={<SearchInfo20Regular />} title="Inspect a mouse" description="For a mouse hrtz doesn't run yet: save its report and ask for it.">
+          <Button onClick={() => setInspecting(true)}>Inspect</Button>
         </SettingCard>
       </Group>
 

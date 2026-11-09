@@ -101,6 +101,11 @@ impl Hub {
         self.conns.read().iter().find(|c| c.engine.state.read().key.as_deref() == Some(key)).map(|c| c.engine.clone())
     }
 
+    /// Every connection, by its family's id (the HID path it opened), with its state.
+    pub fn connections(&self) -> Vec<(String, DeviceState)> {
+        self.conns.read().iter().map(|c| (c.id.clone(), c.engine.snapshot())).collect()
+    }
+
     /// Every connection's state.
     pub fn states(&self) -> Vec<DeviceState> {
         self.conns.read().iter().map(|c| c.engine.snapshot()).collect()

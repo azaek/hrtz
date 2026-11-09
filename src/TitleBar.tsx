@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
+import { DocumentSearch16Regular } from "@fluentui/react-icons";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Wordmark } from "./brand";
+import { setInspecting, useStore } from "./store";
 
 const useStyles = makeStyles({
   // The window's own title bar, as tall as Windows draws one. Dragging anywhere but the buttons
@@ -17,7 +19,25 @@ const useStyles = makeStyles({
   // Out of focus, Windows dims the title and the caption glyphs.
   inactive: { color: tokens.colorNeutralForegroundDisabled },
   brand: { alignSelf: "center", marginLeft: "16px" },
-  caption: { display: "flex", marginLeft: "auto" },
+  caption: { display: "flex" },
+  // Tools reachable from every screen, left of the caption buttons: a soft wash on hover, like them.
+  tools: { display: "flex", alignItems: "stretch", marginLeft: "auto" },
+  tool: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "0 12px",
+    border: "none",
+    backgroundColor: "transparent",
+    color: tokens.colorNeutralForeground2,
+    fontFamily: "inherit",
+    fontSize: tokens.fontSizeBase200,
+    transitionProperty: "background-color",
+    transitionDuration: "100ms",
+    transitionTimingFunction: "ease-out",
+    ":hover": { backgroundColor: "var(--nav-hover)", color: tokens.colorNeutralForeground1 },
+    ":active": { backgroundColor: "var(--nav-pressed)" },
+  },
   // Windows 11 caption buttons: 46 x 32, Segoe Fluent Icons at 10 px, a soft wash on hover.
   button: {
     display: "grid",
@@ -41,12 +61,13 @@ const useStyles = makeStyles({
   },
 });
 
-/** The title bar: the wordmark on the left, minimize, maximize and close on the right. Closing
- *  hides the window to the tray, as the native button did. */
+/** The title bar: the wordmark on the left; Inspect a mouse, then minimize, maximize and close on
+ *  the right. Closing hides the window to the tray, as the native button did. */
 export function TitleBar() {
   const s = useStyles();
   const [active, setActive] = useState(true);
   const [maximized, setMaximized] = useState(false);
+  const inspecting = useStore((x) => x.inspecting);
 
   useEffect(() => {
     const win = getCurrentWindow();
@@ -61,6 +82,14 @@ export function TitleBar() {
   return (
     <div className={mergeClasses(s.bar, !active && s.inactive)} data-tauri-drag-region="deep">
       <Wordmark size={16} className={s.brand} />
+      <div className={s.tools}>
+        {!inspecting && (
+          <button className={s.tool} title="Save a report to ask for a mouse hrtz doesn't run yet" onClick={() => setInspecting(true)}>
+            <DocumentSearch16Regular />
+            Inspect a mouse
+          </button>
+        )}
+      </div>
       <div className={s.caption}>
         <button className={s.button} tabIndex={-1} title="Minimize" aria-label="Minimize" onClick={() => win.minimize()}>
           {""}
