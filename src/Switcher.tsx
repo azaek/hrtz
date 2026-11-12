@@ -20,11 +20,11 @@ import {
 import { Add16Regular, BatterySaverRegular, ChevronUpDown16Regular, Delete16Regular, MoreHorizontal16Regular } from "@fluentui/react-icons";
 import { topRate, type DeviceState, type KnownMouse } from "./api";
 import { BatteryIcon } from "./BatteryIcon";
-import { MousePicture } from "./DrawnMouse";
+import { MousePicture } from "./MousePicture";
 import { seenAt } from "./format";
 import { linkName } from "./links";
-import { artOf, ofModel } from "./models";
-import { asleepOnPort, forgetMouse, goTo, pickMouse, restoreMouse, startFlow, toast, useMouse, useStore } from "./store";
+import { artOf, supportOf } from "./models";
+import { asleepOnPort, forgetMouse, pickMouse, restoreMouse, setInspecting, startFlow, toast, useMouse, useStore } from "./store";
 import { FLYOUT_PADDING } from "./kit";
 
 const useStyles = makeStyles({
@@ -47,7 +47,8 @@ const useStyles = makeStyles({
     margin: `${tokens.spacingVerticalM} 0 ${tokens.spacingVerticalXS}`,
     color: tokens.colorNeutralForeground3,
   },
-  /** The card, with the "Not tested" chip over its corner: beside the switcher's button, not in it. */
+  /** The card, with the "Not tested" or "Not supported yet" chip over its corner: beside the
+   *  switcher's button, not in it. */
   cardWrap: { position: "relative" },
   untested: {
     position: "absolute",
@@ -136,16 +137,20 @@ function RateBadge({ d }: { d: DeviceState }) {
   );
 }
 
-/** A model hrtz lists but hasn't been tried on: the chip opens Settings at its check. */
+/** A model hrtz hasn't been tried on, or doesn't know yet: the chip opens Inspect a mouse at its
+ *  check. */
 function UntestedBadge({ d }: { d: DeviceState | null }) {
   const s = useStyles();
-  const untested = useStore((st) => !!d?.connected && st.supported.some((m) => ofModel(d.key, m.key) && !m.tested));
-  if (!untested) return null;
-  const label = "hrtz hasn't been tried on this model yet. Help test it in Settings.";
+  const support = useStore((st) => (d?.connected ? supportOf(d.key, st.supported) : undefined));
+  if (support !== "untested" && support !== "unknown") return null;
+  const label =
+    support === "untested"
+      ? "hrtz hasn't been tried on this model yet. Check it and send the report."
+      : "hrtz doesn't know this model yet. Check it and request support.";
   return (
-    <button className={s.untested} title={label} aria-label={label} onClick={() => goTo("settings", "help-test")}>
+    <button className={s.untested} title={label} aria-label={label} onClick={() => setInspecting(true, d!.key)}>
       <Badge appearance="tint" shape="rounded" color="warning">
-        Not tested
+        {support === "untested" ? "Not tested" : "Not supported yet"}
       </Badge>
     </button>
   );
@@ -161,7 +166,7 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
   return (
     <div className={s.card} role="button" tabIndex={0} {...rest}>
       <div className={s.art}>
-        <MousePicture image={artOf(d?.key, d?.variant)?.image} width={176} none={!d} />
+        <MousePicture image={artOf(d?.key, d?.variant)?.image} width={176} />
       </div>
       <div className={s.device}>
         <div className={s.modelRow}>

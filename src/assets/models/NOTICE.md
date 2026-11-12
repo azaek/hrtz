@@ -9,3 +9,7 @@ They belong to Zaopin. They are **not** covered by this project's license, and a
 `superlight2-black.webp`, `superlight2-white.webp` and `superlight2-pink.webp` are Logitech's own renders of the PRO X SUPERLIGHT 2, one per colour, from its product page on logitechg.com (the gallery's top views). The lit status light is filled in from the body around it, and they're turned and scaled the same way; the button positions in `../../models.ts` are the first Superlight's, placed on this shape.
 
 They belong to Logitech. They are **not** covered by this project's license, and are included only to show which mouse is connected. If Logitech asks, they will be removed.
+
+`atk-u2-plus-black.webp` is ATK's own render of the U2 Plus, from ATK's app (ATK HUB 3.2.32, its device picture for the U2), turned 45° and scaled into the frame above as the Superlights are.
+
+It belongs to ATK. It is **not** covered by this project's license, and is included only to show which mouse is connected. If ATK asks, it will be removed.

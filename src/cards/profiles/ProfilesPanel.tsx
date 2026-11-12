@@ -133,8 +133,13 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
                   </dd>
                   <dt className="text-muted-foreground">Polling rate</dt>
                   <dd>{hzText(held.hz)}</dd>
-                  <dt className="text-muted-foreground">Buttons</dt>
-                  <dd>{held.buttonsChanged ? `${held.buttonsChanged} changed` : "Unchanged"}</dd>
+                  {/* Only where hrtz reads the buttons: an ATK's aren't yet. */}
+                  {!!device.capabilities?.buttons && (
+                    <>
+                      <dt className="text-muted-foreground">Buttons</dt>
+                      <dd>{held.buttonsChanged ? `${held.buttonsChanged} changed` : "Unchanged"}</dd>
+                    </>
+                  )}
                 </dl>
               ) : (
                 <Caption1 style={muted}>{UNSEEN}</Caption1>

@@ -20,6 +20,8 @@ pub struct Inspected {
     pub product_id: u16,
     /// The model hrtz runs it as, where it does.
     pub supported: Option<String>,
+    /// The key of the mouse hrtz runs there, where it does, so its check can be run on it.
+    pub key: Option<String>,
     /// What's saved for it: the device part of the report.
     pub device: Value,
 }
@@ -48,6 +50,7 @@ pub fn inspect(known: &[(String, DeviceState)]) -> Vec<Inspected> {
                 .collect();
             let found = mine.iter().find(|s| !s.foreign).or(mine.first()).copied();
             let supported = found.filter(|s| !s.foreign).and_then(|s| s.model.clone());
+            let key = found.filter(|s| !s.foreign).and_then(|s| s.key.clone());
             let hrtz = found.map(|s| {
                 if s.foreign {
                     json!({ "answeredAs": { "cid": s.cid, "mid": s.mid, "deviceType": s.device_type } })
@@ -77,9 +80,22 @@ pub fn inspect(known: &[(String, DeviceState)]) -> Vec<Inspected> {
                 "hrtz": hrtz,
                 "interfaces": interfaces,
             });
-            Inspected { name, vendor_id: vid, product_id: pid, supported, device }
+            Inspected { name, vendor_id: vid, product_id: pid, supported, key, device }
         })
         .collect();
+    // A dev build's simulated mice, so the check can be tried on them.
+    #[cfg(debug_assertions)]
+    out.extend(known.iter().filter(|(id, s)| id.starts_with("sim:") && s.connected && !s.foreign).map(|(_, s)| {
+        let name = format!("{} (simulated)", s.model.as_deref().unwrap_or("Mouse"));
+        Inspected {
+            name: name.clone(),
+            vendor_id: 0,
+            product_id: 0,
+            supported: s.model.clone(),
+            key: s.key.clone(),
+            device: json!({ "name": name, "simulated": true, "hrtz": { "model": s.model, "key": s.key } }),
+        }
+    }));
     out.sort_by_key(|m| m.supported.is_some());
     out
 }

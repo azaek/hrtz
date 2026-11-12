@@ -313,14 +313,27 @@ impl Connected {
         Ok(())
     }
 
-    /// An ATK says nothing when its DPI button or a button combination changes the stage or the
-    /// polling rate, so they're read every second while it's awake, and told as a Zaopin's are.
+    /// An ATK says nothing when its DPI button or a button combination changes the stage, the
+    /// polling rate or the profile, so they're read every second while it's awake, and told as a
+    /// Zaopin's are. A profile switch loads the new profile's settings.
     fn look_atk(&mut self, board: &Board) -> Result<Follow> {
         let Some(a) = self.atk.as_mut() else { return Ok(Follow::default()) };
         if a.looked.elapsed() < ATK_LOOK_EVERY || !board.read().online {
             return Ok(Follow::default());
         }
         a.looked = Instant::now();
+        // Only when it said which profile it's on at load: one that doesn't answer isn't asked
+        // every second. (Read into a binding first: the board is written below.)
+        let was = board.read().profile;
+        if let Some(was) = was {
+            let r = self.transact_simple(cmd::GET_PROFILE)?;
+            if r[5] > 0 && r[6] != was {
+                self.load_atk(board)?;
+                let index = board.read().profile.unwrap_or(was);
+                board.publish(Some(DeviceEvent::Profile { index }));
+                return Ok(Follow { settings: true, battery: true, ..Default::default() });
+            }
+        }
         let row = self.read_flash(0x00, 6)?;
         if row == self.image[0x00..0x06] {
             return Ok(Follow::default());
@@ -340,10 +353,11 @@ impl Connected {
         Ok(Follow { settings: true, ..Default::default() })
     }
 
-    /// An ATK's load: its firmware and the settings region, as ATK's app reads them. No profile or
-    /// long-range mode: neither is offered.
+    /// An ATK's load: its firmware, the profile in use and the settings region, as ATK's app reads
+    /// them. No long-range mode: it isn't offered. A mouse that doesn't say its profile shows none.
     fn load_atk(&mut self, board: &Board) -> Result<()> {
         let fw = self.transact_simple(cmd::VERSION).ok();
+        let profile = self.transact_simple(cmd::GET_PROFILE).ok();
         let region = self.read_flash(0, p::CONFIG_REGION)?;
         self.image[..p::CONFIG_REGION].copy_from_slice(&region);
         if let Some(a) = self.atk.as_mut() {
@@ -353,7 +367,7 @@ impl Connected {
             s.online = true;
             // Binary-coded decimal: 0x01 0x23 is 1.23, written as a Zaopin's is.
             s.firmware = fw.map(|r| format!("{:x}.{:02x}", r[6], r[7]));
-            s.profile = None;
+            s.profile = profile.filter(|r| r[5] > 0 && r[6] < atk::PROFILES).map(|r| r[6]);
             s.long_range = None;
         });
         self.refresh_settings(board);
@@ -452,19 +466,27 @@ impl Connected {
         Ok(())
     }
 
-    /// An ATK's write, as its own app makes it: sent without waiting for an echo, then read back.
-    /// An echo, if one comes, is taken out of the way first.
-    fn write_checked(&mut self, pkt: &Packet, a: usize, chunk: &[u8]) -> Result<()> {
+    /// Sends a change to an ATK as its own app does, without counting on an answer: an echo that
+    /// comes within a tenth of a second is taken out of the way. The caller reads back what it
+    /// changed.
+    fn send_unanswered(&mut self, pkt: &Packet) -> Result<()> {
         self.write(pkt)?;
+        let at = matches!(pkt[1], cmd::READ_FLASH | cmd::WRITE_FLASH).then(|| p::packet_addr(pkt));
         let deadline = Instant::now() + Duration::from_millis(100);
         while let Some(left) = deadline.checked_duration_since(Instant::now()) {
             match self.read(left)? {
                 None => break,
                 Some(r) if r[1] == cmd::STATUS_CHANGED => self.pending_status.push(r[6]),
-                Some(r) if r[1] == cmd::WRITE_FLASH && p::packet_addr(&r) as usize == a => break,
+                Some(r) if r[1] == pkt[1] && at.is_none_or(|a| p::packet_addr(&r) == a) => break,
                 Some(_) => {}
             }
         }
+        Ok(())
+    }
+
+    /// An ATK's write: sent unanswered, then read back.
+    fn write_checked(&mut self, pkt: &Packet, a: usize, chunk: &[u8]) -> Result<()> {
+        self.send_unanswered(pkt)?;
         if self.read_flash(a, chunk.len())? != chunk {
             bail!("The mouse didn't keep a write at 0x{a:04X}.");
         }
@@ -478,8 +500,7 @@ impl Connected {
         // already: only a switch made on the mouse needs its profile loaded (and a second load
         // would hold the mouse a second more, and show the pop-up twice).
         // The DPI and polling bits that come with a switch are the new profile's, loaded with it.
-        // An ATK's profiles aren't offered.
-        if bits & status::PROFILE != 0 && self.atk.is_none() {
+        if bits & status::PROFILE != 0 {
             let r = self.transact_simple(cmd::GET_PROFILE)?;
             if (r[5] > 0).then_some(r[6]) != board.read().profile {
                 self.load(board)?;
@@ -614,21 +635,35 @@ impl Driver for Connected {
     }
 
     fn set_profile(&mut self, board: &Board, index: u8) -> Result<()> {
-        self.zaopin_only()?;
         if index > 3 {
             bail!("profile must be 1-4");
         }
-        self.transact(&p::packet(cmd::SET_PROFILE, 0, &[index], None), REPLY_TIMEOUT)?;
-        thread::sleep(Duration::from_millis(150));
+        let pkt = p::packet(cmd::SET_PROFILE, 0, &[index], None);
+        if self.atk.is_some() {
+            // As its writes: sent unanswered, then asked, once it has had time to switch.
+            self.send_unanswered(&pkt)?;
+            thread::sleep(Duration::from_millis(150));
+            let r = self.transact_simple(cmd::GET_PROFILE)?;
+            if r[5] == 0 || r[6] != index {
+                bail!("The mouse didn't switch to profile {}.", index + 1);
+            }
+        } else {
+            self.transact(&pkt, REPLY_TIMEOUT)?;
+            thread::sleep(Duration::from_millis(150));
+        }
         self.pending_status.clear();
         // The new profile's settings first (a fifth of a second), so the pop-up and the HUD say it
         // at once; then its key-combination slots, in the same job, so nothing writes to the
         // mouse in between. The firmware, long-range mode and battery don't change with a profile.
+        // An ATK's slots aren't read: its buttons aren't offered.
         let config = self.read_flash(0, p::CONFIG_REGION)?;
         self.image[..p::CONFIG_REGION].copy_from_slice(&config);
         board.set(|s| s.profile = Some(index));
         self.refresh_settings(board);
         board.publish(Some(DeviceEvent::Profile { index }));
+        if self.atk.is_some() {
+            return Ok(());
+        }
         let slots = self.read_flash(p::CONFIG_REGION, LOADED_REGION - p::CONFIG_REGION)?;
         self.image[p::CONFIG_REGION..LOADED_REGION].copy_from_slice(&slots);
         self.refresh_settings(board);

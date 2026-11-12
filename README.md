@@ -25,19 +25,22 @@ Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED r
 work. More mice come one at a time, each tried with its owners before it's called tested.
 
 The ATK U2 Plus is the newest, by its receiver or its cable: its polling rate, DPI stages and DPI
-light, lift-off distance, debounce, motion sync, angle snapping and ripple control. Sleep, the
-sensor mode and the buttons follow once an owner's test shows how this model keeps them.
+light, lift-off distance, debounce, motion sync, angle snapping, ripple control and its four
+onboard profiles. Sleep, the sensor mode and the buttons follow once an owner's test shows how
+this model keeps them.
 
 ## Help test it
 
 hrtz is in beta. If you have one of the mice above, these help most:
 
-- **A model that isn't tested yet:** its card shows an amber **Not tested** badge. Click it, or open
-  Settings → Mouse → **Help test your …**: a 2-minute check on a full screen (move the mouse, press
-  each button, and hrtz changes one DPI stage and puts it back) saves a report and opens a GitHub
-  issue to send it in. A few of those and a model moves to Tested.
-- **A mouse that isn't supported yet:** **Inspect a mouse**, in the title bar, saves a report about
-  your mouse and opens a support request to attach it to. Saving it changes nothing on the mouse.
+- **A model that isn't tested yet:** its card shows an amber **Not tested** badge. Click it (or
+  **Inspect a mouse** in the title bar) for a 2-minute check on a full screen: move the mouse, press
+  each button, and hrtz changes one DPI stage and puts it back. It saves a report and opens a
+  GitHub issue to send it in. A few of those and a model moves to Tested.
+- **A mouse that isn't supported yet:** **Inspect a mouse**, in the title bar, checks what it safely
+  can and saves a report for a support request. A mouse hrtz doesn't run is only asked what it tells
+  Windows; a Zaopin model hrtz doesn't know yet (its badge says **Not supported yet**) is read and
+  measured too, with nothing written.
 - **Something wrong:** Settings → **Report a problem** opens an issue with your hrtz version, mouse,
   firmware and Windows filled in.
 - **Questions and ideas:** [Discussions](https://github.com/azaek/hrtz/discussions).

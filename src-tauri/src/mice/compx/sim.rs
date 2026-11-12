@@ -77,8 +77,9 @@ impl Default for SimMouse {
 }
 
 impl SimMouse {
-    /// snowyuonA's ATK U2 Plus (PAW3395) on its NearLink receiver, awake, with a made-up image laid
-    /// out as mouse-protocol's A9 Plus captures show: four stages, 1,000 Hz, the rest blank.
+    /// snowyuonA's ATK U2 Plus (PAW3395) on its NearLink receiver, awake, on profile 1, with a
+    /// made-up image laid out as mouse-protocol's A9 Plus captures show (four stages, 1,000 Hz, the
+    /// rest blank) in all four profiles.
     pub fn u2_plus() -> Self {
         Self {
             maker: Maker::Atk { receiver: true },
@@ -86,7 +87,7 @@ impl SimMouse {
             cid: 2,
             mid: 78,
             device_type: 0,
-            profiles: vec![atk_sample_image()],
+            profiles: vec![atk_sample_image(); 4],
             battery: (100, false, 4238),
             firmware: [0x01, 0x23],
             ..Default::default()
@@ -222,8 +223,10 @@ impl SimMouse {
     // modified for hrtz, 2026-11-10. Copyright (C) the OpenMouse contributors. AGPL-3.0-or-later.
 
     /// What an ATK answers, as mouse-protocol's captures show: who it is (0x10), its battery with a
-    /// length of 2 though four bytes follow, its firmware, and its memory. Nothing else, so a test
-    /// fails should hrtz count on more.
+    /// length of 2 though four bytes follow, its firmware, and its memory; and its profile, read
+    /// and switched as ATK's app does (0x0E, 0x0F). Nothing else, so a test fails should hrtz count
+    /// on more. Like its writes, a switch is answered only with `echo_writes`, and not made with
+    /// `forget_writes`.
     fn answer_atk(&mut self, r: &Packet) {
         let reply = |data: &[u8]| p::packet(r[1], 0, data, None);
         let receiver = matches!(self.maker, Maker::Atk { receiver: true });
@@ -242,6 +245,16 @@ impl SimMouse {
                 a
             }
             cmd::VERSION => reply(&self.firmware),
+            cmd::GET_PROFILE => p::packet(cmd::GET_PROFILE, 0, &[self.active], Some(1)),
+            cmd::SET_PROFILE => {
+                if !self.forget_writes {
+                    self.active = r[6].min(self.profiles.len() as u8 - 1);
+                }
+                if !self.echo_writes {
+                    return;
+                }
+                reply(&[r[6]])
+            }
             cmd::READ_FLASH => {
                 let (addr, len) = (p::packet_addr(r) as usize, r[5] as usize);
                 let data = self.image()[addr..addr + len].to_vec();
@@ -368,7 +381,8 @@ fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Re
 }
 
 /// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, `u2plus`
-/// for an ATK, or several, comma-separated), to try several mice with one. Their keys start `sim/`, so they never take over
+/// for an ATK, `unknown` for a Zaopin model hrtz doesn't know, or several, comma-separated), to try
+/// several mice with one. Their keys start `sim/`, so they never take over
 /// what a real Zaopin keeps.
 pub struct SimFamily {
     pub(crate) mice: Vec<(String, Arc<Mutex<SimMouse>>)>,
@@ -390,6 +404,7 @@ impl SimFamily {
                     "z2mini" => SimMouse { mid: 3, device_type: 1, battery: (64, false, 3850), ..Default::default() },
                     "z1promax" => SimMouse::default(),
                     "u2plus" => SimMouse::u2_plus(),
+                    "unknown" => SimMouse { mid: 9, device_type: 0, battery: (72, false, 3900), ..Default::default() },
                     _ => return None,
                 };
                 Some((format!("sim:{}", n.trim()), Arc::new(Mutex::new(m))))

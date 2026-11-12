@@ -7,7 +7,12 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ## Unreleased
 
 ### New
-- The ATK U2 Plus (PAW3395), not tested yet: its polling rate, DPI stages and DPI light, lift-off distance, debounce, motion sync, angle snapping and ripple control, by its receiver or its cable. Have one? Help test it from its Not tested badge.
+- The ATK U2 Plus (PAW3395), not tested yet: its polling rate, DPI stages and DPI light, lift-off distance, debounce, motion sync, angle snapping, ripple control and its four onboard profiles, by its receiver or its cable. Have one? Help test it from its Not tested badge.
+
+### Improved
+- Inspect a mouse is now the one place to help with a mouse: pick it and run its check. hrtz gathers everything it safely can (what the mouse tells Windows, its settings, its polling rate and its buttons) into one report, then opens the right GitHub form. The Not tested badge and Settings open it at your mouse.
+- A Zaopin model hrtz doesn't know yet shows as Not supported yet, with a badge that opens its check. Until it's added, hrtz keeps its DPI to 12,000 and leaves its sensor mode alone, since its sensor may differ.
+- A mouse without a picture now shows the hrtz mark instead of a drawn mouse.
 
 ## 0.4.0 — 2026-11-09
 

@@ -7,7 +7,7 @@ body:
       value: |
         hrtz is tested on the **Zaopin Z1 PRO MAX** and the **Logitech PRO X SUPERLIGHT**. The other models it lists should work, but nobody has tried them yet. A report from any of them tells us what to fix before calling it supported.
 
-        The quickest report: **Settings → Mouse → Help test your …** runs a 2-minute check and saves a report file. Its summary fills in below; drag the file it saved into the box too.
+        The quickest report: click **Inspect a mouse** in hrtz's title bar (or the **Not tested** badge on your mouse), pick your mouse and run its 2-minute check, then save the report. Its summary fills in below; drag the file it saved into the box too.
 
         hrtz backs your mouse up the first time it connects (Settings → Backups), so you can put everything back.
   - type: input

@@ -28,6 +28,8 @@ interface Store {
   flow: Flow | null;
   /** Inspect a mouse, while it's up (over the onboarding, if that's up too). */
   inspecting: boolean;
+  /** The mouse Inspect a mouse was opened for (its key), from its badge or Settings. */
+  inspectKey: string | null;
   /** A page asked for from elsewhere than the sidebar, and the card on it to bring into view (the
    *  "Not tested" badge opens Settings at Help test). `n` tells two asks apart. */
   nav: { page: string; focus: string | null; n: number } | null;
@@ -47,6 +49,7 @@ let state: Store = {
   supported: [],
   flow: null,
   inspecting: false,
+  inspectKey: null,
   nav: null,
   prefs: null,
   mice: [],
@@ -171,12 +174,13 @@ export async function restoreMouse(mouse: KnownMouse) {
 }
 
 let navN = 0;
-/** Open `page`, and bring the card `focus` names into view there. */
-/** Open or close Inspect a mouse, the screen for requesting support for a mouse. */
-export function setInspecting(inspecting: boolean) {
-  set({ inspecting });
+/** Open or close Inspect a mouse, the screen for checking a mouse and requesting support for it;
+ *  opened at the mouse `key` names, when given. */
+export function setInspecting(inspecting: boolean, key: string | null = null) {
+  set({ inspecting, inspectKey: inspecting ? key : null });
 }
 
+/** Open `page`, and bring the card `focus` names into view there. */
 export function goTo(page: string, focus: string | null = null) {
   set({ nav: { page, focus, n: ++navN } });
 }

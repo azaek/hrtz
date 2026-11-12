@@ -150,7 +150,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   const vendorApps = useStore((st) => st.status.vendorApps);
   const flow = useStore((st) => st.flow);
   const inspecting = useStore((st) => st.inspecting);
-  // A page asked for from elsewhere (the "Not tested" badge).
+  // A page asked for from elsewhere (`goTo`).
   const nav = useStore((st) => st.nav);
   useEffect(() => {
     if (nav) setPage(nav.page as PageId);

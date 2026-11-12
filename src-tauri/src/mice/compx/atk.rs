@@ -5,9 +5,9 @@
 
 //! ATK's mice on CompX's vendor channel. They use a Zaopin's packets, commands and memory addresses,
 //! but ask for the model with their own command (0x10). What's offered is what ATK's own app
-//! (ATK HUB 3.2.32) offers on the model and keeps as a Zaopin does, with the values it offers; the
-//! rest (sleep, the sensor mode, the buttons) is kept differently or isn't known yet, so it's left
-//! as the mouse holds it. hrtz claims only the models an owner has helped with: the U2 Plus with a
+//! (ATK HUB 3.2.32) offers on the model and keeps as a Zaopin does, with the values it offers, and
+//! its four onboard profiles; the rest (sleep, the sensor mode, the buttons) is kept differently or
+//! isn't known yet, so it's left as the mouse holds it. hrtz claims only the models an owner has helped with: the U2 Plus with a
 //! PAW3395, from snowyuonA's two reports (2026-11-10). Another ATK model, or one hrtz can't name,
 //! is left alone.
 
@@ -95,12 +95,15 @@ pub const BRIGHTNESS_STEPS: [u8; 3] = [1, 5, 10];
 pub const SPEEDS: [u8; 3] = [1, 3, 5];
 /// Debounce times in ATK's app, in milliseconds.
 pub const DEBOUNCE_MS: [u8; 7] = [0, 1, 2, 4, 8, 15, 20];
+/// ATK's app shows four onboard profiles on its CompX mice, read and switched with a Zaopin's
+/// commands (0x0E and 0x0F), the index from 0.
+pub const PROFILES: u8 = 4;
 
 /// What hrtz offers on an ATK, before it's tested: what ATK's app offers and keeps where a Zaopin
 /// does. The polling rate; the DPI stages (packed as a Zaopin's), their colours and light; the
 /// lift-off distance (1 or 2 mm: 0.7 mm is only for a PAW3950); debounce, motion sync,
-/// straight-line correction (a Zaopin's angle snapping) and ripple control. The battery is the
-/// mouse's own reading.
+/// straight-line correction (a Zaopin's angle snapping) and ripple control; the onboard profiles.
+/// The battery is the mouse's own reading.
 pub fn capabilities(m: &Model, receiver: bool) -> Capabilities {
     Capabilities {
         wired: !receiver,
@@ -123,6 +126,7 @@ pub fn capabilities(m: &Model, receiver: bool) -> Capabilities {
         motion_sync: true,
         angle_snapping: true,
         ripple_control: true,
+        profiles: Some(PROFILES),
         battery: true,
         // ATK's app hears of a DPI-button press from the mouse (0x0A), as hrtz does; the driver
         // also reads the stage every second, in case this one doesn't say.
@@ -197,7 +201,8 @@ mod tests {
         assert!(caps.motion_sync && caps.angle_snapping && caps.ripple_control);
         // Kept differently, or not known yet.
         assert!(caps.sensor_mode.is_none() && caps.sleep_times_s.is_none() && caps.peak_timeouts_s.is_none());
-        assert!(caps.buttons.is_none() && caps.profiles.is_none());
+        assert_eq!(caps.profiles, Some(4));
+        assert!(caps.buttons.is_none());
         assert!(!caps.long_range && !caps.pairing && !caps.factory_reset && !caps.backups);
         assert!(capabilities(&MODELS[0], false).wired);
     }

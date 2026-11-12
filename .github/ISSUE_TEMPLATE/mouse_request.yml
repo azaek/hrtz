@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        In hrtz, click **Inspect a mouse** in the title bar, save your mouse's report, and drag the file into the box below. It's what lets us add support for your mouse.
+        In hrtz, click **Inspect a mouse** in the title bar (or the **Not supported yet** badge on your mouse), pick your mouse, check it and save the report, then drag the file into the box below. It's what lets us add support for your mouse.
   - type: input
     id: mouse
     attributes:
@@ -27,6 +27,11 @@ body:
       description: Drag the file hrtz saved in here.
     validations:
       required: true
+  - type: textarea
+    id: check
+    attributes:
+      label: hrtz's check
+      description: Filled in by hrtz, where it could check the mouse.
   - type: input
     id: connection
     attributes:

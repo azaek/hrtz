@@ -39,9 +39,12 @@ export async function buildReport(device: DeviceState, checks: Checks, dump: unk
   };
 }
 
-/** What the check found, a line each, for the card and the GitHub issue. */
-export function summaryLines(c: Checks): { ok: boolean | null; text: string }[] {
-  const lines: { ok: boolean | null; text: string }[] = [];
+/** One thing the check found: fine, not, or only noted. */
+export type Line = { ok: boolean | null; text: string };
+
+/** What the check found, a line each, for Inspect a mouse and the GitHub issue. */
+export function summaryLines(c: Checks): Line[] {
+  const lines: Line[] = [];
   lines.push(c.read.ok ? { ok: true, text: `Settings and memory read (${fmt(c.read.bytes ?? 0)} bytes)` } : { ok: false, text: `Memory not read: ${c.read.error ?? "no answer"}` });
   if (c.polling) {
     const { set, measured, stutters } = c.polling;

@@ -8,6 +8,7 @@ import mid3 from "./assets/models/mid3.png";
 import mid4 from "./assets/models/mid4.png";
 import mid5 from "./assets/models/mid5.png";
 import mid6 from "./assets/models/mid6.png";
+import atkU2PlusBlack from "./assets/models/atk-u2-plus-black.webp";
 import superlightBlack from "./assets/models/superlight-black.webp";
 import superlightMagenta from "./assets/models/superlight-magenta.webp";
 import superlightWhite from "./assets/models/superlight-white.webp";
@@ -62,11 +63,28 @@ export const backupFits = (b: { key: string | null; model: string }, d: { key?: 
  *  which add the mouse's own unit ID) that key and more. */
 export const ofModel = (key: string | null | undefined, model: string): boolean => !!key && (key === model || key.startsWith(`${model}/`));
 
+/** How far hrtz is with a mouse it runs: tried on the real model, listed but not tried yet, or a
+ *  model it doesn't know (a Zaopin with another MID: not supported yet, run with cautious limits).
+ *  A simulated mouse (`sim/…`) counts as the real model. Nothing for a receiver with no mouse. */
+export type Support = "tested" | "untested" | "unknown";
+export const supportOf = (key: string | null | undefined, supported: { key: string; tested: boolean }[]): Support | undefined => {
+  const family = familyOf(key);
+  if (!key || !family || /^(?:compx|sim)\/0-0$/.test(key)) return undefined;
+  const real = key.replace(/^sim\//, `${family}/`);
+  const m = supported.find((x) => ofModel(real, x.key));
+  return m ? (m.tested ? "tested" : "untested") : "unknown";
+};
+
+/** What Inspect a mouse and the mouse card call each. */
+export const SUPPORT_TEXT: Record<Support, string> = { tested: "Tested", untested: "Not tested yet", unknown: "Not supported yet" };
+
 /** A mouse's picture, from its key and, for a model that comes in several colours, which it is
  *  (`DeviceState.variant`). */
 export const artOf = (key: string | null | undefined, variant?: number | null): ModelArt | undefined => {
   const mid = midOf(key);
   if (mid !== undefined) return MODEL_ART[mid];
+  const atk = key && /^(?:compx|sim)\/(\d+-\d+)$/.exec(key)?.[1];
+  if (atk && ATK_ART[atk]) return ATK_ART[atk];
   const usb = key && /^(?:hidpp|sim)\/([0-9a-f]{4})(?:\/|$)/.exec(key)?.[1];
   const looks = usb ? LOGITECH_ART[usb] : undefined;
   return looks && (looks[variant ?? 0] ?? looks[0]);
@@ -79,6 +97,12 @@ export const MODEL_ART: Record<number, ModelArt> = {
   4: { name: "Z1 PRO MAX", image: mid4, size: [298, 263], hotspots: {"0": [105, 203], "1": [34, 163], "2": [91, 134], "4": [216, 166], "3": [253, 131], "5": [180, 128], "13": [290, 236], "14": [246, 236], "15": [202, 236]} },
   5: { name: "Z2 MAX", image: mid5, size: [310, 276], hotspots: {"0": [99, 218], "1": [34, 183], "2": [86, 157], "4": [208, 165], "3": [240, 131], "5": [213, 210], "13": [294, 237], "14": [250, 237], "15": [206, 237]} },
   6: { name: "Z2 mini MAX", image: mid6, size: [308, 293], hotspots: {"0": [96, 240], "1": [32, 196], "2": [88, 177], "4": [205, 186], "3": [231, 141], "5": [167, 167], "13": [291, 251], "14": [247, 251], "15": [203, 251]} },
+};
+
+/** An ATK's picture by its CID and MID: ATK's own top view from its app (ATK HUB), turned into the
+ *  frame above (see NOTICE.md). No buttons are placed: hrtz doesn't offer an ATK's yet. */
+const ATK_ART: Record<string, ModelArt> = {
+  "2-78": { name: "U2 Plus", image: atkU2PlusBlack, size: [298, 263], hotspots: {}, view: "viewed from above" },
 };
 
 /** Logitech's top view from G HUB, turned into the frame above, with G HUB's button markers moved

@@ -34,17 +34,18 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 
 /** What a button does, and how pressing it shows: a raw button number, "state" (its stage or
  *  profile changes), or nothing to see. */
-function seenBy(a: ButtonAction | undefined): number | "state" | null {
+function seenOn(a: ButtonAction | undefined): number | "state" | null {
   if (a?.kind === "mouse") return RAW[a.button];
   if (a?.kind === "dpi" || a?.kind === "profile") return "state";
   return null;
 }
 
 /**
- * The check behind "Help test": on game mode's screen, the mouse's memory read for the report,
+ * The check in Inspect a mouse: on game mode's screen, the mouse's memory read for the report,
  * eight seconds of quick circles (polling), each button it can see pressed in turn, then one DPI
  * stage (or the polling rate) changed, checked and put back. Esc stops it, and what it changed
- * goes back.
+ * goes back. With `write: false` (a model hrtz doesn't know yet) nothing is written: it ends after
+ * the buttons.
  */
 export function useParticipate() {
   const device = useStore((x) => x.device);
@@ -57,6 +58,7 @@ export function useParticipate() {
   // The run's working state: what to put back, movement counted, the button waited on.
   const run = useRef({
     key: null as string | null,
+    write: true,
     original: null as Settings | null,
     profile: null as number | null,
     movedOn: false,
@@ -116,7 +118,10 @@ export function useParticipate() {
     r.at = i;
     r.since = Date.now();
     r.state = stateKey(device);
-    if (i >= r.queue.length) {
+    if (i >= r.queue.length && !r.write) {
+      setStage("done");
+      cap.close();
+    } else if (i >= r.queue.length) {
       setStage("writing");
       void writeCheck();
     } else setStage("buttons");
@@ -129,9 +134,11 @@ export function useParticipate() {
     nextButton(r.at + 1);
   };
 
-  /** Puts back what the run changed: the settings it started with, and the profile. */
+  /** Puts back what the run changed: the settings it started with, and the profile. A run that
+   *  writes nothing changes nothing. */
   const putBack = async () => {
     const r = run.current;
+    if (!r.write) return;
     if (r.original) await api.applySettings(r.original).catch(() => null);
     const now = (await api.states().catch(() => [])).find((d) => d.key === r.key);
     if (r.profile !== null && now && now.profile !== r.profile) await api.setProfile(r.profile).catch(() => null);
@@ -179,14 +186,22 @@ export function useParticipate() {
     cap.close();
   };
 
-  const start = async () => {
+  const start = async ({ write = true }: { write?: boolean } = {}) => {
     if (!device) return;
     const r = run.current;
     const physical = device.capabilities?.buttons ?? [];
     const actions = device.settings?.buttons ?? [];
+    // A simulated mouse has no buttons of its own: the real mouse's clicks stand in, but one seen
+    // only by the mouse's stage or profile changing (the DPI button) can't be pressed on it.
+    const simulated = !!device.key?.startsWith("sim/");
+    const seenBy = (a: ButtonAction | undefined) => {
+      const by = seenOn(a);
+      return simulated && by === "state" ? null : by;
+    };
     const buttons: ButtonCheck[] = physical.map(([i, name]) => ({ name, does: actionLabel(actions[i] ?? { kind: "disabled" }), seen: seenBy(actions[i]) === null ? null : false }));
     Object.assign(run.current, {
       key: device.key ?? null,
+      write,
       movedOn: false,
       original: device.settings ? structuredClone(device.settings) : null,
       profile: device.profile,

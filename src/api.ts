@@ -400,6 +400,8 @@ export interface Inspected {
   productId: number;
   /** The model hrtz runs it as, where it does. */
   supported: string | null;
+  /** The key of the mouse hrtz runs there, where it does, so its check can run on it. */
+  key: string | null;
   /** What its report holds: its IDs, names and each interface's report descriptor. */
   device: unknown;
 }

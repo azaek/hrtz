@@ -14,6 +14,13 @@ pub fn is_zaopin(cid: u8, mid: u8) -> bool {
     cid == CID || (cid == 0 && mid == 0)
 }
 
+/// Whether hrtz knows this Zaopin model. Another MID is a Zaopin hrtz doesn't know yet (Mayank_j's
+/// Z11, with a PAW3311, 2026-11-12): it runs with cautious limits, shows as not supported yet, and
+/// its owner can request support from Inspect a mouse.
+pub fn known(mid: u8) -> bool {
+    (1..=6).contains(&mid)
+}
+
 /// The mice on this channel hrtz runs: Zaopin's models, by MID, then ATK's, each with whether it has
 /// been tried on the real mouse (the Z1 PRO MAX only, so far).
 pub fn supported() -> Vec<Supported> {
@@ -46,7 +53,10 @@ pub fn link(device_type: u8) -> (bool, u32) {
 
 pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
     // PAW3950 models (the MAX line) go to 30K and down to 0.7 mm lift-off; PAW3395 models to 26K.
+    // A model hrtz doesn't know may have another sensor: DPI to 12,000, where a PAW3311 stops, and
+    // no sensor modes, which differ between sensors.
     let paw3950 = (4..=6).contains(&mid);
+    let known = known(mid);
     let (wired, max_polling_hz) = link(device_type);
     let mut lod = vec![Lod::Mid, Lod::High];
     if paw3950 {
@@ -56,7 +66,13 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
         wired,
         dpi: Some(DpiCaps {
             min: 50,
-            max: if paw3950 { 30000 } else { 26000 },
+            max: if paw3950 {
+                30000
+            } else if known {
+                26000
+            } else {
+                12000
+            },
             step: 50,
             max_stages: MAX_STAGES as u8,
             colors: true,
@@ -67,7 +83,7 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
         }),
         polling: Some(PollingCaps { rates: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= max_polling_hz).collect() }),
         lod: Some(lod),
-        sensor_mode: Some(SensorModeCaps {
+        sensor_mode: known.then(|| SensorModeCaps {
             modes: vec![SensorMode::Lp, SensorMode::Hp, SensorMode::Corded],
             corded_from_hz: Some(2000),
             corded_when_wired: true,
@@ -108,5 +124,25 @@ pub fn model_name(mid: u8) -> &'static str {
         5 => "Z2 MAX",
         6 => "Z2 mini MAX",
         _ => "Zaopin mouse",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_model_hrtz_doesnt_know_runs_with_cautious_limits() {
+        assert!(known(1) && known(6) && !known(9) && !known(0));
+        let caps = capabilities(9, 0);
+        let dpi = caps.dpi.unwrap();
+        assert_eq!((dpi.min, dpi.max), (50, 12000));
+        assert!(caps.sensor_mode.is_none());
+        assert_eq!(caps.lod, Some(vec![Lod::Mid, Lod::High]));
+        assert_eq!(model_name(9), "Zaopin mouse");
+        // The ones it knows keep theirs.
+        assert_eq!(capabilities(1, 0).dpi.unwrap().max, 26000);
+        assert_eq!(capabilities(4, 5).dpi.unwrap().max, 30000);
+        assert!(capabilities(4, 5).sensor_mode.is_some());
     }
 }

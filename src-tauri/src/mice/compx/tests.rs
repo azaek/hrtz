@@ -468,10 +468,11 @@ mod atk_mice {
         assert_eq!(s.model.as_deref(), Some("U2 Plus (PAW3395)"));
         assert_eq!(s.brand.as_deref(), Some("ATK"));
         assert_eq!(s.firmware.as_deref(), Some("1.23"));
-        assert_eq!((s.profile, s.long_range), (None, None));
+        assert_eq!((s.profile, s.long_range), (Some(0), None));
         let caps = s.capabilities.unwrap();
         assert!(!caps.wired);
         assert_eq!(caps.dpi.unwrap().max_stages, atk::MAX_STAGES);
+        assert_eq!(caps.profiles, Some(atk::PROFILES));
 
         // What ATK's app offers is shown; sleep, the sensor mode and the buttons aren't.
         let st = s.settings.unwrap();
@@ -489,12 +490,12 @@ mod atk_mice {
         let b = s.battery.unwrap();
         assert_eq!((b.raw_level, b.millivolts), (100, 0));
 
-        // Linked?, who it is, its firmware, the settings region, its battery: no handshake, no
-        // "an app is listening", no profile or long range.
+        // Linked?, who it is, its firmware, its profile, the settings region, its battery: no
+        // handshake, no "an app is listening", no long range.
         let m = r.mouse.lock();
         let commands = m.commands_since(0);
         assert_eq!(commands[..3], [cmd::ONLINE, atk::CID_MID, cmd::ONLINE]);
-        let asked = [cmd::ONLINE, atk::CID_MID, cmd::VERSION, cmd::READ_FLASH, cmd::BATTERY];
+        let asked = [cmd::ONLINE, atk::CID_MID, cmd::VERSION, cmd::GET_PROFILE, cmd::READ_FLASH, cmd::BATTERY];
         assert!(commands.iter().all(|c| asked.contains(c)), "{commands:02X?}");
         assert_eq!(m.reads_since(0).iter().map(|x| x.1).sum::<usize>(), p::CONFIG_REGION);
     }
@@ -675,12 +676,71 @@ mod atk_mice {
     fn what_a_zaopin_only_does_is_refused() {
         let mut r = Rig::connected(SimMouse::u2_plus());
         let (req, _) = r.mark();
-        assert!(r.w.set_profile(1).is_err());
         assert!(r.w.set_long_range(true).is_err());
         assert!(r.w.pair().is_err());
         assert!(r.w.factory_reset().is_err());
         assert!(r.w.restore_image(&atk_sample_image()).is_err());
         assert!(r.mouse.lock().writes_since(req).is_empty());
+    }
+
+    /// Four profiles, the second at 500 Hz.
+    fn four_profiles() -> SimMouse {
+        let mut m = SimMouse::u2_plus();
+        let f = &mut m.profiles[1];
+        f[0x00] = 0x02;
+        f[0x01] = checksum(&[0x02]);
+        m
+    }
+
+    #[test]
+    fn a_profile_is_switched_then_asked_and_its_settings_read() {
+        let mut r = Rig::connected(four_profiles());
+        let (req, seen) = r.mark();
+        r.w.set_profile(1).unwrap();
+        assert_eq!(r.state().profile, Some(1));
+        assert_eq!(r.settings().polling_hz, Some(500));
+        let m = r.mouse.lock();
+        assert_eq!(m.active, 1);
+        // Unanswered, then asked (after the engine's "is it awake?"); the new profile's settings,
+        // not its slots.
+        let c = m.commands_since(req);
+        let at = c.iter().position(|x| *x == cmd::SET_PROFILE).expect("switched");
+        assert_eq!(c[at..at + 2], [cmd::SET_PROFILE, cmd::GET_PROFILE], "{c:02X?}");
+        assert_eq!(m.reads_since(req).iter().map(|x| x.1).sum::<usize>(), p::CONFIG_REGION);
+        drop(m);
+        assert!(matches!(r.events_since(seen)[..], [DeviceEvent::Profile { index: 1 }]));
+        assert!(r.w.set_profile(4).is_err(), "four at most");
+    }
+
+    #[test]
+    fn an_echoed_switch_is_taken_out_of_the_way() {
+        let mut r = Rig::connected(SimMouse { echo_writes: true, ..four_profiles() });
+        r.w.set_profile(2).unwrap();
+        assert_eq!(r.state().profile, Some(2));
+        assert!(r.mouse.lock().out.is_empty(), "the echo was read");
+    }
+
+    #[test]
+    fn a_switch_the_mouse_didnt_make_says_so() {
+        let mut r = Rig::connected(SimMouse { forget_writes: true, ..four_profiles() });
+        let e = r.w.set_profile(1).unwrap_err().to_string();
+        assert!(e.contains("didn't switch to profile 2"), "{e}");
+        assert_eq!(r.state().profile, Some(0));
+    }
+
+    #[test]
+    fn a_switch_on_the_mouse_shows_within_a_second() {
+        let mut r = Rig::connected(four_profiles());
+        let (_, seen) = r.mark();
+        r.mouse.lock().active = 1;
+        r.w.drain_unsolicited();
+        assert_eq!(r.state().profile, Some(0), "not asked before a second has gone by");
+        thread::sleep(Duration::from_millis(1050));
+        r.w.drain_unsolicited();
+        assert_eq!(r.state().profile, Some(1));
+        assert_eq!(r.settings().polling_hz, Some(500));
+        let events = r.events_since(seen);
+        assert!(events.iter().any(|e| matches!(e, DeviceEvent::Profile { index: 1 })), "{events:?}");
     }
 
     #[test]

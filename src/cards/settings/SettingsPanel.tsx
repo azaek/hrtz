@@ -18,7 +18,7 @@ import { api, message, on, type KnownMouse, type Prefs } from "@/api";
 import { Group, SettingCard } from "@/components";
 import { UndoNote } from "@/kit";
 import { linkName } from "@/links";
-import { familyOf, makerOf, ofModel } from "@/models";
+import { familyOf, makerOf, supportOf } from "@/models";
 import { reportUrl, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { forgetMouse, restoreMouse, run, savePrefs, setInspecting, toast, useStore } from "@/store";
@@ -74,9 +74,9 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
 
   const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
   const report = (form: ReportForm) => void reportUrl(form, device).then(openUrl).catch((e) => toast(message(e), "error"));
-  // A mouse hrtz recognises but hasn't been tried on: its owner's report is what makes it supported.
+  // A model hrtz hasn't been tried on, or doesn't know: its owner's report is what makes it supported.
   const supported = useStore((x) => x.supported);
-  const untested = device?.connected && supported.some((m) => ofModel(device.key, m.key) && !m.tested) ? device.model : null;
+  const support = device?.connected ? supportOf(device.key, supported) : undefined;
   const caps = device?.capabilities;
   const wired = !!caps?.wired;
   // The small print names the maker of the mouse shown.
@@ -127,8 +127,8 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       </Group>
 
       <Group title="Mouse">
-        {/* A model hrtz lists but hasn't been tried on: its owner's check is what makes it supported. */}
-        {untested && device && <ParticipateCard device={device} />}
+        {/* A model hrtz hasn't been tried on, or doesn't know: its owner's check is what makes it supported. */}
+        {device && (support === "untested" || support === "unknown") && <ParticipateCard device={device} support={support} />}
         {removed && (
           <div className="tw px-1 py-1 text-xs">
             <UndoNote onUndo={() => undoRemove(removed)}>Removed {removed.model}.</UndoNote>

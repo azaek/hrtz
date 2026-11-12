@@ -5,7 +5,7 @@ import { enable, disable } from "@tauri-apps/plugin-autostart";
 import { api, message, on, type BackupMeta, type DeviceState } from "./api";
 import { Emblem } from "./brand";
 import { Notice } from "./components";
-import { DrawnMouse, MousePicture } from "./DrawnMouse";
+import { MousePicture, MousePlaceholder } from "./MousePicture";
 import { linkName } from "./links";
 import { artOf, familyOf, isZaopin, ofModel } from "./models";
 import { endFlow, goStep, pickMouse, savePrefs, setInspecting, toast, useStore, type Step } from "./store";
@@ -88,7 +88,7 @@ function Searching() {
     <div className={s.searching} aria-hidden>
       <span className={s.ring} />
       <span className={mergeClasses(s.ring, s.ring2)} />
-      <DrawnMouse width={180} outline />
+      <MousePlaceholder width={180} />
     </div>
   );
 }
@@ -274,8 +274,8 @@ export function Onboarding() {
             ))}
             {untested.length > 0 && (
               <Caption1 className={s.muted}>
-                {untested.map((d) => d.model).join(" and ")} {untested.length > 1 ? "haven't" : "hasn't"} been tested yet. You can help: Settings has a 2-minute check that sends what works and what
-                doesn't.
+                {untested.map((d) => d.model).join(" and ")} {untested.length > 1 ? "haven't" : "hasn't"} been tested yet. You can help: its Not tested badge opens a 2-minute check that sends what works
+                and what doesn't.
               </Caption1>
             )}
             {zaopinApp ? (
