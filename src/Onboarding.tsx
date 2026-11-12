@@ -93,31 +93,48 @@ function Searching() {
   );
 }
 
-/** What hrtz runs, by brand, and whether each has been tried on the real mouse. */
+/** A brand with more models than this shows them as one line. */
+const MANY = 6;
+
+/** What hrtz runs, by brand, and whether each has been tried on the real mouse. A brand with many
+ *  models (ATK's) is one line: how many, and how many are tested. */
 function WorksWith() {
   const s = useStyles();
   const supported = useStore((x) => x.supported);
   const brands = [...new Set(supported.map((m) => m.brand))];
   return (
     <div className={s.works}>
-      {brands.map((brand) => (
-        <div key={brand}>
-          <Caption1Strong>{brand}</Caption1Strong>
-          <div className={s.workGrid}>
-            {supported
-              .filter((m) => m.brand === brand)
-              .map((m) => (
-                <div key={m.key} className={s.workRow}>
-                  <MousePicture image={artOf(m.key)?.image} width={40} />
+      {brands.map((brand) => {
+        // One per name: ATK gives some one name for several model IDs.
+        const models = supported.filter((m) => m.brand === brand).filter((m, i, all) => all.findIndex((x) => x.model === m.model) === i);
+        const tested = models.filter((m) => m.tested).length;
+        return (
+          <div key={brand}>
+            <Caption1Strong>{brand}</Caption1Strong>
+            <div className={s.workGrid}>
+              {models.length > MANY ? (
+                <div className={s.workRow}>
+                  <MousePicture width={40} />
                   <span className={s.workText}>
-                    <Body1>{m.model}</Body1>
-                    <Caption1 className={s.muted}>{m.tested ? "Tested" : "Not tested yet"}</Caption1>
+                    <Body1>{models.length} models</Body1>
+                    <Caption1 className={s.muted}>{tested ? `${tested} tested` : "Not tested yet"}</Caption1>
                   </span>
                 </div>
-              ))}
+              ) : (
+                models.map((m) => (
+                  <div key={m.key} className={s.workRow}>
+                    <MousePicture image={artOf(m.key)?.image} width={40} />
+                    <span className={s.workText}>
+                      <Body1>{m.model}</Body1>
+                      <Caption1 className={s.muted}>{m.tested ? "Tested" : "Not tested yet"}</Caption1>
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### New
+- 50 more ATK, VXE and MAD mice, not tested yet: those with a PAW3395 or PAW3950 sensor, among them VXE's R1 line, ATK's Dragonfly F1, X1, A9, U2 and Y9, and the MAD R. Their polling rate (up to 8K on an 8K or NearLink receiver), DPI stages, the DPI light on models that have one, lift-off distance, debounce, motion sync, angle snapping, ripple control and the four onboard profiles. Have one? Its Not tested badge opens a 2-minute check.
+
 ## 0.4.1 — 2026-11-12
 
 ### New

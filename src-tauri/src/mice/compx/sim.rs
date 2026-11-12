@@ -20,6 +20,9 @@ use crate::mice::{Board, Driver, Family, Finder, Link};
 pub struct SimMouse {
     /// A Zaopin, or an ATK through its receiver or on its cable.
     pub maker: Maker,
+    /// Its USB vendor and product ID. Under CompX's vendor ID (0x3554) it's opened as a Zaopin is,
+    /// whoever it answers as.
+    pub usb: (u16, u16),
     /// An ATK echoes a write as a Zaopin does: ATK's app doesn't wait for one, so it may not.
     pub echo_writes: bool,
     pub cid: u8,
@@ -55,6 +58,7 @@ impl Default for SimMouse {
     fn default() -> Self {
         Self {
             maker: Maker::Zaopin,
+            usb: (p::VENDOR_ID, 0xF5D5),
             echo_writes: true,
             cid: 7,
             mid: 4,
@@ -83,15 +87,22 @@ impl SimMouse {
     pub fn u2_plus() -> Self {
         Self {
             maker: Maker::Atk { receiver: true },
+            usb: (super::atk::VENDOR_ID, super::atk::NEARLINK_RECEIVER),
             echo_writes: false,
             cid: 2,
             mid: 78,
-            device_type: 0,
+            device_type: super::atk::link::NEARLINK,
             profiles: vec![atk_sample_image(); 4],
             battery: (100, false, 4238),
             firmware: [0x01, 0x23],
             ..Default::default()
         }
+    }
+
+    /// A VXE R1 PRO (PAW3395) on its 8K receiver, under CompX's vendor ID as VXE's R1 line is,
+    /// answering as an ATK does: otherwise the U2 Plus's image.
+    pub fn r1_pro() -> Self {
+        Self { usb: (p::VENDOR_ID, 0xF58C), mid: 7, device_type: 5, ..Self::u2_plus() }
     }
 
     fn is_atk(&self) -> bool {
@@ -235,6 +246,10 @@ impl SimMouse {
         }
         let answer = match r[1] {
             cmd::ONLINE if receiver => reply(&[self.online as u8, 0x12, 0x34, 0x56]),
+            // As a Zaopin's: who it is, and how it's connected (ATK's app reads only that).
+            cmd::HANDSHAKE => {
+                p::packet(cmd::HANDSHAKE, 0, &[0x49, 0x05, 0x0C, 0xEA, self.cid, self.mid, self.device_type], Some(8))
+            }
             atk::CID_MID => reply(&[self.cid, self.mid]),
             cmd::BATTERY => {
                 let (level, charging, mv) = self.battery;
@@ -368,10 +383,15 @@ fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Re
     if mouse.lock().unplugged {
         bail!("no Zaopin receiver found");
     }
-    let maker = mouse.lock().maker;
+    // Under CompX's vendor ID it's opened as a Zaopin is, whoever it answers as.
+    let (maker, usb) = {
+        let m = mouse.lock();
+        (if m.usb.0 == p::VENDOR_ID { Maker::Zaopin } else { m.maker }, m.usb)
+    };
     let opened = Opened {
         family,
         maker,
+        product_id: usb.1,
         link: Box::new(SimLink(mouse.clone())),
         gap: Duration::ZERO,
         #[cfg(windows)]
@@ -381,7 +401,7 @@ fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Re
 }
 
 /// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, `u2plus`
-/// for an ATK, `unknown` for a Zaopin model hrtz doesn't know, or several, comma-separated), to try
+/// or `r1pro` for an ATK, `unknown` for a Zaopin model hrtz doesn't know, or several, comma-separated), to try
 /// several mice with one. Their keys start `sim/`, so they never take over
 /// what a real Zaopin keeps.
 pub struct SimFamily {
@@ -404,6 +424,7 @@ impl SimFamily {
                     "z2mini" => SimMouse { mid: 3, device_type: 1, battery: (64, false, 3850), ..Default::default() },
                     "z1promax" => SimMouse::default(),
                     "u2plus" => SimMouse::u2_plus(),
+                    "r1pro" => SimMouse::r1_pro(),
                     "unknown" => SimMouse { mid: 9, device_type: 0, battery: (72, false, 3900), ..Default::default() },
                     _ => return None,
                 };

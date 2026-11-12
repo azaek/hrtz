@@ -14,20 +14,68 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Zaopin Z2 MAX | Not tested yet |
 | Zaopin Z2 mini | Not tested yet |
 | Zaopin Z2 mini MAX | Not tested yet |
-| ATK U2 Plus (PAW3395) | Not tested yet |
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
+
+<details>
+<summary>ATK, VXE and MAD mice (39)</summary>
+
+| Mouse | Status |
+|---|---|
+| ATK A9 Plus NK | Not tested yet |
+| ATK A9 Pro Max | Not tested yet |
+| ATK A9 Ultra Max 2.0 (PAW3395 Ultra) | Not tested yet |
+| ATK A9 Ultra Max 2.0 Tri-Mode (PAW3395 Ultra) | Not tested yet |
+| ATK DRAGONFLY F1 V2 PRO MAX | Not tested yet |
+| ATK DRAGONFLY F1 V2 Plus NK | Not tested yet |
+| ATK Dragonfly F1 MOBA | Not tested yet |
+| ATK Dragonfly F1 PRO MAX Elden | Not tested yet |
+| ATK Dragonfly F1 PRO MAX JOJO | Not tested yet |
+| ATK Dragonfly F1 PRO MAX | Not tested yet |
+| ATK Dragonfly F1 PRO | Not tested yet |
+| ATK Dragonfly F1S | Not tested yet |
+| ATK F1 PRO MAX | Not tested yet |
+| ATK F1 PRO | Not tested yet |
+| ATK F1 Ultra Max 2.0 (PAW3395 Ultra) | Not tested yet |
+| ATK U2 MINI | Not tested yet |
+| ATK U2 Plus NK (PAW3395) | Not tested yet |
+| ATK U2 Pro Max (PAW3395 Ultra) | Not tested yet |
+| ATK U2 Ultra Max 2.0 | Not tested yet |
+| ATK U2 Ultra | Not tested yet |
+| ATK X1 Lite | Not tested yet |
+| ATK X1 PRO MAX | Not tested yet |
+| ATK X1 PRO | Not tested yet |
+| ATK X1 S NK (PAW3395) | Not tested yet |
+| ATK X1 Ultra Max 2.0 (PAW3395 Ultra) | Not tested yet |
+| ATK X1 Ultra Max 2.0 (PAW3950 DM) | Not tested yet |
+| ATK Y9 PRO MAX | Not tested yet |
+| ATK Y9 Plus NK | Not tested yet |
+| ATK Z1 PRO MAX | Not tested yet |
+| ATK Z1 PRO | Not tested yet |
+| MAD R (PAW3395) | Not tested yet |
+| MAD R + | Not tested yet |
+| MAD R MAJOR | Not tested yet |
+| MAD R MAJOR+ | Not tested yet |
+| VXE R1 (PAW3395) | Not tested yet |
+| VXE R1 PRO (PAW3395) | Not tested yet |
+| VXE R1 PRO MAX (PAW3395) | Not tested yet |
+| VXE R1 Ultra (PAW3395 Ultra) | Not tested yet |
+| VXE R1 Ultra (PAW3395) | Not tested yet |
+
+</details>
 <!-- supported:end -->
 
 Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED receiver or cable.
 "Tested" means tried on the real mouse; the others use the same protocol as a tested one and should
 work. More mice come one at a time, each tried with its owners before it's called tested.
 
-The ATK U2 Plus is the newest, by its receiver or its cable: its polling rate, DPI stages and DPI
-light, lift-off distance, debounce, motion sync, angle snapping, ripple control and its four
-onboard profiles. Sleep, the sensor mode and the buttons follow once an owner's test shows how
-this model keeps them.
+ATK's mice are the newest: the ATK, VXE and MAD models with a PAW3395 or PAW3950 sensor, from
+ATK's own list, by receiver or cable. hrtz offers what ATK's app offers on them: the polling rate,
+DPI stages, the DPI light where there is one, lift-off distance, debounce, motion sync, angle
+snapping, ripple control and the onboard profiles. Sleep, the sensor mode and the buttons follow
+once owners' tests show how they keep them. ATK's other sensors store DPI differently and come
+later.
 
 ## Help test it
 

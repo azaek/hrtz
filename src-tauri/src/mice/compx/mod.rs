@@ -3,6 +3,7 @@
 //! model can do, and the driver runs a connected mouse. ATK's mice speak it too (`atk`).
 
 pub mod atk;
+pub mod atk_catalog;
 mod driver;
 pub mod image;
 pub mod models;

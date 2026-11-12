@@ -465,7 +465,7 @@ mod atk_mice {
         let s = r.state();
         assert!(s.connected && s.online && !s.foreign);
         assert_eq!(s.key.as_deref(), Some("compx/2-78"));
-        assert_eq!(s.model.as_deref(), Some("U2 Plus (PAW3395)"));
+        assert_eq!(s.model.as_deref(), Some("U2 Plus NK (PAW3395)"));
         assert_eq!(s.brand.as_deref(), Some("ATK"));
         assert_eq!(s.firmware.as_deref(), Some("1.23"));
         assert_eq!((s.profile, s.long_range), (Some(0), None));
@@ -490,21 +490,29 @@ mod atk_mice {
         let b = s.battery.unwrap();
         assert_eq!((b.raw_level, b.millivolts), (100, 0));
 
-        // Linked?, who it is, its firmware, its profile, the settings region, its battery: no
-        // handshake, no "an app is listening", no long range.
+        // Linked?, how it's connected, who it is, its firmware, its profile, the settings region,
+        // its battery, as ATK's app asks: no "an app is listening", no long range.
         let m = r.mouse.lock();
         let commands = m.commands_since(0);
-        assert_eq!(commands[..3], [cmd::ONLINE, atk::CID_MID, cmd::ONLINE]);
-        let asked = [cmd::ONLINE, atk::CID_MID, cmd::VERSION, cmd::GET_PROFILE, cmd::READ_FLASH, cmd::BATTERY];
+        assert_eq!(commands[..4], [cmd::ONLINE, cmd::HANDSHAKE, atk::CID_MID, cmd::ONLINE]);
+        let asked =
+            [cmd::ONLINE, cmd::HANDSHAKE, atk::CID_MID, cmd::VERSION, cmd::GET_PROFILE, cmd::READ_FLASH, cmd::BATTERY];
         assert!(commands.iter().all(|c| asked.contains(c)), "{commands:02X?}");
         assert_eq!(m.reads_since(0).iter().map(|x| x.1).sum::<usize>(), p::CONFIG_REGION);
     }
 
     #[test]
     fn on_its_cable_it_isnt_asked_whether_its_linked() {
-        let r = Rig::connected(SimMouse { maker: Maker::Atk { receiver: false }, ..SimMouse::u2_plus() });
+        let r = Rig::connected(SimMouse {
+            maker: Maker::Atk { receiver: false },
+            usb: (atk::VENDOR_ID, 0x110D),
+            device_type: atk::link::WIRED_1K,
+            ..SimMouse::u2_plus()
+        });
         let s = r.state();
-        assert!(s.connected && s.online && s.capabilities.unwrap().wired);
+        let caps = s.capabilities.unwrap();
+        assert!(s.connected && s.online && caps.wired);
+        assert_eq!(caps.polling.unwrap().rates.last(), Some(&1000), "a 1K cable");
         assert!(!r.mouse.lock().commands_since(0).contains(&cmd::ONLINE));
     }
 
@@ -521,11 +529,58 @@ mod atk_mice {
 
     #[test]
     fn another_atk_is_left_alone() {
-        // The A9 Plus Nearlink, on the same receiver: its memory is laid out otherwise.
-        let r = Rig::connected(SimMouse { mid: 83, ..SimMouse::u2_plus() });
+        // The U2 Plus NK with a PAW3950 Ultra, on the same receiver: its DPI is stored otherwise.
+        let r = Rig::connected(SimMouse { mid: 124, ..SimMouse::u2_plus() });
         let s = r.state();
         assert!(s.foreign && !s.connected && s.key.is_none());
-        assert_eq!(r.mouse.lock().commands_since(0), [cmd::ONLINE, atk::CID_MID]);
+        assert_eq!(r.mouse.lock().commands_since(0), [cmd::ONLINE, cmd::HANDSHAKE, atk::CID_MID]);
+    }
+
+    #[test]
+    fn on_nearlink_it_polls_up_to_8k() {
+        let r = Rig::connected(SimMouse::u2_plus());
+        let s = r.state();
+        assert_eq!(s.device_type, atk::link::NEARLINK);
+        assert_eq!(s.capabilities.unwrap().polling.unwrap().rates, vec![125, 250, 500, 1000, 2000, 4000, 8000]);
+    }
+
+    #[test]
+    fn a_vxe_r1_pro_under_compx_vid_is_met_as_an_atk() {
+        let r = Rig::connected(SimMouse::r1_pro());
+        let s = r.state();
+        assert!(s.connected && !s.foreign);
+        assert_eq!((s.key.as_deref(), s.brand.as_deref()), (Some("compx/2-7"), Some("VXE")));
+        assert_eq!(s.model.as_deref(), Some("R1 PRO (PAW3395)"));
+        // Its 8K receiver, from the handshake hrtz asked as it would a Zaopin.
+        let caps = s.capabilities.unwrap();
+        assert!(!caps.wired && caps.polling.unwrap().rates.last() == Some(&8000));
+        // The handshake, then as an ATK: linked?, who it is. No "an app is listening".
+        let commands = r.mouse.lock().commands_since(0);
+        assert_eq!(commands[..3], [cmd::HANDSHAKE, cmd::ONLINE, atk::CID_MID]);
+        assert!(!commands.contains(&cmd::PC_DRIVER_STATUS), "{commands:02X?}");
+    }
+
+    #[test]
+    fn under_compx_vid_on_a_product_id_atk_doesnt_list_its_left_alone() {
+        let r = Rig::connected(SimMouse { usb: (p::VENDOR_ID, 0xF5D5), ..SimMouse::r1_pro() });
+        let s = r.state();
+        assert!(s.foreign && !s.connected && s.key.is_none());
+        assert_eq!(r.mouse.lock().commands_since(0), [cmd::HANDSHAKE]);
+    }
+
+    #[test]
+    fn a_model_without_a_dpi_light_keeps_its_colours_and_light() {
+        // The A9 Plus NK: no DPI light in ATK's app.
+        let mut r = Rig::connected(SimMouse { mid: 83, ..SimMouse::u2_plus() });
+        assert_eq!(r.state().model.as_deref(), Some("A9 Plus NK"));
+        let mut next = r.settings();
+        assert!(next.dpi_light.is_none());
+        let stage = &mut next.stages.as_mut().unwrap()[0];
+        stage.color = "#123456".into();
+        stage.dpi = 450;
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        assert_eq!(r.mouse.lock().writes_since(req), vec![0x0C], "the DPI only");
     }
 
     #[test]

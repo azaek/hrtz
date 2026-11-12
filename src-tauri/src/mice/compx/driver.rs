@@ -134,7 +134,13 @@ impl Finder for HidFinder {
             .clone();
         let dev = info.open_device(api).context("open HID device")?;
         let maker = if info.vendor_id() == atk::VENDOR_ID {
-            Maker::Atk { receiver: atk::is_receiver(info.product_id(), info.product_string().unwrap_or_default()) }
+            Maker::Atk {
+                receiver: atk::is_receiver(
+                    info.vendor_id(),
+                    info.product_id(),
+                    info.product_string().unwrap_or_default(),
+                ),
+            }
         } else {
             Maker::Zaopin
         };
@@ -153,6 +159,7 @@ impl Finder for HidFinder {
         let opened = Opened {
             family: "compx",
             maker,
+            product_id: info.product_id(),
             link: Box::new(dev),
             // The vendor driver keeps at least 8 ms between writes; the receiver drops packets otherwise.
             gap: Duration::from_millis(8),
@@ -178,6 +185,8 @@ pub(crate) struct Opened {
     /// takes over what a real one keeps.
     pub family: &'static str,
     pub maker: Maker,
+    /// Its USB product ID: under CompX's vendor ID, an ATK hrtz runs is only taken on one of ATK's.
+    pub product_id: u16,
     pub link: Box<dyn Link>,
     /// The least time between two writes.
     pub gap: Duration,
@@ -200,12 +209,21 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         let port = opened.port;
         #[cfg(not(windows))]
         let port = ();
-        return connect_atk(m, opened.family, receiver, port, board);
+        return connect_atk(m, opened.family, receiver, None, port, board);
     }
     let nonce: [u8; 4] = rand_bytes();
     let r = m.transact(&p::packet(cmd::HANDSHAKE, 0, &nonce, Some(8)), REPLY_TIMEOUT)?;
     let d = p::payload(&r);
     let (cid, mid, device_type) = (d[4], d[5], d[6]);
+    // An ATK under CompX's vendor ID (VXE's R1 line, ATK's Dragonfly F1): met as ATK's app meets it,
+    // its connection type from this handshake.
+    if atk::on_compx_vid(opened.product_id, cid, mid) {
+        #[cfg(windows)]
+        let port = opened.port;
+        #[cfg(not(windows))]
+        let port = ();
+        return connect_atk(m, opened.family, !atk::link::wired(device_type), Some(device_type), port, board);
+    }
     if !models::is_zaopin(cid, mid) {
         board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
         return Err(LeftAlone::not_zaopin(cid, mid).into());
@@ -232,35 +250,47 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
 }
 
 /// Meet an ATK: through its receiver only once the mouse is linked (a receiver answers for itself,
-/// but who the mouse is goes unanswered while it sleeps), then which model it is. Nothing is sent
-/// that ATK's own app doesn't send.
+/// but who the mouse is goes unanswered while it sleeps), then how it's connected (the handshake's
+/// connection type, as ATK's app reads it; `kind` when it's been asked already), then which model it
+/// is. Nothing is sent that ATK's own app doesn't send.
 fn connect_atk(
     mut m: Connected,
     family: &'static str,
     receiver: bool,
+    kind: Option<u8>,
     #[allow(unused_variables)] port: PortOf,
     board: &Board,
 ) -> Result<Box<dyn Driver>> {
-    m.atk = Some(Atk { receiver, looked: Instant::now() });
+    m.atk = Some(Atk { receiver, looked: Instant::now(), model: None });
     if receiver && !m.online()? {
         return Err(Waiting.into());
     }
+    // A mouse that doesn't answer it is taken as on a 1K receiver or cable.
+    let kind = kind.unwrap_or_else(|| {
+        let nonce: [u8; 4] = rand_bytes();
+        m.transact(&p::packet(cmd::HANDSHAKE, 0, &nonce, Some(8)), REPLY_TIMEOUT)
+            .map(|r| atk::kind_of(&r))
+            .unwrap_or(if receiver { atk::link::DONGLE_1K } else { atk::link::WIRED_1K })
+    });
     let r = m.transact_simple(atk::CID_MID)?;
     let (cid, mid) = (r[6], r[7]);
     let Some(model) = atk::model(cid, mid) else {
         board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
         return Err(LeftAlone::other_atk(cid, mid).into());
     };
+    if let Some(a) = m.atk.as_mut() {
+        a.model = Some(model);
+    }
     board.set(|s| {
         *s = DeviceState {
             key: Some(format!("{family}/{cid}-{mid}")),
             connected: true,
             model: Some(model.name.to_string()),
-            brand: Some("ATK".into()),
+            brand: Some(model.brand.into()),
             cid,
             mid,
-            device_type: atk::device_type(receiver),
-            capabilities: Some(atk::capabilities(model, receiver)),
+            device_type: kind,
+            capabilities: Some(atk::capabilities(model, kind)),
             #[cfg(windows)]
             port,
             ..Default::default()
@@ -281,6 +311,8 @@ struct Atk {
     receiver: bool,
     /// When the DPI stage and polling rate were last read.
     looked: Instant,
+    /// Which model it is, once it's said.
+    model: Option<&'static atk::Model>,
 }
 
 /// A Zaopin mouse, met, or an ATK.
@@ -299,8 +331,8 @@ struct Connected {
 impl Connected {
     fn refresh_settings(&mut self, board: &Board) {
         let mut decoded = image::decode(&self.image);
-        if self.atk.is_some() {
-            decoded = atk::offered(&decoded);
+        if let Some(model) = self.atk.as_ref().and_then(|a| a.model) {
+            decoded = atk::offered(&decoded, model);
         }
         board.set(|s| s.settings = Some(decoded));
     }
@@ -609,17 +641,20 @@ impl Driver for Connected {
     fn apply(&mut self, board: &Board, new: &Settings) -> Result<()> {
         let caps = board.read().capabilities.clone().ok_or_else(|| anyhow!("unknown device"))?;
         // An ATK's other settings stay as the mouse holds them, whatever comes.
+        let model = self.atk.as_ref().and_then(|a| a.model);
         let offered;
-        let new = if self.atk.is_some() {
-            offered = atk::offered(new);
+        let new = if let Some(m) = model {
+            offered = atk::offered(new, m);
             &offered
+        } else if self.atk.is_some() {
+            bail!("The mouse hasn't said which model it is yet.");
         } else {
             new
         };
         image::validate(new, &self.image, &caps).map_err(|e| anyhow!(e))?;
         let target = image::encode(new, &self.image);
-        if self.atk.is_some() {
-            for (addr, len) in atk::fields() {
+        if let Some(m) = model {
+            for (addr, len) in atk::fields(m) {
                 if target[addr..addr + len] != self.image[addr..addr + len] {
                     let bytes = target[addr..addr + len].to_vec();
                     self.write_flash(addr, &bytes)?;

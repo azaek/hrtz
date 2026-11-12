@@ -1857,13 +1857,25 @@ pub fn run() {
 mod readme {
     #[test]
     fn readme_lists_the_mice_the_app_does() {
-        let mut want = String::from("| Mouse | Status |\n|---|---|\n");
         let mut all = crate::mice::compx::models::supported();
         all.extend(crate::mice::hidpp::models::supported());
-        for m in all {
+        let row = |m: &crate::mice::model::Supported| {
             let status = if m.tested { "Tested" } else { "Not tested yet" };
-            want.push_str(&format!("| {} {} | {status} |\n", m.brand, m.model));
-        }
+            format!("| {} {} | {status} |\n", m.brand, m.model)
+        };
+        // ATK's mice, many and from ATK's own list, are folded away below the others, each name
+        // once (ATK gives some one name for several model IDs), by brand and name.
+        let atk = |m: &crate::mice::model::Supported| ["ATK", "VXE", "MAD"].contains(&m.brand);
+        let mut want = String::from("| Mouse | Status |\n|---|---|\n");
+        all.iter().filter(|m| !atk(m)).for_each(|m| want.push_str(&row(m)));
+        let mut atks: Vec<String> = all.iter().filter(|m| atk(m)).map(row).collect();
+        atks.sort();
+        atks.dedup();
+        want.push_str(&format!(
+            "\n<details>\n<summary>ATK, VXE and MAD mice ({})</summary>\n\n| Mouse | Status |\n|---|---|\n{}\n</details>\n",
+            atks.len(),
+            atks.concat()
+        ));
         let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md")).unwrap();
         let start = readme.find("<!-- supported:start").expect("the README's list starts with its marker");
         let start = readme[start..].find('\n').map(|i| start + i + 1).unwrap();
