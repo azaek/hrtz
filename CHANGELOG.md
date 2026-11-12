@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.4.1 — 2026-11-12
 
 ### New
 - The ATK U2 Plus (PAW3395), not tested yet: its polling rate, DPI stages and DPI light, lift-off distance, debounce, motion sync, angle snapping, ripple control and its four onboard profiles, by its receiver or its cable. Have one? Help test it from its Not tested badge.
