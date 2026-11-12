@@ -240,6 +240,14 @@ impl Worker {
         if self.battery_key.as_deref() == Some(key) {
             return;
         }
+        // A simulated mouse's battery is estimated and logged only while it runs.
+        if super::simulated(key) {
+            self.battery = Estimator::new(None);
+            self.battery_file = None;
+            *self.log.lock() = BatteryLog::load(None);
+            self.battery_key = Some(key.to_string());
+            return;
+        }
         let (estimate, log) = battery_files(&dir, key);
         // The files from before several mice were a Zaopin's.
         if key.starts_with("compx/7-") && !estimate.exists() && !log.exists() {

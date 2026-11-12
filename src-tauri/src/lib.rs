@@ -1229,7 +1229,8 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
         return;
     }
     let Some(key) = s.key.clone() else { return };
-    if !ctx.met.lock().insert(key.clone()) {
+    // A simulated mouse gets no backup: nothing of it is kept.
+    if mice::simulated(&key) || !ctx.met.lock().insert(key.clone()) {
         return;
     }
     // Its own, or (from before several mice, with no key) one of its model's.

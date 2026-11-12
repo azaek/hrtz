@@ -529,22 +529,29 @@ pub struct KnownMice {
 }
 
 impl KnownMice {
+    /// The file's mice, less simulated ones an older dev build kept.
     pub fn load(path: Option<PathBuf>) -> Self {
-        let file = path
+        let mut file: MiceFile = path
             .as_ref()
             .and_then(|p| fs::read_to_string(p).ok())
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
+        file.mice.retain(|m| !crate::mice::simulated(&m.key));
         Self { path, file }
     }
 
+    /// Saved without simulated mice: they're known only while the dev build runs.
     pub fn save(&self) -> Result<()> {
         let Some(path) = &self.path else { return Ok(()) };
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir)?;
         }
+        let mut file = serde_json::to_value(&self.file)?;
+        if let Some(mice) = file.get_mut("mice").and_then(|m| m.as_array_mut()) {
+            mice.retain(|m| !m["key"].as_str().is_some_and(crate::mice::simulated));
+        }
         let tmp = path.with_extension("json.tmp");
-        fs::write(&tmp, serde_json::to_vec_pretty(&self.file)?)?;
+        fs::write(&tmp, serde_json::to_vec_pretty(&file)?)?;
         fs::rename(&tmp, path)?;
         Ok(())
     }
@@ -1407,5 +1414,26 @@ mod tests {
         };
         assert_eq!(p.profile_for("CS2.EXE"), Some(2));
         assert_eq!(p.profile_for("explorer.exe"), Some(0));
+    }
+
+    #[test]
+    fn simulated_mice_are_known_while_running_but_never_kept() {
+        let path = std::env::temp_dir().join(format!("hrtz-sim-mice-{}.json", std::process::id()));
+        let mut known = KnownMice::load(Some(path.clone()));
+        known.meet("compx/7-4", "Z1 PRO MAX", 1);
+        known.meet("sim/2-78", "U2 Plus (PAW3395)", 1);
+        assert_eq!(known.list().len(), 2, "known while running");
+        known.save().unwrap();
+        let saved = fs::read_to_string(&path).unwrap();
+        assert!(saved.contains("compx/7-4") && !saved.contains("sim/2-78"), "{saved}");
+        // One an older dev build kept is dropped on load.
+        let mut file: serde_json::Value = serde_json::from_str(&saved).unwrap();
+        let mut sim = file["mice"][0].clone();
+        sim["key"] = "sim/7-9".into();
+        file["mice"].as_array_mut().unwrap().insert(0, sim);
+        fs::write(&path, file.to_string()).unwrap();
+        let reloaded = KnownMice::load(Some(path.clone()));
+        let _ = fs::remove_file(&path);
+        assert_eq!(reloaded.list().iter().map(|m| m.key.as_str()).collect::<Vec<_>>(), ["compx/7-4"]);
     }
 }

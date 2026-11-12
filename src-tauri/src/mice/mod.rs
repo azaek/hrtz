@@ -21,6 +21,12 @@ use model::Settings;
 
 /// A mouse's family, from its key: `compx/7-4` a Zaopin, `hidpp/c094/…` a Logitech. A simulated
 /// one (`sim/7-4`, `sim/c094/…`) is told by the shape of the rest.
+/// A dev build's simulated mouse (`HRTZ_SIM`, keys `sim/…`): known while hrtz runs, but nothing of
+/// it is kept (its place among the mice, its battery log, a first backup).
+pub fn simulated(key: &str) -> bool {
+    key.starts_with("sim/")
+}
+
 pub fn family_of(key: &str) -> Option<&'static str> {
     if key.starts_with("compx/") {
         return Some("compx");
