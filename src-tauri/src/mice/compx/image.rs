@@ -340,14 +340,21 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
     if s.polling_hz != old.polling_hz && !rates.contains(&s.polling_hz) {
         return Err(format!("{} Hz is not supported by this receiver", s.polling_hz));
     }
-    if !(1..=MAX_STAGES as u8).contains(&s.dpi_stage_count) || s.dpi_stage >= s.dpi_stage_count {
-        return Err("DPI stage out of range".into());
-    }
     if s.stages.len() != MAX_STAGES || s.buttons.len() != BUTTON_SLOTS {
         return Err("settings are incomplete".into());
     }
+    if s.lod != old.lod && caps.lod.as_ref().is_some_and(|l| !l.contains(&s.lod)) {
+        return Err("this mouse doesn't have that lift-off distance".into());
+    }
     let dpi = caps.dpi.as_ref().ok_or("this mouse has no DPI stages")?;
-    for st in &s.stages {
+    // Fewer stages than slots where the maker's app offers fewer (an ATK's six).
+    let most =
+        if s.dpi_stage_count != old.dpi_stage_count { dpi.max_stages.min(MAX_STAGES as u8) } else { MAX_STAGES as u8 };
+    if !(1..=most).contains(&s.dpi_stage_count) || s.dpi_stage >= s.dpi_stage_count {
+        return Err("DPI stage out of range".into());
+    }
+    // A stage left as the mouse holds it is fine, as for the polling rate.
+    for (st, _) in s.stages.iter().zip(&old.stages).filter(|(st, was)| st != was) {
         if st.dpi < dpi.min || st.dpi > dpi.max || st.dpi % dpi.step != 0 {
             return Err(format!(
                 "{} DPI must be a multiple of {} between {} and {}",
@@ -359,8 +366,19 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
     if !(1..=10).contains(&s.dpi_light.brightness) || !(1..=5).contains(&s.dpi_light.speed) {
         return Err("the DPI light's brightness is 1-10 and its speed 1-5".into());
     }
+    // Only the steps the maker's app offers, where it offers some (an ATK's): a value it never
+    // writes isn't known to work.
+    let offered = |list: &Option<Vec<u8>>, v: u8, was: u8| v == was || list.as_ref().is_none_or(|l| l.contains(&v));
+    if !offered(&dpi.brightness_steps, s.dpi_light.brightness, old.dpi_light.brightness)
+        || !offered(&dpi.speeds, s.dpi_light.speed, old.dpi_light.speed)
+    {
+        return Err("this mouse's light doesn't have that brightness or speed".into());
+    }
     if s.debounce_ms > 20 {
         return Err("debounce must be 0-20 ms".into());
+    }
+    if !offered(&caps.debounce_choices_ms, s.debounce_ms, old.debounce_ms) {
+        return Err(format!("this mouse doesn't offer {} ms of debounce", s.debounce_ms));
     }
     if !PEAK_TIMEOUTS_S.contains(&s.peak_timeout_s) {
         return Err("unsupported peak performance timeout".into());
@@ -443,10 +461,14 @@ fn encode_fields(s: &Fields, image: &[u8]) -> Vec<u8> {
     let brightness = BRIGHTNESS[light.brightness.clamp(1, 10) as usize - 1];
     pair_if(light.brightness != was.brightness, addr::DPI_LIGHT + 2, brightness);
     pair_if(light.speed != was.speed, addr::DPI_LIGHT + 4, light.speed);
+    // A stage's DPI and its colour each only when it changed: an ATK's colours aren't offered.
     for (i, st) in s.stages.iter().enumerate().take(MAX_STAGES) {
-        if old.stages.get(i) != Some(st) {
+        let was = old.stages.get(i);
+        if was.map(|w| w.dpi) != Some(st.dpi) {
             let (x, ex) = dpi_encode(st.dpi);
             put_triple(&mut f, addr::DPI + 4 * i, [x, x, ex]);
+        }
+        if was.map(|w| &w.color) != Some(&st.color) {
             put_triple(&mut f, addr::DPI_COLOR + 4 * i, parse_color(&st.color).unwrap_or([255, 255, 255]));
         }
     }

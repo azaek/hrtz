@@ -14,6 +14,7 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Zaopin Z2 MAX | Not tested yet |
 | Zaopin Z2 mini | Not tested yet |
 | Zaopin Z2 mini MAX | Not tested yet |
+| ATK U2 Plus (PAW3395) | Not tested yet |
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
@@ -22,6 +23,10 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED receiver or cable.
 "Tested" means tried on the real mouse; the others use the same protocol as a tested one and should
 work. More mice come one at a time, each tried with its owners before it's called tested.
+
+The ATK U2 Plus is the newest, by its receiver or its cable: its polling rate, DPI stages and DPI
+light, lift-off distance, debounce, motion sync, angle snapping and ripple control. Sleep, the
+sensor mode and the buttons follow once an owner's test shows how this model keeps them.
 
 ## Help test it
 

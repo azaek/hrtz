@@ -516,11 +516,13 @@ impl Link {
         }
     }
 
-    /// The connected mice with a DPI light, with their ids and names, as the add-on asks.
+    /// The connected mice with a DPI light, with their ids and names, as the add-on asks. Zaopins
+    /// only: the breathing speeds were timed on one, and an ATK's light has three of the five.
     fn listed(&mut self) -> Vec<(u8, String)> {
         let mut list = Vec::new();
         for s in self.hub.states() {
-            let lit = s.capabilities.as_ref().and_then(|c| c.dpi.as_ref()).is_some_and(|d| d.light);
+            let lit = s.capabilities.as_ref().and_then(|c| c.dpi.as_ref()).is_some_and(|d| d.light)
+                && crate::mice::compx::models::is_zaopin(s.cid, s.mid);
             let Some(key) = s.key.filter(|_| s.connected && lit) else { continue };
             let id = match self.ids.iter().position(|k| *k == key) {
                 Some(i) => i,

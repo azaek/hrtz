@@ -7,7 +7,7 @@ import { Emblem } from "./brand";
 import { Notice } from "./components";
 import { DrawnMouse, MousePicture } from "./DrawnMouse";
 import { linkName } from "./links";
-import { artOf, familyOf, ofModel } from "./models";
+import { artOf, familyOf, isZaopin, ofModel } from "./models";
 import { endFlow, goStep, pickMouse, savePrefs, setInspecting, toast, useStore, type Step } from "./store";
 import { TitleBar } from "./TitleBar";
 
@@ -249,7 +249,7 @@ export function Onboarding() {
       // A maker's app in the way of a mouse found: Zaopin's app fights hrtz for a Zaopin; G HUB edits
       // a Logitech's profiles too, or drives it itself (host mode).
       const makerApp = (family: string) => vendorApps.includes(family) && found.some((d) => familyOf(d.key) === family);
-      const zaopinApp = makerApp("compx");
+      const zaopinApp = vendorApps.includes("compx") && found.some(isZaopin);
       const ghub = makerApp("hidpp");
       const ghubDrives = ghub && found.some((d) => familyOf(d.key) === "hidpp" && d.hostMode);
       shown = {

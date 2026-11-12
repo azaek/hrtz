@@ -1967,6 +1967,7 @@ mod lab {
             connected: true,
             online: true,
             model: Some(models::model_name(4).into()),
+            brand: Some("Zaopin".into()),
             cid: 7,
             mid: 4,
             device_type: 5,

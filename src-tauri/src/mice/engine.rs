@@ -52,6 +52,8 @@ pub struct DeviceState {
     /// The mouse itself is awake and linked (always true when wired).
     pub online: bool,
     pub model: Option<String>,
+    /// Who makes it: "Zaopin", "ATK", "Logitech".
+    pub brand: Option<String>,
     pub cid: u8,
     pub mid: u8,
     pub device_type: u8,
@@ -239,7 +241,8 @@ impl Worker {
             return;
         }
         let (estimate, log) = battery_files(&dir, key);
-        if key.starts_with("compx/") && !estimate.exists() && !log.exists() {
+        // The files from before several mice were a Zaopin's.
+        if key.starts_with("compx/7-") && !estimate.exists() && !log.exists() {
             let _ = std::fs::create_dir_all(dir.join("battery"));
             let _ = std::fs::copy(dir.join("battery.json"), &estimate);
             let _ = std::fs::copy(dir.join("battery_log.jsonl"), &log);

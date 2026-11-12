@@ -18,7 +18,7 @@ import { api, message, on, type KnownMouse, type Prefs } from "@/api";
 import { Group, SettingCard } from "@/components";
 import { UndoNote } from "@/kit";
 import { linkName } from "@/links";
-import { familyOf, ofModel } from "@/models";
+import { familyOf, makerOf, ofModel } from "@/models";
 import { reportUrl, type ReportForm } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { forgetMouse, restoreMouse, run, savePrefs, setInspecting, toast, useStore } from "@/store";
@@ -81,7 +81,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const wired = !!caps?.wired;
   // The small print names the maker of the mouse shown.
   const family = familyOf(device?.key);
-  const maker = family ? { compx: "Zaopin", hidpp: "Logitech" }[family] : null;
+  const maker = makerOf(device) ?? null;
   // A row this mouse can't use is left out, and so is one hrtz doesn't know it has yet (a mouse met
   // but never read); with no mouse they all show, waiting for one.
   const can = (feature: "longRange" | "pairing" | "factoryReset" | "backups") => (caps ? !!caps[feature] : !device);

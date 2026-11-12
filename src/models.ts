@@ -24,18 +24,30 @@ export interface ModelArt {
   view?: string;
 }
 
-/** The model (MID) in a Zaopin key: `compx/7-4` (or a simulated `sim/7-4`) is 4. */
+/** The model (MID) in a Zaopin key: `compx/7-4` (or a simulated `sim/7-4`) is 4. An ATK on the same
+ *  channel (`compx/2-78`) has MIDs of its own, so it has none here. */
 export const midOf = (key: string | null | undefined): number | undefined => {
-  const m = key && /^(?:compx|sim)\/\d+-(\d+)$/.exec(key);
+  const m = key && /^(?:compx|sim)\/7-(\d+)$/.exec(key);
   return m ? Number(m[1]) : undefined;
 };
 
-/** A key's family: `compx/7-4` is a Zaopin, `hidpp/c094/1a2b3c4d` a Logitech (`sim/` for either,
- *  simulated, keeps the rest of its shape). */
+/** A key's family: `compx/7-4` is a Zaopin and `compx/2-78` an ATK, both on CompX's channel;
+ *  `hidpp/c094/1a2b3c4d` a Logitech (`sim/` for either, simulated, keeps the rest of its shape). */
 export const familyOf = (key: string | null | undefined): "compx" | "hidpp" | undefined => {
-  if (midOf(key) !== undefined) return "compx";
+  if (key && /^(?:compx|sim)\/\d+-\d+$/.test(key)) return "compx";
   return key && /^(?:hidpp|sim)\/[0-9a-f]{4}\//.test(key) ? "hidpp" : undefined;
 };
+
+/** Who makes a mouse: as it says, or by its family, for a state from before brands were told. */
+export const makerOf = (d: { key?: string | null; brand?: string | null } | null | undefined): string | undefined => {
+  if (d?.brand) return d.brand;
+  const family = familyOf(d?.key);
+  return family && { compx: "Zaopin", hidpp: "Logitech" }[family];
+};
+
+/** A Zaopin, which Zaopin's app gets in the way of: CID 7, or a Zaopin receiver with no mouse paired (0). */
+export const isZaopin = (d: { key?: string | null; cid: number } | null | undefined): boolean =>
+  familyOf(d?.key) === "compx" && (d?.cid === 7 || d?.cid === 0);
 
 /** The key a mouse's model shares: a Zaopin's key is its model's (`compx/7-4`); a Logitech's drops
  *  its unit ID (`hidpp/c094/43c2f6b0` is `hidpp/c094`). */

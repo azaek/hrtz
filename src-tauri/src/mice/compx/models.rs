@@ -1,4 +1,4 @@
-//! Zaopin's models: names, and what each can do on each connection.
+//! Zaopin's models: names, and what each can do on each connection. ATK's are in `atk`.
 
 use super::image::{MAX_STAGES, PEAK_TIMEOUTS_S, POLLING, SLEEP_TIMES_S};
 use crate::mice::model::{Capabilities, DpiCaps, Lod, PollingCaps, Range, SensorMode, SensorModeCaps, Supported};
@@ -14,10 +14,10 @@ pub fn is_zaopin(cid: u8, mid: u8) -> bool {
     cid == CID || (cid == 0 && mid == 0)
 }
 
-/// Zaopin's models, by MID, and whether each has been tried on the real mouse (the Z1 PRO MAX
-/// only, so far).
+/// The mice on this channel hrtz runs: Zaopin's models, by MID, then ATK's, each with whether it has
+/// been tried on the real mouse (the Z1 PRO MAX only, so far).
 pub fn supported() -> Vec<Supported> {
-    [(4, true), (1, false), (2, false), (5, false), (3, false), (6, false)]
+    let mut all: Vec<Supported> = [(4, true), (1, false), (2, false), (5, false), (3, false), (6, false)]
         .into_iter()
         .map(|(mid, tested)| Supported {
             family: "compx",
@@ -26,7 +26,9 @@ pub fn supported() -> Vec<Supported> {
             key: format!("compx/{CID}-{mid}"),
             tested,
         })
-        .collect()
+        .collect();
+    all.extend(super::atk::supported());
+    all
 }
 
 /// Connection kinds, from the handshake's byte 6.
@@ -60,6 +62,8 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
             colors: true,
             // "DPI Light Effects" in the vendor app, for every model.
             light: true,
+            brightness_steps: None,
+            speeds: None,
         }),
         polling: Some(PollingCaps { rates: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= max_polling_hz).collect() }),
         lod: Some(lod),
@@ -69,6 +73,7 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
             corded_when_wired: true,
         }),
         debounce_ms: Some(Range { min: 0, max: 20 }),
+        debounce_choices_ms: None,
         motion_sync: true,
         angle_snapping: true,
         ripple_control: true,

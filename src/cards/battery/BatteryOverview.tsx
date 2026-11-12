@@ -6,7 +6,7 @@ import { SavingCards } from "./SavingCards";
 import { hoursLeft, lifeAt, useBatteryData } from "./useBatteryData";
 import { Choice, Group, SettingCard } from "@/components";
 import { StatTile } from "@/kit";
-import { familyOf } from "@/models";
+import { makerOf } from "@/models";
 import { hzText, rateColor } from "@/rates";
 import { useStore } from "@/store";
 
@@ -25,7 +25,7 @@ export function BatteryOverview() {
   const left = hoursLeft(device, summary);
   const life = lifeAt(summary, hz, device);
   // Until hrtz has measured this rate, the figures are the maker's, and say so.
-  const maker = familyOf(device?.key) === "compx" ? "Zaopin" : "Logitech";
+  const maker = makerOf(device) ?? "The maker";
   const ofUse = life?.rated && hz ? `${maker}'s figure, ${hzText(hz)}` : hz ? `of use at ${hzText(hz)}` : "";
   const asleep = !!device?.connected && !device.online;
   const unknown = <StatTile.Unknown />;

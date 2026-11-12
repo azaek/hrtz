@@ -17,11 +17,15 @@ import { commit, useStore } from "../store";
 import { topRate, type Lod, type Settings } from "../api";
 import { formatDuration } from "../format";
 import { DpiStagesCard } from "../cards/dpi-stages/DpiStagesCard";
+import { isZaopin } from "../models";
 import { SignalRgbCard, useSetBySignalRgb } from "../cards/signalrgb/SignalRgbCard";
 import { hzText } from "../rates";
 import { NumberStepper } from "../kit";
 
 const LOD_LABEL: Record<Lod, string> = { "0.7mm": "0.7 mm", "1mm": "1 mm", "2mm": "2 mm" };
+/** Names for a light that offers three steps of brightness or speed (an ATK's), lowest first. */
+const THREE_BRIGHTNESS = ["Low", "Medium", "High"];
+const THREE_SPEEDS = ["Slow", "Medium", "Fast"];
 
 /** Each card shows only if the mouse has that setting; a group with none is left out. */
 export function SensorPage() {
@@ -117,14 +121,30 @@ export function SensorPage() {
       title="Click debounce"
       description={s.debounceMs < 4 ? "Below 4 ms, some switches register one press as two." : "Ignores switch bounce for this long after each press."}
     >
-      <NumberStepper
-        label="Click debounce"
-        unit="ms"
-        min={caps.debounceMs.min}
-        max={caps.debounceMs.max}
-        value={s.debounceMs}
-        onChange={(debounceMs) => update({ debounceMs })}
-      />
+      {caps.debounceChoicesMs ? (
+        <Dropdown
+          aria-label="Click debounce"
+          value={`${s.debounceMs} ms`}
+          selectedOptions={[String(s.debounceMs)]}
+          onOptionSelect={(_, d) => update({ debounceMs: Number(d.optionValue) })}
+          style={{ minWidth: 120 }}
+        >
+          {caps.debounceChoicesMs.map((ms) => (
+            <Option key={ms} value={String(ms)}>
+              {`${ms} ms`}
+            </Option>
+          ))}
+        </Dropdown>
+      ) : (
+        <NumberStepper
+          label="Click debounce"
+          unit="ms"
+          min={caps.debounceMs.min}
+          max={caps.debounceMs.max}
+          value={s.debounceMs}
+          onChange={(debounceMs) => update({ debounceMs })}
+        />
+      )}
     </SettingCard>
   );
   const peak = caps.peakTimeoutsS && s.peakTimeoutEnabled !== undefined && s.peakTimeoutS !== undefined && (
@@ -170,21 +190,42 @@ export function SensorPage() {
       />
     </SettingCard>
   );
+  const steps = caps.dpi?.brightnessSteps;
+  const speeds = caps.dpi?.speeds;
   const brightness = light?.effect === "steady" && (
     <SettingCard icon={<BrightnessHigh20Regular />} title="Brightness" description="How bright the DPI light is.">
-      <NumberStepper label="Brightness" min={1} max={10} value={light.brightness} onChange={(brightness) => update({ dpiLight: { ...light, brightness } })} />
+      {steps ? (
+        <Choice
+          label="Brightness"
+          value={light.brightness}
+          options={steps.map((value, i) => ({ value, label: (steps.length === 3 ? THREE_BRIGHTNESS[i] : undefined) ?? String(value) }))}
+          onChange={(brightness) => update({ dpiLight: { ...light, brightness } })}
+        />
+      ) : (
+        <NumberStepper label="Brightness" min={1} max={10} value={light.brightness} onChange={(brightness) => update({ dpiLight: { ...light, brightness } })} />
+      )}
     </SettingCard>
   );
   const speed = light?.effect === "breathing" && (
     <SettingCard icon={<HeartPulse20Regular />} title="Breathing speed" description="How fast the DPI light breathes.">
-      <NumberStepper
-        label="Breathing speed"
-        min={1}
-        max={5}
-        value={light.speed}
-        disabled={bySignalRgb}
-        onChange={(speed) => update({ dpiLight: { ...light, speed } })}
-      />
+      {speeds ? (
+        <Choice
+          label="Breathing speed"
+          value={light.speed}
+          disabled={bySignalRgb}
+          options={speeds.map((value, i) => ({ value, label: (speeds.length === 3 ? THREE_SPEEDS[i] : undefined) ?? String(value) }))}
+          onChange={(speed) => update({ dpiLight: { ...light, speed } })}
+        />
+      ) : (
+        <NumberStepper
+          label="Breathing speed"
+          min={1}
+          max={5}
+          value={light.speed}
+          disabled={bySignalRgb}
+          onChange={(speed) => update({ dpiLight: { ...light, speed } })}
+        />
+      )}
     </SettingCard>
   );
   const tracking = [dpi, polling, liftOff, sensorMode, motionSync, angleSnapping, ripple].some(Boolean);
@@ -208,7 +249,7 @@ export function SensorPage() {
           {lightEffect}
           {brightness}
           {speed}
-          <SignalRgbCard mouseKey={device.key} />
+          {isZaopin(device) && <SignalRgbCard mouseKey={device.key} />}
         </Group>
       )}
       {clicks && (

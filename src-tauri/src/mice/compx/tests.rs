@@ -449,3 +449,245 @@ fn the_first_zaopin_gets_a_copy_of_the_battery_files_from_before_several_mice() 
     assert!(!log.lock().entries().is_empty(), "and this mouse's readings go to its own log");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+// ---- ATK ------------------------------------------------------------------------------------
+
+mod atk_mice {
+    use super::*;
+    use crate::mice::compx::atk;
+    use crate::mice::compx::driver::Maker;
+    use crate::mice::compx::sim::atk_sample_image;
+    use crate::mice::model::{DpiLight, LightEffect, Lod};
+
+    #[test]
+    fn a_u2_plus_is_met_by_asking_who_it_is_and_read_as_atks_app_reads_it() {
+        let r = Rig::connected(SimMouse::u2_plus());
+        let s = r.state();
+        assert!(s.connected && s.online && !s.foreign);
+        assert_eq!(s.key.as_deref(), Some("compx/2-78"));
+        assert_eq!(s.model.as_deref(), Some("U2 Plus (PAW3395)"));
+        assert_eq!(s.brand.as_deref(), Some("ATK"));
+        assert_eq!(s.firmware.as_deref(), Some("1.23"));
+        assert_eq!((s.profile, s.long_range), (None, None));
+        let caps = s.capabilities.unwrap();
+        assert!(!caps.wired);
+        assert_eq!(caps.dpi.unwrap().max_stages, atk::MAX_STAGES);
+
+        // What ATK's app offers is shown; sleep, the sensor mode and the buttons aren't.
+        let st = s.settings.unwrap();
+        assert_eq!(st.polling_hz, Some(1000));
+        assert_eq!((st.dpi_stage_count, st.dpi_stage, st.dpi()), (Some(4), Some(1), Some(800)));
+        assert_eq!(st.stages.as_ref().unwrap()[0].color, "#FF4040");
+        assert_eq!(st.dpi_light, Some(DpiLight { effect: LightEffect::Steady, brightness: 5, speed: 3 }));
+        assert_eq!((st.lod, st.debounce_ms), (Some(Lod::Mid), Some(2)));
+        assert_eq!((st.motion_sync, st.angle_snapping, st.ripple_control), (Some(false), Some(false), Some(false)));
+        assert!(
+            st.sleep_s.is_none() && st.sensor_mode.is_none() && st.peak_timeout_s.is_none() && st.buttons.is_none()
+        );
+
+        // Its own battery reading, with no millivolts: its length says two bytes.
+        let b = s.battery.unwrap();
+        assert_eq!((b.raw_level, b.millivolts), (100, 0));
+
+        // Linked?, who it is, its firmware, the settings region, its battery: no handshake, no
+        // "an app is listening", no profile or long range.
+        let m = r.mouse.lock();
+        let commands = m.commands_since(0);
+        assert_eq!(commands[..3], [cmd::ONLINE, atk::CID_MID, cmd::ONLINE]);
+        let asked = [cmd::ONLINE, atk::CID_MID, cmd::VERSION, cmd::READ_FLASH, cmd::BATTERY];
+        assert!(commands.iter().all(|c| asked.contains(c)), "{commands:02X?}");
+        assert_eq!(m.reads_since(0).iter().map(|x| x.1).sum::<usize>(), p::CONFIG_REGION);
+    }
+
+    #[test]
+    fn on_its_cable_it_isnt_asked_whether_its_linked() {
+        let r = Rig::connected(SimMouse { maker: Maker::Atk { receiver: false }, ..SimMouse::u2_plus() });
+        let s = r.state();
+        assert!(s.connected && s.online && s.capabilities.unwrap().wired);
+        assert!(!r.mouse.lock().commands_since(0).contains(&cmd::ONLINE));
+    }
+
+    #[test]
+    fn asleep_on_its_receiver_its_waited_for_quietly() {
+        let mut r = Rig::connected(SimMouse { online: false, ..SimMouse::u2_plus() });
+        let s = r.state();
+        assert!(!s.connected && !s.foreign && s.key.is_none());
+        assert_eq!(r.mouse.lock().commands_since(0), [cmd::ONLINE], "who it is isn't asked while it sleeps");
+        r.mouse.lock().online = true;
+        r.w.housekeeping();
+        assert_eq!(r.state().key.as_deref(), Some("compx/2-78"));
+    }
+
+    #[test]
+    fn another_atk_is_left_alone() {
+        // The A9 Plus Nearlink, on the same receiver: its memory is laid out otherwise.
+        let r = Rig::connected(SimMouse { mid: 83, ..SimMouse::u2_plus() });
+        let s = r.state();
+        assert!(s.foreign && !s.connected && s.key.is_none());
+        assert_eq!(r.mouse.lock().commands_since(0), [cmd::ONLINE, atk::CID_MID]);
+    }
+
+    #[test]
+    fn a_dpi_change_is_written_unechoed_then_read_back() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let mut next = r.settings();
+        next.stages.as_mut().unwrap()[1].dpi = 850;
+        let (req, _) = r.mark();
+        let applied = r.w.apply_settings(&next).unwrap();
+        assert_eq!(applied.dpi(), Some(850));
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0x10], "the stage's DPI only, not its colour");
+        assert_eq!(m.reads_since(req), vec![(0x10, 4)], "read back");
+        let (x, ex) = image::dpi_encode(850);
+        assert_eq!(m.image()[0x10..0x14], [x, x, ex, checksum(&[x, x, ex])]);
+    }
+
+    #[test]
+    fn an_echoed_write_is_taken_out_of_the_way() {
+        let mut r = Rig::connected(SimMouse { echo_writes: true, ..SimMouse::u2_plus() });
+        let mut next = r.settings();
+        next.polling_hz = Some(500);
+        assert_eq!(r.w.apply_settings(&next).unwrap().polling_hz, Some(500));
+        assert!(r.mouse.lock().out.is_empty(), "the echo was read");
+    }
+
+    #[test]
+    fn a_write_the_mouse_didnt_keep_says_so() {
+        let mut r = Rig::connected(SimMouse { forget_writes: true, ..SimMouse::u2_plus() });
+        let mut next = r.settings();
+        next.dpi_stage = Some(2);
+        let e = r.w.apply_settings(&next).unwrap_err().to_string();
+        assert!(e.contains("didn't keep"), "{e}");
+    }
+
+    #[test]
+    fn what_isnt_offered_is_left_as_it_is() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let before = r.mouse.lock().image().to_vec();
+        let mut next = image::decode(&before);
+        // What a Zaopin has and an ATK isn't offered, changed: sleep, the sensor mode, peak
+        // performance, a button. Only the polling rate, offered, is written.
+        next.polling_hz = Some(250);
+        next.sleep_s = Some(60);
+        next.sensor_mode = Some(crate::mice::model::SensorMode::Hp);
+        next.peak_timeout_enabled = Some(true);
+        next.buttons.as_mut().unwrap()[0] = crate::mice::model::ButtonAction::Disabled;
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        assert_eq!(r.mouse.lock().writes_since(req), vec![0x00]);
+    }
+
+    #[test]
+    fn the_light_takes_atks_steps_written_whole() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let mut next = r.settings();
+        next.dpi_light = Some(DpiLight { effect: LightEffect::Steady, brightness: 10, speed: 3 });
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0x4C], "the light's four pairs in one packet");
+        assert_eq!(m.reads_since(req), vec![(0x4C, 8)]);
+        assert_eq!(m.image()[0x4E..0x50], [255, checksum(&[255])]);
+        drop(m);
+        // A step ATK's app doesn't offer is refused, and nothing is written.
+        let (req, _) = r.mark();
+        let mut next = r.settings();
+        next.dpi_light = Some(DpiLight { effect: LightEffect::Steady, brightness: 3, speed: 3 });
+        assert!(r.w.apply_settings(&next).is_err());
+        next.dpi_light = Some(DpiLight { effect: LightEffect::Breathing, brightness: 10, speed: 2 });
+        assert!(r.w.apply_settings(&next).is_err());
+        assert!(r.mouse.lock().writes_since(req).is_empty());
+    }
+
+    #[test]
+    fn debounce_writes_its_row_and_keeps_the_sleep_time() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let sleep = r.mouse.lock().image()[0xAD..0xAF].to_vec();
+        let mut next = r.settings();
+        next.debounce_ms = Some(4);
+        next.motion_sync = Some(true);
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0xA9], "the row from debounce to ripple, once");
+        assert_eq!(m.image()[0xA9..0xAD], [4, checksum(&[4]), 1, checksum(&[1])]);
+        assert_eq!(m.image()[0xAD..0xAF], sleep[..], "ATK's sleep time, as it was");
+        drop(m);
+        let mut next = r.settings();
+        next.debounce_ms = Some(3);
+        assert!(r.w.apply_settings(&next).unwrap_err().to_string().contains("3 ms"));
+    }
+
+    #[test]
+    fn lift_off_and_a_stage_colour_each_write_their_own_field() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let mut next = r.settings();
+        next.lod = Some(Lod::High);
+        next.stages.as_mut().unwrap()[1].color = "#123456".into();
+        let (req, _) = r.mark();
+        let applied = r.w.apply_settings(&next).unwrap();
+        assert_eq!(applied.lod, Some(Lod::High));
+        assert_eq!(applied.stages.unwrap()[1].color, "#123456");
+        assert_eq!(r.mouse.lock().writes_since(req), vec![0x0A, 0x30]);
+        // 0.7 mm is a PAW3950's.
+        let mut next = r.settings();
+        next.lod = Some(Lod::Low);
+        let (req, _) = r.mark();
+        assert!(r.w.apply_settings(&next).unwrap_err().to_string().contains("lift-off"));
+        assert!(r.mouse.lock().writes_since(req).is_empty());
+    }
+
+    #[test]
+    fn six_stages_at_most_and_dpi_from_100() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let mut next = r.settings();
+        next.dpi_stage_count = Some(7);
+        assert!(r.w.apply_settings(&next).unwrap_err().to_string().contains("out of range"));
+        next.dpi_stage_count = Some(6);
+        r.w.apply_settings(&next).unwrap();
+        let mut next = r.settings();
+        next.stages.as_mut().unwrap()[0].dpi = 50;
+        let e = r.w.apply_settings(&next).unwrap_err().to_string();
+        assert!(e.contains("between 100 and 30000"), "{e}");
+    }
+
+    #[test]
+    fn the_dpi_button_shows_within_a_second() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let (req, seen) = r.mark();
+        r.mouse.lock().put_pair(0x04, 2);
+        // Not asked again before a second has gone by.
+        r.w.drain_unsolicited();
+        assert!(r.mouse.lock().reads_since(req).is_empty());
+        thread::sleep(Duration::from_millis(1050));
+        r.w.drain_unsolicited();
+        assert_eq!(r.mouse.lock().reads_since(req), vec![(0x00, 6)]);
+        assert_eq!(r.settings().dpi_stage, Some(2));
+        let events = r.events_since(seen);
+        assert!(matches!(events[..], [DeviceEvent::Dpi { stage: 2, dpi: 1600 }]), "{events:?}");
+        // Nothing new: nothing told.
+        thread::sleep(Duration::from_millis(1050));
+        r.w.drain_unsolicited();
+        assert_eq!(r.events_since(seen).len(), 1);
+    }
+
+    #[test]
+    fn what_a_zaopin_only_does_is_refused() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let (req, _) = r.mark();
+        assert!(r.w.set_profile(1).is_err());
+        assert!(r.w.set_long_range(true).is_err());
+        assert!(r.w.pair().is_err());
+        assert!(r.w.factory_reset().is_err());
+        assert!(r.w.restore_image(&atk_sample_image()).is_err());
+        assert!(r.mouse.lock().writes_since(req).is_empty());
+    }
+
+    #[test]
+    fn a_test_report_reads_its_memory_and_says_whose_it_is() {
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        let report = r.w.report().unwrap();
+        assert_eq!(report["memorySize"], p::FLASH_SIZE);
+        assert_eq!(report["family"], serde_json::json!({ "maker": "ATK", "cid": 2, "mid": 78, "receiver": true }));
+    }
+}

@@ -25,7 +25,7 @@ import { BatteryPage } from "./pages/Battery";
 import { HudPage } from "./pages/Hud";
 import { SettingsPage } from "./pages/SettingsPage";
 import type { Capabilities, DeviceState } from "./api";
-import { familyOf } from "./models";
+import { familyOf, isZaopin } from "./models";
 import { Onboarding } from "./Onboarding";
 import { Switcher } from "./Switcher";
 import { WhatsNew } from "./WhatsNew";
@@ -146,7 +146,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   const [ready, setReady] = useState(false);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const device = useStore((st) => st.device);
-  const newPages = useNewPages(device?.capabilities);
+  const newPages = useNewPages(device);
   const vendorApps = useStore((st) => st.status.vendorApps);
   const flow = useStore((st) => st.flow);
   const inspecting = useStore((st) => st.inspecting);
@@ -301,7 +301,7 @@ function MakerAppNotice({ device, running }: { device: DeviceState | null; runni
   const family = familyOf(device?.key);
   if (!device?.connected || !family) return null;
   const app = running.includes(family);
-  if (family === "compx" && app)
+  if (family === "compx" && app && isZaopin(device))
     return (
       <Notice tone="warning" icon={<Warning16Filled />} title="Zaopin's app is running">
         Quit it from its tray icon. Both apps use the same channel and overwrite each other's changes.

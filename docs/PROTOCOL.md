@@ -119,3 +119,14 @@ Default Z1 PRO MAX layout: 0 left, 1 right, 2 middle, 3 back, 4 forward, 5 DPI l
 ### Macro slot (0x300 + i×0x180)
 
 `nameLen, name[30]`, then at offset 0x1F `count` (2-70), then `count` × `[state<<6 | hidType, v0, v1, delayHi, delayLo]`, then a check byte over `0x1F .. 0x1F + count*5`.
+
+## ATK
+
+ATK's mice use this channel too: the same packets, checksum, commands and flash addresses. hrtz runs only the U2 Plus with a PAW3395 so far. What differs, from OpenMouse's `mouse-protocol`, ATK's own app (ATK HUB 3.2.32) and two Inspect a mouse reports from an owner:
+
+- VID 0x373B. The U2 Plus's NearLink receiver is PID 0x10C9 ("NK mouse NANO dongle"); the mouse on its cable is 0x110D. Both have a second `0xFF02:0x02` collection with 19-byte reports (report 0x13); the settings channel is the one with report 0x08.
+- The model comes from command `0x10`, reply `[0]=CID [1]=MID` (the U2 Plus is CID 2, MID 78), not from the handshake, which ATK's app doesn't send.
+- `0x04` battery answers with a length of 2, so only its level and charging are read.
+- Writes are echoed, as a Zaopin's are. hrtz also reads each write back, and writes a whole field at a time, as ATK's app does.
+- The same as a Zaopin's: the system row (0x00, 0x02, 0x04), lift-off at 0x0A (1 = 1 mm, 2 = 2 mm; 0.7 mm only on a PAW3950), the DPI stages (0x0C, up to six) and colours (0x2C), the DPI light (0x4C; ATK's app offers brightness 16, 128 and 255, speed 1, 3 and 5), debounce (0xA9; 0, 1, 2, 4, 8, 15 or 20 ms), motion sync (0xAB), straight-line correction (0xAF, a Zaopin's angle snapping) and ripple control (0xB1).
+- Different: the sleep time is 0xAD and 0xB7 in 10 s steps (a Zaopin's is 0xBB, in seconds), and Corded sensor mode is 2 at 0xB9 (a Zaopin's is 10). hrtz leaves both, and the buttons, as the mouse holds them for now.

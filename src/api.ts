@@ -78,6 +78,11 @@ export interface Capabilities {
     colors: boolean;
     /** That light can be turned off, steady or breathing (`Settings.dpiLight`). */
     light: boolean;
+    /** The light's brightness steps (of 1-10) the maker's app offers, where it offers only some
+     *  (an ATK's three); none means every one. */
+    brightnessSteps?: number[];
+    /** Its breathing speeds (of 1-5) likewise. */
+    speeds?: number[];
   };
   /** The rates this connection carries, lowest first. The mouse may hold a higher one, set for its
    *  other connection. */
@@ -92,6 +97,8 @@ export interface Capabilities {
     cordedWhenWired: boolean;
   };
   debounceMs?: { min: number; max: number };
+  /** The debounce times the maker's app offers, where it offers only some of the range (an ATK's). */
+  debounceChoicesMs?: number[];
   motionSync: boolean;
   angleSnapping: boolean;
   rippleControl: boolean;
@@ -149,6 +156,8 @@ export interface DeviceState {
   connected: boolean;
   online: boolean;
   model: string | null;
+  /** Who makes it: "Zaopin", "ATK", "Logitech". */
+  brand?: string | null;
   cid: number;
   mid: number;
   deviceType: number;

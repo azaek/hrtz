@@ -533,6 +533,7 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
             key: Some(key),
             connected: true,
             model: Some(model),
+            brand: Some("Logitech".into()),
             variant: id.variant,
             capabilities: Some(Capabilities {
                 wired,
@@ -871,6 +872,8 @@ impl Connected {
                 max_stages: l.max_stages,
                 colors: false,
                 light: false,
+                brightness_steps: None,
+                speeds: None,
             });
             caps.polling = (!rates.is_empty()).then_some(PollingCaps { rates });
             settings.polling_hz = if self.wired && ob::v6(format) { profile.rate_wired } else { profile.rate_wireless };

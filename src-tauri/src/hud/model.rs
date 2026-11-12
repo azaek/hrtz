@@ -158,8 +158,10 @@ impl Facts {
             (Some((level, false)), Some(hz)) => life_h(hz).or_else(|| rated(hz)).map(|h| h * level as f64 / 100.0),
             _ => None,
         };
-        // Zaopin's app gets in the way of a Zaopin only.
-        let vendor_app = vendor_app && s.key.as_deref().and_then(crate::mice::family_of) == Some("compx");
+        // Zaopin's app gets in the way of a Zaopin only, not of an ATK on the same channel.
+        let vendor_app = vendor_app
+            && s.key.as_deref().and_then(crate::mice::family_of) == Some("compx")
+            && crate::mice::compx::models::is_zaopin(s.cid, s.mid);
         Self {
             link,
             long_range: s.long_range == Some(true),

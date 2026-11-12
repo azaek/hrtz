@@ -1,7 +1,8 @@
 //! CompX's vendor channel, as Zaopin's mice speak it: 17-byte reports on report 8, settings in a
 //! flash image. `protocol` is the wire format, `image` the settings in memory, `models` what each
-//! model can do, and the driver runs a connected mouse.
+//! model can do, and the driver runs a connected mouse. ATK's mice speak it too (`atk`).
 
+pub mod atk;
 mod driver;
 pub mod image;
 pub mod models;

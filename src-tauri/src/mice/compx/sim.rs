@@ -1,7 +1,8 @@
 //! A Zaopin mouse and its receiver, simulated: it answers the vendor channel's commands the way the
 //! real ones do (docs/PROTOCOL.md), from a made-up flash image, so the device thread can be tested
 //! without hardware. The test holds the same `SimMouse` and can change it in between: wake it,
-//! press its DPI button, switch its profile, pull the receiver out.
+//! press its DPI button, switch its profile, pull the receiver out. `SimMouse::u2_plus` is an ATK,
+//! answering only what mouse-protocol's ATK captures show one answering.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -10,12 +11,17 @@ use std::time::Duration;
 use anyhow::{Result, bail};
 use parking_lot::Mutex;
 
-use super::driver::{Opened, connect};
+use super::atk;
+use super::driver::{Maker, Opened, connect};
 use super::image::sample_image;
 use super::protocol::{self as p, Packet, checksum, cmd};
 use crate::mice::{Board, Driver, Family, Finder, Link};
 
 pub struct SimMouse {
+    /// A Zaopin, or an ATK through its receiver or on its cable.
+    pub maker: Maker,
+    /// An ATK echoes a write as a Zaopin does: ATK's app doesn't wait for one, so it may not.
+    pub echo_writes: bool,
     pub cid: u8,
     pub mid: u8,
     pub device_type: u8,
@@ -48,6 +54,8 @@ impl Default for SimMouse {
     /// A Z1 PRO MAX on the 8K receiver, awake, on profile 1, with the test image in all four.
     fn default() -> Self {
         Self {
+            maker: Maker::Zaopin,
+            echo_writes: true,
             cid: 7,
             mid: 4,
             device_type: 5,
@@ -69,6 +77,26 @@ impl Default for SimMouse {
 }
 
 impl SimMouse {
+    /// snowyuonA's ATK U2 Plus (PAW3395) on its NearLink receiver, awake, with a made-up image laid
+    /// out as mouse-protocol's A9 Plus captures show: four stages, 1,000 Hz, the rest blank.
+    pub fn u2_plus() -> Self {
+        Self {
+            maker: Maker::Atk { receiver: true },
+            echo_writes: false,
+            cid: 2,
+            mid: 78,
+            device_type: 0,
+            profiles: vec![atk_sample_image()],
+            battery: (100, false, 4238),
+            firmware: [0x01, 0x23],
+            ..Default::default()
+        }
+    }
+
+    fn is_atk(&self) -> bool {
+        matches!(self.maker, Maker::Atk { .. })
+    }
+
     pub fn image(&self) -> &[u8] {
         &self.profiles[self.active as usize]
     }
@@ -114,6 +142,9 @@ impl SimMouse {
     }
 
     fn answer(&mut self, r: &Packet) {
+        if self.is_atk() {
+            return self.answer_atk(r);
+        }
         let reply = |data: &[u8]| p::packet(r[1], 0, data, None);
         // Asleep, the receiver still answers for itself; the mouse doesn't.
         let mouse_command = !matches!(r[1], cmd::HANDSHAKE | cmd::PC_DRIVER_STATUS | cmd::ONLINE | cmd::PAIR_STATE);
@@ -184,6 +215,93 @@ impl SimMouse {
         };
         self.out.push_back(answer);
     }
+
+    // The ATK's answers and memory layout follow OpenMouse's mouse-protocol captures
+    // (https://github.com/OpenMouse-Project/mouse-protocol, commit
+    // c3b1bc20866fbef3a27b37ad020887607d6dbbf2, captures/atk-a9-plus-nk). Translated to Rust and
+    // modified for hrtz, 2026-11-10. Copyright (C) the OpenMouse contributors. AGPL-3.0-or-later.
+
+    /// What an ATK answers, as mouse-protocol's captures show: who it is (0x10), its battery with a
+    /// length of 2 though four bytes follow, its firmware, and its memory. Nothing else, so a test
+    /// fails should hrtz count on more.
+    fn answer_atk(&mut self, r: &Packet) {
+        let reply = |data: &[u8]| p::packet(r[1], 0, data, None);
+        let receiver = matches!(self.maker, Maker::Atk { receiver: true });
+        if r[1] != cmd::ONLINE && !self.online {
+            return;
+        }
+        let answer = match r[1] {
+            cmd::ONLINE if receiver => reply(&[self.online as u8, 0x12, 0x34, 0x56]),
+            atk::CID_MID => reply(&[self.cid, self.mid]),
+            cmd::BATTERY => {
+                let (level, charging, mv) = self.battery;
+                let [hi, lo] = mv.to_be_bytes();
+                let mut a = reply(&[level, charging as u8, hi, lo]);
+                a[5] = 2;
+                a[16] = checksum(&a[..16]);
+                a
+            }
+            cmd::VERSION => reply(&self.firmware),
+            cmd::READ_FLASH => {
+                let (addr, len) = (p::packet_addr(r) as usize, r[5] as usize);
+                let data = self.image()[addr..addr + len].to_vec();
+                p::packet(cmd::READ_FLASH, addr as u16, &data, None)
+            }
+            cmd::WRITE_FLASH => {
+                let (addr, len) = (p::packet_addr(r) as usize, r[5] as usize);
+                if !self.forget_writes {
+                    let data = r[6..6 + len].to_vec();
+                    self.image_mut()[addr..addr + len].copy_from_slice(&data);
+                }
+                if !self.echo_writes {
+                    return;
+                }
+                *r
+            }
+            _ => return,
+        };
+        self.out.push_back(answer);
+    }
+}
+
+/// A made-up ATK image, laid out as mouse-protocol's A9 Plus NK captures read one and ATK's app
+/// keeps it: 1,000 Hz, four stages (400, 800, 1,600 and 3,200 DPI) with the second in use, each
+/// with a colour, a steady DPI light at 128 and speed 3, 1 mm lift-off and the row from debounce to
+/// ripple as captured (2 ms, the sleep time 120 s). Not read from any mouse.
+#[cfg(any(test, debug_assertions))]
+pub(crate) fn atk_sample_image() -> Vec<u8> {
+    let mut f = vec![0xFF; p::FLASH_SIZE];
+    let pair = |f: &mut Vec<u8>, a: usize, v: u8| {
+        f[a] = v;
+        f[a + 1] = checksum(&[v]);
+    };
+    pair(&mut f, 0x00, 0x01);
+    pair(&mut f, 0x02, 4);
+    pair(&mut f, 0x04, 1);
+    pair(&mut f, 0x0A, 1);
+    for (i, dpi) in [400u32, 800, 1600, 3200, 6400, 12800].into_iter().enumerate() {
+        let (x, ex) = super::image::dpi_encode(dpi);
+        let stage = [x, x, ex];
+        f[0x0C + 4 * i..0x0C + 4 * i + 3].copy_from_slice(&stage);
+        f[0x0C + 4 * i + 3] = checksum(&stage);
+    }
+    let colours = [
+        [0xFF, 0x40, 0x40],
+        [0x40, 0xFF, 0x40],
+        [0x40, 0x40, 0xFF],
+        [0xFF, 0xFF, 0x40],
+        [0xFF, 0x40, 0xFF],
+        [0x40, 0xFF, 0xFF],
+    ];
+    for (i, c) in colours.into_iter().enumerate() {
+        f[0x2C + 4 * i..0x2C + 4 * i + 3].copy_from_slice(&c);
+        f[0x2C + 4 * i + 3] = checksum(&c);
+    }
+    for (i, v) in [1, 0x80, 3, 1].into_iter().enumerate() {
+        pair(&mut f, 0x4C + 2 * i, v);
+    }
+    f[0xA9..0xB3].copy_from_slice(&[0x02, 0x53, 0x00, 0x55, 0x0C, 0x49, 0x00, 0x55, 0x00, 0x55]);
+    f
 }
 
 /// The simulated receiver, as the device thread sees it.
@@ -237,8 +355,10 @@ fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Re
     if mouse.lock().unplugged {
         bail!("no Zaopin receiver found");
     }
+    let maker = mouse.lock().maker;
     let opened = Opened {
         family,
+        maker,
         link: Box::new(SimLink(mouse.clone())),
         gap: Duration::ZERO,
         #[cfg(windows)]
@@ -247,8 +367,8 @@ fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Re
     connect(opened, board)
 }
 
-/// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, or both,
-/// comma-separated), to try several mice with one. Their keys start `sim/`, so they never take over
+/// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, `u2plus`
+/// for an ATK, or several, comma-separated), to try several mice with one. Their keys start `sim/`, so they never take over
 /// what a real Zaopin keeps.
 pub struct SimFamily {
     pub(crate) mice: Vec<(String, Arc<Mutex<SimMouse>>)>,
@@ -269,6 +389,7 @@ impl SimFamily {
                 let m = match n.trim() {
                     "z2mini" => SimMouse { mid: 3, device_type: 1, battery: (64, false, 3850), ..Default::default() },
                     "z1promax" => SimMouse::default(),
+                    "u2plus" => SimMouse::u2_plus(),
                     _ => return None,
                 };
                 Some((format!("sim:{}", n.trim()), Arc::new(Mutex::new(m))))

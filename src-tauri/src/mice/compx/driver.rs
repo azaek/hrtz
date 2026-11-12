@@ -1,5 +1,6 @@
 //! A connected Zaopin mouse, through its receiver or its cable: one command at a time, the flash
-//! image read in regions, and the status packets the mouse sends by itself.
+//! image read in regions, and the status packets the mouse sends by itself. An ATK mouse runs here
+//! too, on what it shares with a Zaopin (`atk`).
 
 use std::thread;
 use std::time::{Duration, Instant};
@@ -7,14 +8,17 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, anyhow, bail};
 use hidapi::HidApi;
 
+use super::atk;
 use super::image;
 use super::models;
 use super::protocol::{self as p, Packet, cmd, status};
 use crate::mice::model::Settings;
-use crate::mice::{Board, DeviceEvent, DeviceState, Driver, Family, Finder, Follow, Link, Reading};
+use crate::mice::{Board, DeviceEvent, DeviceState, Driver, Family, Finder, Follow, Link, Reading, Waiting};
 
 /// Everything below this address is read on connect: config, buttons and shortcut slots.
 pub(crate) const LOADED_REGION: usize = 0x300;
+/// How often an ATK's DPI stage and polling rate are read, as it doesn't say when they change.
+const ATK_LOOK_EVERY: Duration = Duration::from_secs(1);
 const REPLY_TIMEOUT: Duration = Duration::from_millis(1000);
 const RESET_TIMEOUT: Duration = Duration::from_millis(5000);
 /// How long the receiver is given to find a mouse to pair with, as in the vendor app.
@@ -37,25 +41,68 @@ impl Family for Compx {
 pub struct HidFinder {
     api: Option<HidApi>,
     path: String,
-    /// Set once the receiver turns out to be another maker's: it isn't asked again while it stays
-    /// plugged in, so hrtz doesn't keep interrupting that maker's own app.
-    refused: Option<NotZaopin>,
+    /// Set once the receiver turns out to be another maker's or model's, or not the settings channel:
+    /// it isn't asked again while it stays plugged in, so hrtz doesn't keep interrupting that maker's
+    /// own app.
+    refused: Option<LeftAlone>,
 }
 
-/// A receiver or mouse on Zaopin's vendor ID whose handshake says it's another maker's.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct NotZaopin {
-    cid: u8,
-    mid: u8,
-}
+/// A receiver, a mouse or a channel of one that hrtz doesn't run, and why.
+#[derive(Debug, Clone)]
+pub(crate) struct LeftAlone(String);
 
-impl std::fmt::Display for NotZaopin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "not a Zaopin mouse (CID {}, MID {}), so it's left alone", self.cid, self.mid)
+impl LeftAlone {
+    /// Another maker's mouse on Zaopin's vendor ID.
+    fn not_zaopin(cid: u8, mid: u8) -> Self {
+        Self(format!("not a Zaopin mouse (CID {cid}, MID {mid}), so it's left alone"))
+    }
+
+    /// An ATK model hrtz doesn't run yet.
+    fn other_atk(cid: u8, mid: u8) -> Self {
+        Self(format!("an ATK mouse hrtz doesn't support yet (CID {cid}, MID {mid}), so it's left alone"))
     }
 }
 
-impl std::error::Error for NotZaopin {}
+impl std::fmt::Display for LeftAlone {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for LeftAlone {}
+
+/// Whose mouse a connection is, by its vendor ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Maker {
+    Zaopin,
+    /// Through its receiver (`true`) or on its cable.
+    Atk {
+        receiver: bool,
+    },
+}
+
+/// The report IDs a report descriptor declares (its Report ID items).
+fn report_ids(descriptor: &[u8]) -> Vec<u8> {
+    let mut ids = Vec::new();
+    let mut i = 0;
+    while i < descriptor.len() {
+        let prefix = descriptor[i];
+        // A long item: its size is in the next byte.
+        if prefix == 0xFE {
+            i += 3 + descriptor.get(i + 1).copied().unwrap_or(0) as usize;
+            continue;
+        }
+        let size = [0, 1, 2, 4][(prefix & 0x03) as usize];
+        if prefix & 0xFC == 0x84
+            && size == 1
+            && let Some(&id) = descriptor.get(i + 1)
+        {
+            ids.push(id);
+        }
+        i += 1 + size;
+    }
+    ids
+}
 
 impl HidFinder {
     fn api(&mut self) -> Result<&mut HidApi> {
@@ -67,13 +114,15 @@ impl HidFinder {
 }
 
 fn is_config_interface(d: &hidapi::DeviceInfo) -> bool {
-    d.vendor_id() == p::VENDOR_ID && d.usage_page() == p::CONFIG_USAGE_PAGE && d.usage() == p::CONFIG_USAGE
+    (d.vendor_id() == p::VENDOR_ID || d.vendor_id() == atk::VENDOR_ID)
+        && d.usage_page() == p::CONFIG_USAGE_PAGE
+        && d.usage() == p::CONFIG_USAGE
 }
 
 impl Finder for HidFinder {
     fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
-        if let Some(n) = self.refused {
-            return Err(n.into());
+        if let Some(n) = &self.refused {
+            return Err(n.clone().into());
         }
         let path = self.path.clone();
         let api = self.api()?;
@@ -84,15 +133,33 @@ impl Finder for HidFinder {
             .ok_or_else(|| anyhow!("no Zaopin receiver found"))?
             .clone();
         let dev = info.open_device(api).context("open HID device")?;
+        let maker = if info.vendor_id() == atk::VENDOR_ID {
+            Maker::Atk { receiver: atk::is_receiver(info.product_id(), info.product_string().unwrap_or_default()) }
+        } else {
+            Maker::Zaopin
+        };
+        // An ATK's receiver and mouse have a second collection on the same usage, for 19-byte
+        // reports: only the one with report 8 is the settings channel. Asking Windows for the
+        // descriptor sends nothing to the device.
+        if maker != Maker::Zaopin {
+            let mut buf = [0u8; 4096];
+            if dev.get_report_descriptor(&mut buf).is_ok_and(|n| !report_ids(&buf[..n]).contains(&p::REPORT_ID)) {
+                let why = LeftAlone("not the settings channel, so it's left alone".into());
+                board.set(|s| *s = DeviceState { foreign: true, ..DeviceState::default() });
+                self.refused = Some(why.clone());
+                return Err(why.into());
+            }
+        }
         let opened = Opened {
             family: "compx",
+            maker,
             link: Box::new(dev),
             // The vendor driver keeps at least 8 ms between writes; the receiver drops packets otherwise.
             gap: Duration::from_millis(8),
             #[cfg(windows)]
             port: crate::usb::port_of(&info.path().to_string_lossy()),
         };
-        connect(opened, board).inspect_err(|e| self.refused = e.downcast_ref::<NotZaopin>().copied())
+        connect(opened, board).inspect_err(|e| self.refused = e.downcast_ref::<LeftAlone>().cloned())
     }
 
     fn count(&mut self) -> usize {
@@ -100,7 +167,8 @@ impl Finder for HidFinder {
         if api.refresh_devices().is_err() {
             return 1;
         }
-        api.device_list().filter(|d| is_config_interface(d)).count()
+        // Pairing wants one Zaopin receiver: an ATK's (with two such collections) isn't one.
+        api.device_list().filter(|d| is_config_interface(d) && d.vendor_id() == p::VENDOR_ID).count()
     }
 }
 
@@ -109,6 +177,7 @@ pub(crate) struct Opened {
     /// The key's first part: `compx`, or `sim` for a simulated mouse in a dev build, so it never
     /// takes over what a real one keeps.
     pub family: &'static str,
+    pub maker: Maker,
     pub link: Box<dyn Link>,
     /// The least time between two writes.
     pub gap: Duration,
@@ -124,20 +193,29 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         image: vec![0xFF; p::FLASH_SIZE],
         pending_status: Vec::new(),
         lost: false,
+        atk: None,
     };
+    if let Maker::Atk { receiver } = opened.maker {
+        #[cfg(windows)]
+        let port = opened.port;
+        #[cfg(not(windows))]
+        let port = ();
+        return connect_atk(m, opened.family, receiver, port, board);
+    }
     let nonce: [u8; 4] = rand_bytes();
     let r = m.transact(&p::packet(cmd::HANDSHAKE, 0, &nonce, Some(8)), REPLY_TIMEOUT)?;
     let d = p::payload(&r);
     let (cid, mid, device_type) = (d[4], d[5], d[6]);
     if !models::is_zaopin(cid, mid) {
         board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
-        return Err(NotZaopin { cid, mid }.into());
+        return Err(LeftAlone::not_zaopin(cid, mid).into());
     }
     board.set(|s| {
         *s = DeviceState {
             key: Some(format!("{}/{cid}-{mid}", opened.family)),
             connected: true,
             model: Some(models::model_name(mid).to_string()),
+            brand: Some("Zaopin".into()),
             cid,
             mid,
             device_type,
@@ -153,7 +231,59 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
     Ok(Box::new(m))
 }
 
-/// A Zaopin mouse, met.
+/// Meet an ATK: through its receiver only once the mouse is linked (a receiver answers for itself,
+/// but who the mouse is goes unanswered while it sleeps), then which model it is. Nothing is sent
+/// that ATK's own app doesn't send.
+fn connect_atk(
+    mut m: Connected,
+    family: &'static str,
+    receiver: bool,
+    #[allow(unused_variables)] port: PortOf,
+    board: &Board,
+) -> Result<Box<dyn Driver>> {
+    m.atk = Some(Atk { receiver, looked: Instant::now() });
+    if receiver && !m.online()? {
+        return Err(Waiting.into());
+    }
+    let r = m.transact_simple(atk::CID_MID)?;
+    let (cid, mid) = (r[6], r[7]);
+    let Some(model) = atk::model(cid, mid) else {
+        board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
+        return Err(LeftAlone::other_atk(cid, mid).into());
+    };
+    board.set(|s| {
+        *s = DeviceState {
+            key: Some(format!("{family}/{cid}-{mid}")),
+            connected: true,
+            model: Some(model.name.to_string()),
+            brand: Some("ATK".into()),
+            cid,
+            mid,
+            device_type: atk::device_type(receiver),
+            capabilities: Some(atk::capabilities(model, receiver)),
+            #[cfg(windows)]
+            port,
+            ..Default::default()
+        }
+    });
+    board.publish(None);
+    Ok(Box::new(m))
+}
+
+#[cfg(windows)]
+type PortOf = Option<crate::usb::UsbPort>;
+#[cfg(not(windows))]
+type PortOf = ();
+
+/// What's an ATK's own on a connection.
+struct Atk {
+    /// Through its receiver, rather than on its cable.
+    receiver: bool,
+    /// When the DPI stage and polling rate were last read.
+    looked: Instant,
+}
+
+/// A Zaopin mouse, met, or an ATK.
 struct Connected {
     link: Box<dyn Link>,
     gap: Duration,
@@ -162,12 +292,72 @@ struct Connected {
     image: Vec<u8>,
     pending_status: Vec<u8>,
     lost: bool,
+    /// Set for an ATK.
+    atk: Option<Atk>,
 }
 
 impl Connected {
     fn refresh_settings(&mut self, board: &Board) {
-        let decoded = image::decode(&self.image);
+        let mut decoded = image::decode(&self.image);
+        if self.atk.is_some() {
+            decoded = atk::offered(&decoded);
+        }
         board.set(|s| s.settings = Some(decoded));
+    }
+
+    /// Refuse what an ATK isn't offered, should it be asked anyway.
+    fn zaopin_only(&self) -> Result<()> {
+        if self.atk.is_some() {
+            bail!("This mouse can't do that.");
+        }
+        Ok(())
+    }
+
+    /// An ATK says nothing when its DPI button or a button combination changes the stage or the
+    /// polling rate, so they're read every second while it's awake, and told as a Zaopin's are.
+    fn look_atk(&mut self, board: &Board) -> Result<Follow> {
+        let Some(a) = self.atk.as_mut() else { return Ok(Follow::default()) };
+        if a.looked.elapsed() < ATK_LOOK_EVERY || !board.read().online {
+            return Ok(Follow::default());
+        }
+        a.looked = Instant::now();
+        let row = self.read_flash(0x00, 6)?;
+        if row == self.image[0x00..0x06] {
+            return Ok(Follow::default());
+        }
+        let was = board.read().settings.clone();
+        self.image[0x00..0x06].copy_from_slice(&row);
+        self.refresh_settings(board);
+        let now = board.read().settings.clone();
+        if let Some(s) = &now {
+            if was.as_ref().and_then(|w| w.polling_hz) != s.polling_hz {
+                board.publish(Some(DeviceEvent::Polling { hz: s.polling_hz.unwrap_or(0) }));
+            }
+            if was.as_ref().map(|w| (w.dpi_stage, w.dpi())) != Some((s.dpi_stage, s.dpi())) {
+                board.publish(Some(DeviceEvent::Dpi { stage: s.dpi_stage.unwrap_or(0), dpi: s.dpi().unwrap_or(0) }));
+            }
+        }
+        Ok(Follow { settings: true, ..Default::default() })
+    }
+
+    /// An ATK's load: its firmware and the settings region, as ATK's app reads them. No profile or
+    /// long-range mode: neither is offered.
+    fn load_atk(&mut self, board: &Board) -> Result<()> {
+        let fw = self.transact_simple(cmd::VERSION).ok();
+        let region = self.read_flash(0, p::CONFIG_REGION)?;
+        self.image[..p::CONFIG_REGION].copy_from_slice(&region);
+        if let Some(a) = self.atk.as_mut() {
+            a.looked = Instant::now();
+        }
+        board.set(|s| {
+            s.online = true;
+            // Binary-coded decimal: 0x01 0x23 is 1.23, written as a Zaopin's is.
+            s.firmware = fw.map(|r| format!("{:x}.{:02x}", r[6], r[7]));
+            s.profile = None;
+            s.long_range = None;
+        });
+        self.refresh_settings(board);
+        Ok(())
     }
 
     // ---- transport ------------------------------------------------------------------------
@@ -249,11 +439,34 @@ impl Connected {
         for (i, chunk) in data.chunks(p::MAX_CHUNK).enumerate() {
             let a = addr + i * p::MAX_CHUNK;
             let pkt = p::packet(cmd::WRITE_FLASH, a as u16, chunk, None);
-            let r = self.transact(&pkt, REPLY_TIMEOUT)?;
-            if r != pkt {
-                bail!("The mouse rejected a write at 0x{a:04X}.");
+            if self.atk.is_some() {
+                self.write_checked(&pkt, a, chunk)?;
+            } else {
+                let r = self.transact(&pkt, REPLY_TIMEOUT)?;
+                if r != pkt {
+                    bail!("The mouse rejected a write at 0x{a:04X}.");
+                }
             }
             self.image[a..a + chunk.len()].copy_from_slice(chunk);
+        }
+        Ok(())
+    }
+
+    /// An ATK's write, as its own app makes it: sent without waiting for an echo, then read back.
+    /// An echo, if one comes, is taken out of the way first.
+    fn write_checked(&mut self, pkt: &Packet, a: usize, chunk: &[u8]) -> Result<()> {
+        self.write(pkt)?;
+        let deadline = Instant::now() + Duration::from_millis(100);
+        while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+            match self.read(left)? {
+                None => break,
+                Some(r) if r[1] == cmd::STATUS_CHANGED => self.pending_status.push(r[6]),
+                Some(r) if r[1] == cmd::WRITE_FLASH && p::packet_addr(&r) as usize == a => break,
+                Some(_) => {}
+            }
+        }
+        if self.read_flash(a, chunk.len())? != chunk {
+            bail!("The mouse didn't keep a write at 0x{a:04X}.");
         }
         Ok(())
     }
@@ -265,7 +478,8 @@ impl Connected {
         // already: only a switch made on the mouse needs its profile loaded (and a second load
         // would hold the mouse a second more, and show the pop-up twice).
         // The DPI and polling bits that come with a switch are the new profile's, loaded with it.
-        if bits & status::PROFILE != 0 {
+        // An ATK's profiles aren't offered.
+        if bits & status::PROFILE != 0 && self.atk.is_none() {
             let r = self.transact_simple(cmd::GET_PROFILE)?;
             if (r[5] > 0).then_some(r[6]) != board.read().profile {
                 self.load(board)?;
@@ -305,11 +519,19 @@ impl Driver for Connected {
     }
 
     fn online(&mut self) -> Result<bool> {
-        Ok(self.transact_simple(cmd::ONLINE)?[6] != 0)
+        match &self.atk {
+            None => Ok(self.transact_simple(cmd::ONLINE)?[6] != 0),
+            // On its cable it's always there; its receiver says 1 while it's linked.
+            Some(a) if !a.receiver => Ok(true),
+            Some(_) => Ok(self.transact_simple(cmd::ONLINE)?[6] == 1),
+        }
     }
 
     /// Read everything the UI shows. Called on connect, on wake, and after a profile switch.
     fn load(&mut self, board: &Board) -> Result<()> {
+        if self.atk.is_some() {
+            return self.load_atk(board);
+        }
         let fw = self.transact_simple(cmd::VERSION)?;
         let profile = self.transact_simple(cmd::GET_PROFILE)?;
         let long_range = self.transact_simple(cmd::GET_LONG_RANGE).ok();
@@ -329,6 +551,16 @@ impl Driver for Connected {
     fn battery(&mut self) -> Result<Reading> {
         let r = self.transact_simple(cmd::BATTERY)?;
         let d = p::payload(&r);
+        if self.atk.is_some() {
+            // Its own level: the voltage curve hrtz knows is a Zaopin's. The millivolts only when
+            // its length says they're there.
+            return Ok(Reading {
+                level: d[0].min(100),
+                charging: d[1] != 0,
+                millivolts: if r[5] >= 4 { u16::from_be_bytes([d[2], d[3]]) } else { 0 },
+                by_voltage: false,
+            });
+        }
         Ok(Reading {
             level: d[0].min(100),
             charging: d[1] != 0,
@@ -345,7 +577,7 @@ impl Driver for Connected {
         }
         let bits = self.pending_status.drain(..).fold(0u8, |a, b| a | b);
         if bits == 0 {
-            return Ok(Follow::default());
+            return if loaded { self.look_atk(board) } else { Ok(Follow::default()) };
         }
         if !loaded {
             return Ok(Follow { load: true, ..Default::default() });
@@ -355,16 +587,34 @@ impl Driver for Connected {
 
     fn apply(&mut self, board: &Board, new: &Settings) -> Result<()> {
         let caps = board.read().capabilities.clone().ok_or_else(|| anyhow!("unknown device"))?;
+        // An ATK's other settings stay as the mouse holds them, whatever comes.
+        let offered;
+        let new = if self.atk.is_some() {
+            offered = atk::offered(new);
+            &offered
+        } else {
+            new
+        };
         image::validate(new, &self.image, &caps).map_err(|e| anyhow!(e))?;
         let target = image::encode(new, &self.image);
-        for (addr, bytes) in image::diff(&self.image, &target, p::MAX_CHUNK) {
-            self.write_flash(addr, &bytes)?;
+        if self.atk.is_some() {
+            for (addr, len) in atk::fields() {
+                if target[addr..addr + len] != self.image[addr..addr + len] {
+                    let bytes = target[addr..addr + len].to_vec();
+                    self.write_flash(addr, &bytes)?;
+                }
+            }
+        } else {
+            for (addr, bytes) in image::diff(&self.image, &target, p::MAX_CHUNK) {
+                self.write_flash(addr, &bytes)?;
+            }
         }
         self.refresh_settings(board);
         Ok(())
     }
 
     fn set_profile(&mut self, board: &Board, index: u8) -> Result<()> {
+        self.zaopin_only()?;
         if index > 3 {
             bail!("profile must be 1-4");
         }
@@ -387,6 +637,7 @@ impl Driver for Connected {
     }
 
     fn set_long_range(&mut self, board: &Board, on: bool) -> Result<()> {
+        self.zaopin_only()?;
         let mut data = [0u8; 10];
         data[0] = on as u8;
         self.transact(&p::packet(cmd::SET_LONG_RANGE, 0, &data, None), REPLY_TIMEOUT)?;
@@ -401,6 +652,7 @@ impl Driver for Connected {
     /// the device thread, so housekeeping waits meanwhile, as the vendor pauses its own timers.
     /// Returns whether a mouse paired; the receiver is then met again, in case it's another model.
     fn pair(&mut self, board: &Board, connections: usize) -> Result<bool> {
+        self.zaopin_only()?;
         if board.read().capabilities.as_ref().is_some_and(|c| c.wired) {
             bail!("Pairing works over the receiver only. Unplug the mouse's cable first.");
         }
@@ -434,6 +686,7 @@ impl Driver for Connected {
     }
 
     fn factory_reset(&mut self, board: &Board) -> Result<()> {
+        self.zaopin_only()?;
         self.transact(&p::packet(cmd::FACTORY_RESET, 0, &[], None), RESET_TIMEOUT)?;
         thread::sleep(Duration::from_millis(500));
         self.load(board)
@@ -460,6 +713,7 @@ impl Driver for Connected {
     }
 
     fn write_image(&mut self, board: &Board, current: &[u8], target: &[u8]) -> Result<usize> {
+        self.zaopin_only()?;
         if target.len() != p::FLASH_SIZE {
             bail!("backup has {} bytes, expected {}", target.len(), p::FLASH_SIZE);
         }
@@ -479,8 +733,20 @@ impl Driver for Connected {
         Ok(total)
     }
 
-    /// Tell the mouse no configuration app is listening any more.
+    /// For a test report: whose it is, and how it's connected.
+    fn report(&mut self, board: &Board) -> Result<serde_json::Value> {
+        let s = board.read();
+        Ok(match &self.atk {
+            Some(a) => serde_json::json!({ "maker": "ATK", "cid": s.cid, "mid": s.mid, "receiver": a.receiver }),
+            None => serde_json::Value::Null,
+        })
+    }
+
+    /// Tell the mouse no configuration app is listening any more. An ATK wasn't told it was.
     fn goodbye(&mut self) {
+        if self.atk.is_some() {
+            return;
+        }
         let _ = self.transact(&p::packet(cmd::PC_DRIVER_STATUS, 0, &[0], None), Duration::from_millis(300));
     }
 }
@@ -492,4 +758,28 @@ fn rand_bytes() -> [u8; 4] {
     x ^= x >> 7;
     x ^= x << 17;
     (x as u32).to_le_bytes()
+}
+
+#[cfg(test)]
+mod descriptor_tests {
+    use super::report_ids;
+
+    fn hex(s: &str) -> Vec<u8> {
+        s.split_whitespace().map(|b| u8::from_str_radix(b, 16).unwrap()).collect()
+    }
+
+    #[test]
+    fn the_settings_channel_is_told_by_its_report_id() {
+        // snowyuonA's U2 Plus receiver: collection 4 (19-byte reports) and collection 5.
+        let col4 = hex(
+            "06 02 FF 09 02 A1 01 85 13 09 02 15 00 26 FF 00 75 08 95 13 81 00 09 02 15 00 26 FF 00 75 08 95 13 91 00 C0",
+        );
+        let col5 = hex(
+            "06 02 FF 09 02 A1 01 85 08 09 02 15 00 26 FF 00 75 08 95 10 81 00 09 02 15 00 26 FF 00 75 08 95 10 91 00 C0",
+        );
+        assert_eq!(report_ids(&col4), vec![0x13]);
+        assert_eq!(report_ids(&col5), vec![0x08]);
+        // The report size of 8 bits (75 08) isn't a report ID.
+        assert!(report_ids(&hex("75 08 95 10")).is_empty());
+    }
 }

@@ -205,6 +205,10 @@ pub struct Capabilities {
     /// Debounce, in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub debounce_ms: Option<Range>,
+    /// The debounce times the maker's app offers, where it offers only some of the range (an
+    /// ATK's); none means every millisecond.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debounce_choices_ms: Option<Vec<u8>>,
     pub motion_sync: bool,
     pub angle_snapping: bool,
     pub ripple_control: bool,
@@ -256,6 +260,13 @@ pub struct DpiCaps {
     pub colors: bool,
     /// That light can be turned off, steady or breathing (`Settings::dpi_light`).
     pub light: bool,
+    /// The light's brightness steps (of 1-10) the maker's app offers, where it offers only some
+    /// (an ATK's three); none means every one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brightness_steps: Option<Vec<u8>>,
+    /// Its breathing speeds (of 1-5) likewise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speeds: Option<Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

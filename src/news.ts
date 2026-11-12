@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { Capabilities } from "./api";
+import type { DeviceState } from "./api";
 import type { PageId } from "./App";
+import { isZaopin } from "./models";
 import { markSeen, useStore } from "./store";
 
 /**
@@ -8,20 +9,23 @@ import { markSeen, useStore } from "./store";
  * applies to, until its card has been on screen (`useSeen`). Then it's noted in the prefs
  * (`seen`) and the badges go. Take an entry out a release or two after it shipped.
  */
-export const NEWS = [{ id: "signalrgb", page: "sensor", applies: (c: Capabilities) => !!c.dpi?.light }] as const satisfies readonly {
+export const NEWS = [
+  // SignalRGB sets a Zaopin's light only.
+  { id: "signalrgb", page: "sensor", applies: (d: DeviceState) => !!d.capabilities?.dpi?.light && isZaopin(d) },
+] as const satisfies readonly {
   id: string;
   page: PageId;
-  applies: (c: Capabilities) => boolean;
+  applies: (d: DeviceState) => boolean;
 }[];
 
 export type NewsId = (typeof NEWS)[number]["id"];
 
-/** The sidebar's pages with something new for a mouse with `caps`, not seen yet. */
-export function useNewPages(caps: Capabilities | null | undefined): Set<PageId> {
+/** The sidebar's pages with something new for mouse `device`, not seen yet. */
+export function useNewPages(device: DeviceState | null | undefined): Set<PageId> {
   const seen = useStore((x) => x.prefs?.seen);
   const pages = new Set<PageId>();
-  if (!caps || !seen) return pages;
-  for (const n of NEWS) if (n.applies(caps) && !seen.includes(n.id)) pages.add(n.page);
+  if (!device?.capabilities || !seen) return pages;
+  for (const n of NEWS) if (n.applies(device) && !seen.includes(n.id)) pages.add(n.page);
   return pages;
 }
 

@@ -41,9 +41,12 @@ pub fn inspect(known: &[(String, DeviceState)]) -> Vec<Inspected> {
             ifaces.sort_by_key(|d| (d.interface_number(), collection(d), d.usage_page(), d.usage()));
             let first = ifaces[0];
             let name = first.product_string().filter(|s| !s.trim().is_empty()).unwrap_or("Unnamed device").to_string();
-            let found = ifaces
+            // The connection hrtz runs it on, before one it left alone (an ATK's second channel).
+            let mine: Vec<&DeviceState> = ifaces
                 .iter()
-                .find_map(|d| known.iter().find(|(id, _)| *id == d.path().to_string_lossy()).map(|(_, s)| s));
+                .filter_map(|d| known.iter().find(|(id, _)| *id == d.path().to_string_lossy()).map(|(_, s)| s))
+                .collect();
+            let found = mine.iter().find(|s| !s.foreign).or(mine.first()).copied();
             let supported = found.filter(|s| !s.foreign).and_then(|s| s.model.clone());
             let hrtz = found.map(|s| {
                 if s.foreign {
