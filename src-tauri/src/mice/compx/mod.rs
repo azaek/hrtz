@@ -4,6 +4,7 @@
 
 pub mod atk;
 pub mod atk_catalog;
+pub mod atk_dpi;
 mod driver;
 pub mod image;
 pub mod models;

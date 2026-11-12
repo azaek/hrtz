@@ -346,33 +346,42 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
     if s.lod != old.lod && caps.lod.as_ref().is_some_and(|l| !l.contains(&s.lod)) {
         return Err("this mouse doesn't have that lift-off distance".into());
     }
-    let dpi = caps.dpi.as_ref().ok_or("this mouse has no DPI stages")?;
-    // Fewer stages than slots where the maker's app offers fewer (an ATK's six).
-    let most =
-        if s.dpi_stage_count != old.dpi_stage_count { dpi.max_stages.min(MAX_STAGES as u8) } else { MAX_STAGES as u8 };
-    if !(1..=most).contains(&s.dpi_stage_count) || s.dpi_stage >= s.dpi_stage_count {
-        return Err("DPI stage out of range".into());
-    }
-    // A stage left as the mouse holds it is fine, as for the polling rate.
-    for (st, _) in s.stages.iter().zip(&old.stages).filter(|(st, was)| st != was) {
-        if st.dpi < dpi.min || st.dpi > dpi.max || st.dpi % dpi.step != 0 {
-            return Err(format!(
-                "{} DPI must be a multiple of {} between {} and {}",
-                st.dpi, dpi.step, dpi.min, dpi.max
-            ));
-        }
-        parse_color(&st.color).ok_or_else(|| format!("{} is not a #RRGGBB colour", st.color))?;
-    }
-    if !(1..=10).contains(&s.dpi_light.brightness) || !(1..=5).contains(&s.dpi_light.speed) {
-        return Err("the DPI light's brightness is 1-10 and its speed 1-5".into());
-    }
     // Only the steps the maker's app offers, where it offers some (an ATK's): a value it never
     // writes isn't known to work.
     let offered = |list: &Option<Vec<u8>>, v: u8, was: u8| v == was || list.as_ref().is_none_or(|l| l.contains(&v));
-    if !offered(&dpi.brightness_steps, s.dpi_light.brightness, old.dpi_light.brightness)
-        || !offered(&dpi.speeds, s.dpi_light.speed, old.dpi_light.speed)
+    if let Some(dpi) = caps.dpi.as_ref() {
+        // Fewer stages than slots where the maker's app offers fewer (an ATK's six).
+        let most = if s.dpi_stage_count != old.dpi_stage_count {
+            dpi.max_stages.min(MAX_STAGES as u8)
+        } else {
+            MAX_STAGES as u8
+        };
+        if !(1..=most).contains(&s.dpi_stage_count) || s.dpi_stage >= s.dpi_stage_count {
+            return Err("DPI stage out of range".into());
+        }
+        // A stage left as the mouse holds it is fine, as for the polling rate.
+        for (st, _) in s.stages.iter().zip(&old.stages).filter(|(st, was)| st != was) {
+            if st.dpi < dpi.min || st.dpi > dpi.max || st.dpi % dpi.step != 0 {
+                return Err(format!(
+                    "{} DPI must be a multiple of {} between {} and {}",
+                    st.dpi, dpi.step, dpi.min, dpi.max
+                ));
+            }
+            parse_color(&st.color).ok_or_else(|| format!("{} is not a #RRGGBB colour", st.color))?;
+        }
+        if !(1..=10).contains(&s.dpi_light.brightness) || !(1..=5).contains(&s.dpi_light.speed) {
+            return Err("the DPI light's brightness is 1-10 and its speed 1-5".into());
+        }
+        if !offered(&dpi.brightness_steps, s.dpi_light.brightness, old.dpi_light.brightness)
+            || !offered(&dpi.speeds, s.dpi_light.speed, old.dpi_light.speed)
+        {
+            return Err("this mouse's light doesn't have that brightness or speed".into());
+        }
+    } else if (s.dpi_stage_count, s.dpi_stage, &s.stages, &s.dpi_light)
+        != (old.dpi_stage_count, old.dpi_stage, &old.stages, &old.dpi_light)
     {
-        return Err("this mouse's light doesn't have that brightness or speed".into());
+        // Where no DPI is offered (an ATK whose DPI method isn't settled), nothing of it changes.
+        return Err("this mouse has no DPI stages".into());
     }
     if s.debounce_ms > 20 {
         return Err("debounce must be 0-20 ms".into());

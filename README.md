@@ -19,49 +19,147 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
 
 <details>
-<summary>ATK, VXE and MAD mice (39)</summary>
+<summary>ATK, VXE and MAD mice (137)</summary>
 
 | Mouse | Status |
 |---|---|
+| ATK A9 Air + | Not tested yet |
+| ATK A9 Air | Not tested yet |
+| ATK A9 MAG | Not tested yet |
+| ATK A9 Mini + | Not tested yet |
+| ATK A9 Mini SPRIGATITO Edition | Not tested yet |
+| ATK A9 Mini | Not tested yet |
+| ATK A9 NB ULTRA + | Not tested yet |
+| ATK A9 NB ULTRA | Not tested yet |
+| ATK A9 NB | Not tested yet |
+| ATK A9 NK | Not tested yet |
 | ATK A9 Plus NK | Not tested yet |
 | ATK A9 Pro Max | Not tested yet |
+| ATK A9 SE NK | Not tested yet |
+| ATK A9 Ultimate + | Not tested yet |
+| ATK A9 Ultimate Silent | Not tested yet |
+| ATK A9 Ultimate | Not tested yet |
 | ATK A9 Ultra Max 2.0 (PAW3395 Ultra) | Not tested yet |
+| ATK A9 Ultra Max 2.0 (PAW3950 Ultra) | Not tested yet |
 | ATK A9 Ultra Max 2.0 Tri-Mode (PAW3395 Ultra) | Not tested yet |
+| ATK A9 Ultra Max 2.0 Tri-Mode (PAW3950 Ultra) | Not tested yet |
+| ATK A9 Ultra | Not tested yet |
+| ATK A9 Wireless Charging | Not tested yet |
+| ATK A9 X | Not tested yet |
+| ATK A9 | Not tested yet |
+| ATK DRAGONFLY F1 V2 NK | Not tested yet |
 | ATK DRAGONFLY F1 V2 PRO MAX | Not tested yet |
 | ATK DRAGONFLY F1 V2 Plus NK | Not tested yet |
+| ATK DRAGONFLY F1 V2 SE NK | Not tested yet |
 | ATK Dragonfly F1 MOBA | Not tested yet |
 | ATK Dragonfly F1 PRO MAX Elden | Not tested yet |
 | ATK Dragonfly F1 PRO MAX JOJO | Not tested yet |
 | ATK Dragonfly F1 PRO MAX | Not tested yet |
 | ATK Dragonfly F1 PRO | Not tested yet |
 | ATK Dragonfly F1S | Not tested yet |
+| ATK Duckbill EXTREME | Not tested yet |
+| ATK Duckbill Ultra | Not tested yet |
+| ATK F1 EXTREME 2.0 | Not tested yet |
+| ATK F1 EXTREME | Not tested yet |
+| ATK F1 LEVIATAN 2.0 | Not tested yet |
+| ATK F1 LEVIATAN | Not tested yet |
 | ATK F1 PRO MAX | Not tested yet |
 | ATK F1 PRO | Not tested yet |
+| ATK F1 Ultimate 2.0 + | Not tested yet |
+| ATK F1 Ultimate 2.0 | Not tested yet |
+| ATK F1 Ultimate | Not tested yet |
 | ATK F1 Ultra Max 2.0 (PAW3395 Ultra) | Not tested yet |
+| ATK F1 Ultra Max 2.0 (PAW3950 Ultra) | Not tested yet |
+| ATK F1 Ultra | Not tested yet |
+| ATK F1 V3 EXTREME + | Not tested yet |
+| ATK F1 V3 LEVIATAN + | Not tested yet |
+| ATK F1 V3 PIKACHU Edition | Not tested yet |
+| ATK F1 V3 ULTIMATE + | Not tested yet |
+| ATK F1 V3 ULTIMATE | Not tested yet |
+| ATK FIERCE X | Not tested yet |
+| ATK Flow 7 | Not tested yet |
+| ATK Ghost EXTREME + | Not tested yet |
+| ATK Ghost EXTREME | Not tested yet |
+| ATK Ghost Ultimate + | Not tested yet |
+| ATK Ghost Ultimate | Not tested yet |
+| ATK PHANTOM ULTIMATE | Not tested yet |
 | ATK U2 MINI | Not tested yet |
+| ATK U2 Mini 2.0 + | Not tested yet |
+| ATK U2 Mini 2.0 | Not tested yet |
+| ATK U2 NK | Not tested yet |
 | ATK U2 Plus NK (PAW3395) | Not tested yet |
+| ATK U2 Plus NK (PAW3950 Ultra) | Not tested yet |
 | ATK U2 Pro Max (PAW3395 Ultra) | Not tested yet |
+| ATK U2 Pro Max (PAW3950 Ultra) | Not tested yet |
+| ATK U2 SE NK | Not tested yet |
+| ATK U2 Ultimate 2.0 + | Not tested yet |
+| ATK U2 Ultimate 2.0 | Not tested yet |
+| ATK U2 Ultimate | Not tested yet |
 | ATK U2 Ultra Max 2.0 | Not tested yet |
 | ATK U2 Ultra | Not tested yet |
+| ATK U2 | Not tested yet |
+| ATK X EXTREME | Not tested yet |
+| ATK X1 Air + | Not tested yet |
+| ATK X1 EXTREME 2.0 + | Not tested yet |
+| ATK X1 EXTREME 2.0 | Not tested yet |
+| ATK X1 EXTREME GT | Not tested yet |
+| ATK X1 EXTREME | Not tested yet |
 | ATK X1 Lite | Not tested yet |
+| ATK X1 MAG | Not tested yet |
 | ATK X1 PRO MAX | Not tested yet |
 | ATK X1 PRO | Not tested yet |
 | ATK X1 S NK (PAW3395) | Not tested yet |
+| ATK X1 S NK (PAW3950 Ultra) | Not tested yet |
+| ATK X1 SE NK | Not tested yet |
+| ATK X1 Ultimate 2.0 + | Not tested yet |
+| ATK X1 Ultimate 2.0 Silent | Not tested yet |
+| ATK X1 Ultimate 2.0 | Not tested yet |
+| ATK X1 Ultimate | Not tested yet |
 | ATK X1 Ultra Max 2.0 (PAW3395 Ultra) | Not tested yet |
 | ATK X1 Ultra Max 2.0 (PAW3950 DM) | Not tested yet |
+| ATK X1 Ultra Max 2.0 (PAW3950 Ultra) | Not tested yet |
+| ATK X1 Ultra | Not tested yet |
+| ATK X1E | Not tested yet |
+| ATK Y9 NK | Not tested yet |
 | ATK Y9 PRO MAX | Not tested yet |
 | ATK Y9 Plus NK | Not tested yet |
+| ATK Y9 SE NK | Not tested yet |
+| ATK Y9 Ultimate + | Not tested yet |
+| ATK Y9 Ultimate | Not tested yet |
 | ATK Z1 PRO MAX | Not tested yet |
 | ATK Z1 PRO | Not tested yet |
+| ATK Z1 Ultimate 2.0 + | Not tested yet |
+| ATK Z1 Ultimate 2.0 | Not tested yet |
+| ATK Z1 Ultra | Not tested yet |
+| ATK ZERO EX + | Not tested yet |
+| ATK ZERO EX | Not tested yet |
+| ATK ZERO | Not tested yet |
 | MAD R (PAW3395) | Not tested yet |
+| MAD R (PAW3950 Ultra) | Not tested yet |
 | MAD R + | Not tested yet |
 | MAD R MAJOR | Not tested yet |
 | MAD R MAJOR+ | Not tested yet |
 | VXE R1 (PAW3395) | Not tested yet |
+| VXE R1 (PAW3950 Ultra) | Not tested yet |
+| VXE R1 NK | Not tested yet |
 | VXE R1 PRO (PAW3395) | Not tested yet |
+| VXE R1 PRO (PAW3950 Ultra) | Not tested yet |
 | VXE R1 PRO MAX (PAW3395) | Not tested yet |
+| VXE R1 PRO MAX (PAW3950 Ultra) | Not tested yet |
+| VXE R1 S NK | Not tested yet |
 | VXE R1 Ultra (PAW3395 Ultra) | Not tested yet |
 | VXE R1 Ultra (PAW3395) | Not tested yet |
+| VXE R1S+ | Not tested yet |
+| VXE R1SE | Not tested yet |
+| VXE R1SE+ (CORE26K) | Not tested yet |
+| VXE R1SE+ (PAW3395 SE) | Not tested yet |
+| VXE R1SE+ Silent (CORE26K) | Not tested yet |
+| VXE R1SE+ Silent (PAW3395 SE) | Not tested yet |
+| VXE V3 NK | Not tested yet |
+| VXE V3 PRO NK | Not tested yet |
+| VXE X3 Pro | Not tested yet |
+| VXE X3 Turbo | Not tested yet |
+| VXE X3 | Not tested yet |
 
 </details>
 <!-- supported:end -->
@@ -70,12 +168,13 @@ Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED r
 "Tested" means tried on the real mouse; the others use the same protocol as a tested one and should
 work. More mice come one at a time, each tried with its owners before it's called tested.
 
-ATK's mice are the newest: the ATK, VXE and MAD models with a PAW3395 or PAW3950 sensor, from
-ATK's own list, by receiver or cable. hrtz offers what ATK's app offers on them: the polling rate,
-DPI stages, the DPI light where there is one, lift-off distance, debounce, motion sync, angle
-snapping, ripple control and the onboard profiles. Sleep, the sensor mode and the buttons follow
-once owners' tests show how they keep them. ATK's other sensors store DPI differently and come
-later.
+ATK's mice are the newest: every ATK, VXE and MAD model in ATK's own app, by receiver or cable.
+hrtz offers what ATK's app offers on them: the polling rate, debounce, motion sync, angle snapping,
+ripple control and the onboard profiles; on most, the DPI stages and the DPI light; and lift-off
+where it's 1 or 2 mm (0.7 mm on a PAW3950). Where hrtz isn't sure how a sensor keeps something, it
+leaves it out: the DPI on PAW3311, PAW3315 and CORE26K models, and the 0.7 to 1.7 mm lift-off of
+the PAW3950 Ultra and PAW3955, until owners' checks confirm them. Sleep, the sensor mode and the
+buttons follow the same way.
 
 ## Help test it
 

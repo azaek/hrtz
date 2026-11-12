@@ -454,9 +454,10 @@ fn the_first_zaopin_gets_a_copy_of_the_battery_files_from_before_several_mice() 
 
 mod atk_mice {
     use super::*;
-    use crate::mice::compx::atk;
+    use crate::mice::compx::atk::{self, Method};
     use crate::mice::compx::driver::Maker;
     use crate::mice::compx::sim::atk_sample_image;
+    use crate::mice::compx::{atk_catalog, atk_dpi};
     use crate::mice::model::{DpiLight, LightEffect, Lod};
 
     #[test]
@@ -529,8 +530,8 @@ mod atk_mice {
 
     #[test]
     fn another_atk_is_left_alone() {
-        // The U2 Plus NK with a PAW3950 Ultra, on the same receiver: its DPI is stored otherwise.
-        let r = Rig::connected(SimMouse { mid: 124, ..SimMouse::u2_plus() });
+        // One of ATK's unreleased "Mouse" entries, on the same receiver: not one hrtz runs.
+        let r = Rig::connected(SimMouse { cid: 1, mid: 86, ..SimMouse::u2_plus() });
         let s = r.state();
         assert!(s.foreign && !s.connected && s.key.is_none());
         assert_eq!(r.mouse.lock().commands_since(0), [cmd::ONLINE, cmd::HANDSHAKE, atk::CID_MID]);
@@ -592,8 +593,9 @@ mod atk_mice {
         let applied = r.w.apply_settings(&next).unwrap();
         assert_eq!(applied.dpi(), Some(850));
         let m = r.mouse.lock();
-        assert_eq!(m.writes_since(req), vec![0x10], "the stage's DPI only, not its colour");
-        assert_eq!(m.reads_since(req), vec![(0x10, 4)], "read back");
+        // Stages 1 and 2 together, as ATK's app writes them; not their colours.
+        assert_eq!(m.writes_since(req), vec![0x0C], "the stage's DPI only, not its colour");
+        assert_eq!(m.reads_since(req), vec![(0x0C, 8)], "read back");
         let (x, ex) = image::dpi_encode(850);
         assert_eq!(m.image()[0x10..0x14], [x, x, ex, checksum(&[x, x, ex])]);
     }
@@ -684,7 +686,8 @@ mod atk_mice {
         let applied = r.w.apply_settings(&next).unwrap();
         assert_eq!(applied.lod, Some(Lod::High));
         assert_eq!(applied.stages.unwrap()[1].color, "#123456");
-        assert_eq!(r.mouse.lock().writes_since(req), vec![0x0A, 0x30]);
+        // The colours two stages at a time, as ATK's app writes them.
+        assert_eq!(r.mouse.lock().writes_since(req), vec![0x0A, 0x2C]);
         // 0.7 mm is a PAW3950's.
         let mut next = r.settings();
         next.lod = Some(Lod::Low);
@@ -796,6 +799,103 @@ mod atk_mice {
         assert_eq!(r.settings().polling_hz, Some(500));
         let events = r.events_since(seen);
         assert!(events.iter().any(|e| matches!(e, DeviceEvent::Profile { index: 1 })), "{events:?}");
+    }
+
+    /// `m` with its stages (400, 800, 1,600, 3,200, 6,400, 9,600) stored as `method` stores them,
+    /// in every profile.
+    fn stored_as(mut m: SimMouse, method: Method) -> SimMouse {
+        for f in m.profiles.iter_mut() {
+            f.resize(0x1B30, 0xFF);
+            for (i, dpi) in [400u32, 800, 1600, 3200, 6400, 9600].into_iter().enumerate() {
+                let a = atk_dpi::stage_addr(method, i);
+                let s = atk_dpi::encode_stage(method, dpi).unwrap();
+                f[a..a + s.len()].copy_from_slice(&s);
+            }
+        }
+        m
+    }
+
+    #[test]
+    fn a_paw3950_ultra_reads_and_writes_its_stages_its_way() {
+        // The U2 Plus NK with a PAW3950 Ultra.
+        let mut r = Rig::connected(stored_as(SimMouse { mid: 124, ..SimMouse::u2_plus() }, Method::Ultra));
+        let s = r.settings();
+        let dpis: Vec<u32> = s.stages.as_ref().unwrap().iter().take(4).map(|x| x.dpi).collect();
+        assert_eq!((dpis, s.dpi()), (vec![400, 800, 1600, 3200], Some(800)));
+        let mut next = s.clone();
+        next.stages.as_mut().unwrap()[1].dpi = 26000;
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0x0C], "stages 1 and 2 together");
+        assert_eq!(m.image()[0x10..0x14], atk_dpi::encode_stage(Method::Ultra, 26000).unwrap()[..]);
+        assert_eq!(m.image()[0x0C..0x10], atk_dpi::encode_stage(Method::Ultra, 400).unwrap()[..], "as it was");
+        drop(m);
+        assert_eq!(r.settings().dpi(), Some(26000));
+    }
+
+    #[test]
+    fn a_paw3955_keeps_its_stages_from_0x1b00() {
+        let p3955 = atk_catalog::MODELS.iter().find(|m| m.sensor == atk::Sensor::Paw3955).unwrap();
+        let mouse = SimMouse { cid: p3955.cid, mid: p3955.mid, ..SimMouse::u2_plus() };
+        let mut r = Rig::connected(stored_as(mouse, Method::Paw3955));
+        assert_eq!(r.settings().dpi(), Some(800));
+        let mut next = r.settings();
+        next.stages.as_mut().unwrap()[2].dpi = 35000;
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0x1B0C], "its third stage's row, alone");
+        assert_eq!(m.image()[0x1B0C..0x1B12], atk_dpi::encode_stage(Method::Paw3955, 35000).unwrap()[..]);
+    }
+
+    #[test]
+    fn where_its_dpi_isnt_settled_only_the_rest_is_shown_and_written() {
+        // The VXE R1S+, with a PAW3311.
+        let mut r = Rig::connected(SimMouse { mid: 63, ..SimMouse::u2_plus() });
+        let s = r.state();
+        assert!(s.connected && s.capabilities.as_ref().unwrap().dpi.is_none());
+        let st = s.settings.unwrap();
+        assert!(st.stages.is_none() && st.dpi_stage.is_none() && st.lod.is_none() && st.dpi_light.is_none());
+        let mut next = st.clone();
+        next.polling_hz = Some(500);
+        next.debounce_ms = Some(4);
+        let (req, seen) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        assert_eq!(r.mouse.lock().writes_since(req), vec![0x00, 0xA9]);
+        // Its DPI button isn't told as a DPI.
+        r.mouse.lock().status(p::status::DPI);
+        r.w.drain_unsolicited();
+        assert!(!r.events_since(seen).iter().any(|e| matches!(e, DeviceEvent::Dpi { .. })));
+    }
+
+    #[test]
+    fn on_the_r1_ses_receiver_the_polling_rate_isnt_offered() {
+        // A VXE R1SE+ (PAW3395 SE) on its 1K receiver, which keeps the rate elsewhere.
+        let se = atk_catalog::MODELS.iter().find(|m| m.sensor == atk::Sensor::Paw3395Se).unwrap();
+        let mouse = SimMouse {
+            cid: se.cid,
+            mid: se.mid,
+            usb: (atk::VENDOR_ID, atk::R1_SE_RECEIVER),
+            device_type: atk::link::DONGLE_1K,
+            ..SimMouse::u2_plus()
+        };
+        let mut r = Rig::connected(stored_as(mouse, Method::Paw3395Se));
+        assert!(r.state().capabilities.unwrap().polling.is_none());
+        let mut next = r.settings();
+        next.polling_hz = Some(500);
+        assert!(r.w.apply_settings(&next).is_err(), "not written");
+        // Its DPI is offered.
+        assert_eq!(r.settings().dpi(), Some(800));
+    }
+
+    #[test]
+    fn a_dpi_its_method_cant_hold_is_refused() {
+        let mut r = Rig::connected(stored_as(SimMouse { mid: 124, ..SimMouse::u2_plus() }, Method::Ultra));
+        let mut next = r.settings();
+        next.stages.as_mut().unwrap()[0].dpi = 30050;
+        let e = r.w.apply_settings(&next).unwrap_err().to_string();
+        assert!(e.contains("between 50 and 30000"), "{e}");
     }
 
     #[test]

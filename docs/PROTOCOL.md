@@ -122,12 +122,21 @@ Default Z1 PRO MAX layout: 0 left, 1 right, 2 middle, 3 back, 4 forward, 5 DPI l
 
 ## ATK
 
-ATK's mice use this channel too: the same packets, checksum, commands and flash addresses. hrtz runs the ATK, VXE and MAD models whose sensor stores DPI as a Zaopin's does (PAW3395, PAW3395 Ultra, PAW3950, PAW3950 DM: 51 in ATK's app), listed in `src-tauri/src/mice/compx/atk_catalog.rs` from ATK HUB 3.2.32's own list. What differs, from OpenMouse's `mouse-protocol`, ATK's own app and two Inspect a mouse reports from an owner:
+ATK's mice use this channel too: the same packets, checksum, commands and flash addresses. hrtz runs every named ATK, VXE and MAD model in ATK HUB 3.2.32's own list (160), in `src-tauri/src/mice/compx/atk_catalog.rs`, and offers on each what its sensor allows (`atk::Sensor`). What differs, from OpenMouse's `mouse-protocol`, ATK's own app and two Inspect a mouse reports from an owner:
 
 - VID 0x373B. The U2 Plus's NearLink receiver is PID 0x10C9 ("NK mouse NANO dongle"); the mouse on its cable is 0x110D. Both have a second `0xFF02:0x02` collection with 19-byte reports (report 0x13); the settings channel is the one with report 0x08.
 - The model comes from command `0x10`, reply `[0]=CID [1]=MID` (the U2 Plus is CID 2, MID 78). ATK's app also sends the handshake (`0x01`, as a Zaopin's) and reads only its connection type, `[6]`: 0 a 1K receiver, 1 4K, 4 2K, 5 8K, 8 NearLink; 2 a cable at 1K, 3 at 8K, 6 at 2K, 7 at 4K (0 to 5 as a Zaopin's). It offers 125 to 1,000 Hz on all, up to 8,000 on 3, 5 and 8, 4,000 on 1 and 2,000 on 4. The polling codes at 0x00 are a Zaopin's.
 - Some ATK mice (VXE's R1 line, ATK's Dragonfly F1) are on CompX's own vendor ID, 0x3554, as Zaopin's are, several models to a product ID. hrtz sends them the handshake as it would a Zaopin, and takes one whose CID and MID are a model it runs, on a product ID ATK's app lists there, as an ATK.
 - Per model, from ATK's app: whether it has a DPI light (its colours and the light at 0x4C aren't offered or written without one), and whether 0 ms debounce is offered.
+- DPI stages by sensor (`atk_dpi.rs`; ATK HUB 3.2.32 and mouse-protocol's reading of 3.2.27 agree on these). A 4-byte stage is X, Y, a byte of two mode nibbles (X low, Y high) and a check byte:
+  - PAW3395, PAW3395 Ultra, PAW3950, PAW3950 DM: 50 per step, the count's top bits in nibble bits 2-3 (a Zaopin's); above 30,000 (PAW3950), 100 per step with bit 0.
+  - PAW3950 Ultra: 10 per step to 10,000, then `(dpi - 10050) / 50` with bit 1; above 30,000 halved with bit 0.
+  - PAW3395 SE: a table of 200 codes for 50 to 10,000 (1 to 235, skipping 35); above 10,000 halved with bit 1.
+  - PAW3955: 6-byte stages at 0x1B00 + 6i (8 of them): X and Y as `dpi - 1` in 16 bits, flags (bit 0 X doubled, bit 4 Y), check byte; `dpi / 2 - 1` with the flag from 40,000.
+  - Not settled, so not offered: PAW3311 and PAW3315 (ATK HUB 3.2.32 uses lookup tables, the SE's and its own; mouse-protocol counts 100 per step from 200) and CORE26K (ATK reads a step-100 and a doubled flag that mouse-protocol doesn't).
+- Lift-off on a PAW3950 Ultra and a PAW3955 is codes 1 to 11 for 0.7 to 1.7 mm, at the same 0x0A: code 2 is 0.8 mm there but 2 mm on a PAW3395.
+- The VXE R1 SE's 1K receiver (0x373B:0x1085) keeps the polling rate in a row of its own (mouse-protocol's "live settings"), not at 0x00: hrtz doesn't offer it there.
+- ATK's app writes in groups: the system row 0x00 to 0x09 whole (0x06 and 0x08 hold other settings, written back), the DPI stages and colours two at a time, a PAW3955's stages one at a time. hrtz does the same; mouse-protocol's captures of an R1 Pro Max agree.
 - `0x04` battery answers with a length of 2, so only its level and charging are read.
 - Writes are echoed, as a Zaopin's are. hrtz also reads each write back, and writes a whole field at a time, as ATK's app does.
 - The same as a Zaopin's: the system row (0x00, 0x02, 0x04), lift-off at 0x0A (1 = 1 mm, 2 = 2 mm, 3 = 0.7 mm on a PAW3950), the DPI stages (0x0C, up to six) and colours (0x2C), the DPI light (0x4C; ATK's app offers brightness 16, 128 and 255, speed 1, 3 and 5), debounce (0xA9; 0, 1, 2, 4, 8, 15 or 20 ms), motion sync (0xAB), straight-line correction (0xAF, a Zaopin's angle snapping) and ripple control (0xB1).

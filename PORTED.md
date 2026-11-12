@@ -18,6 +18,7 @@ keeps every port with its upstream commit, so later fixes there can be compared 
 | `src-tauri/src/mice/hidpp/fixtures.rs` | `src/drivers/logitech/onboard-profiles.test.ts` (the captures) | `c3b1bc20866fbef3a27b37ad020887607d6dbbf2` | 2026-10-18 |
 | `src-tauri/src/mice/hidpp/tests.rs` (the protocol and profile tests) | `src/drivers/logitech/hidpp.test.ts`, `onboard-profiles.test.ts` | `c3b1bc20866fbef3a27b37ad020887607d6dbbf2` | 2026-10-18 |
 | `src-tauri/src/mice/compx/atk.rs` | `src/drivers/atk/hid.ts`, `products.ts`, `device-catalog.generated.ts`, `src/atk/index.ts` | `c3b1bc20866fbef3a27b37ad020887607d6dbbf2` | 2026-11-10 |
+| `src-tauri/src/mice/compx/atk_dpi.rs` (each ATK sensor's DPI stage) | `src/atk/index.ts` | `c3b1bc20866fbef3a27b37ad020887607d6dbbf2` | 2026-11-13 |
 | `src-tauri/src/mice/compx/sim.rs` (the simulated ATK's answers and memory layout) | `captures/atk-a9-plus-nk/*.json` | `c3b1bc20866fbef3a27b37ad020887607d6dbbf2` | 2026-11-10 |
 
 Zaopin's protocol (`mice/compx/`) wasn't ported: it was worked out from the mouse itself and its own

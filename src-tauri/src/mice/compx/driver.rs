@@ -209,7 +209,7 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         let port = opened.port;
         #[cfg(not(windows))]
         let port = ();
-        return connect_atk(m, opened.family, receiver, None, port, board);
+        return connect_atk(m, opened.family, receiver, None, opened.product_id, port, board);
     }
     let nonce: [u8; 4] = rand_bytes();
     let r = m.transact(&p::packet(cmd::HANDSHAKE, 0, &nonce, Some(8)), REPLY_TIMEOUT)?;
@@ -222,7 +222,8 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         let port = opened.port;
         #[cfg(not(windows))]
         let port = ();
-        return connect_atk(m, opened.family, !atk::link::wired(device_type), Some(device_type), port, board);
+        let wired = atk::link::wired(device_type);
+        return connect_atk(m, opened.family, !wired, Some(device_type), opened.product_id, port, board);
     }
     if !models::is_zaopin(cid, mid) {
         board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
@@ -258,6 +259,7 @@ fn connect_atk(
     family: &'static str,
     receiver: bool,
     kind: Option<u8>,
+    product_id: u16,
     #[allow(unused_variables)] port: PortOf,
     board: &Board,
 ) -> Result<Box<dyn Driver>> {
@@ -281,6 +283,12 @@ fn connect_atk(
     if let Some(a) = m.atk.as_mut() {
         a.model = Some(model);
     }
+    // A PAW3955's stages are kept past a Zaopin's flash.
+    m.image.resize(atk::memory_len(model), 0xFF);
+    let mut caps = atk::capabilities(model, kind);
+    if product_id == atk::R1_SE_RECEIVER {
+        caps.polling = None;
+    }
     board.set(|s| {
         *s = DeviceState {
             key: Some(format!("{family}/{cid}-{mid}")),
@@ -290,7 +298,7 @@ fn connect_atk(
             cid,
             mid,
             device_type: kind,
-            capabilities: Some(atk::capabilities(model, kind)),
+            capabilities: Some(caps),
             #[cfg(windows)]
             port,
             ..Default::default()
@@ -333,6 +341,10 @@ impl Connected {
         let mut decoded = image::decode(&self.image);
         if let Some(model) = self.atk.as_ref().and_then(|a| a.model) {
             decoded = atk::offered(&decoded, model);
+            // Its stages' DPI as its sensor stores them.
+            if let Some(stages) = decoded.stages.as_mut() {
+                atk::read_stages(model, &self.image, stages);
+            }
         }
         board.set(|s| s.settings = Some(decoded));
     }
@@ -392,6 +404,11 @@ impl Connected {
         let profile = self.transact_simple(cmd::GET_PROFILE).ok();
         let region = self.read_flash(0, p::CONFIG_REGION)?;
         self.image[..p::CONFIG_REGION].copy_from_slice(&region);
+        // A PAW3955's stages, from 0x1B00.
+        if self.image.len() > p::FLASH_SIZE {
+            let rows = self.read_flash(p::FLASH_SIZE, self.image.len() - p::FLASH_SIZE)?;
+            self.image[p::FLASH_SIZE..].copy_from_slice(&rows);
+        }
         if let Some(a) = self.atk.as_mut() {
             a.looked = Instant::now();
         }
@@ -546,9 +563,10 @@ impl Connected {
             let r = self.read_flash(0x02, 4)?;
             self.image[0x02..0x06].copy_from_slice(&r);
             self.refresh_settings(board);
+            // Told only where the DPI is shown: not on an ATK whose DPI method isn't settled.
             let s = board.read().settings.clone();
-            if let Some(s) = s {
-                board.publish(Some(DeviceEvent::Dpi { stage: s.dpi_stage.unwrap_or(0), dpi: s.dpi().unwrap_or(0) }));
+            if let Some((stage, dpi)) = s.and_then(|s| Some((s.dpi_stage?, s.dpi()?))) {
+                board.publish(Some(DeviceEvent::Dpi { stage, dpi }));
             }
         }
         if bits & status::POLLING != 0 {
@@ -642,17 +660,42 @@ impl Driver for Connected {
         let caps = board.read().capabilities.clone().ok_or_else(|| anyhow!("unknown device"))?;
         // An ATK's other settings stay as the mouse holds them, whatever comes.
         let model = self.atk.as_ref().and_then(|a| a.model);
-        let offered;
-        let new = if let Some(m) = model {
-            offered = atk::offered(new, m);
-            &offered
-        } else if self.atk.is_some() {
+        if self.atk.is_some() && model.is_none() {
             bail!("The mouse hasn't said which model it is yet.");
+        }
+        let mut target;
+        if let Some(m) = model {
+            // Its stages' DPI goes as its sensor stores it: the rest (their colours too) as a
+            // Zaopin's, with each stage's DPI held as the Zaopin's decoding reads it, so that
+            // leaves the DPI alone.
+            let offered = atk::offered(new, m);
+            let was = board.read().settings.as_ref().and_then(|s| s.stages.clone()).unwrap_or_default();
+            let held = image::decode(&self.image).stages.unwrap_or_default();
+            let mut rest = offered.clone();
+            if let Some(stages) = rest.stages.as_mut() {
+                for (i, st) in stages.iter_mut().enumerate() {
+                    st.dpi = held.get(i).map_or(st.dpi, |h| h.dpi);
+                }
+            }
+            image::validate(&rest, &self.image, &caps).map_err(|e| anyhow!(e))?;
+            if let (Some(d), Some(now)) = (&caps.dpi, &offered.stages) {
+                for (i, st) in now.iter().enumerate() {
+                    let changed = was.get(i).map(|w| w.dpi) != Some(st.dpi);
+                    if changed && (st.dpi < d.min || st.dpi > d.max || !st.dpi.is_multiple_of(d.step)) {
+                        bail!("DPI must be between {} and {}, in steps of {}.", d.min, d.max, d.step);
+                    }
+                }
+            }
+            target = image::encode(&rest, &self.image);
+            target.resize(self.image.len(), 0xFF);
+            target[p::FLASH_SIZE..].copy_from_slice(&self.image[p::FLASH_SIZE..]);
+            if let Some(now) = &offered.stages {
+                atk::write_stages(m, &mut target, &was, now).map_err(|e| anyhow!(e))?;
+            }
         } else {
-            new
-        };
-        image::validate(new, &self.image, &caps).map_err(|e| anyhow!(e))?;
-        let target = image::encode(new, &self.image);
+            image::validate(new, &self.image, &caps).map_err(|e| anyhow!(e))?;
+            target = image::encode(new, &self.image);
+        }
         if let Some(m) = model {
             for (addr, len) in atk::fields(m) {
                 if target[addr..addr + len] != self.image[addr..addr + len] {
