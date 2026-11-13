@@ -101,13 +101,17 @@ decode: dpi = ((x | ((ex >> 6) << 8)) + 1) * 50
 
 ### DPI (PAW3311, the Z11)
 
-A table, not steps: the vendor driver's `driver_sensor.h` (`SENSOR_3311_DPI_<dpi>`) gives a code for each DPI from 50 to 10,000 in steps of 50, 200 in all, from 1 to 235 with 35 codes skipped (7, 13, 20, … every 6 or 7). `x = y = code`, `ex = 0`. The vendor app doubles a table DPI where `ex & 0x22`, and again where `ex & 0x11`; hrtz offers 50 to 10,000 only, where every source agrees. ATK's table for its PAW3395 SE is the same, code for code (`atk_dpi::Method::Table`).
+A table, not steps: the vendor driver's `driver_sensor.h` (`SENSOR_3311_DPI_<dpi>`) gives a code for each DPI from 50 to 10,000 in steps of 50, 200 in all, from 1 to 235 with 35 codes skipped (7, 13, 20, … every 6 or 7). `x = y = code`, `ex = 0`. Zaopin's web app (Control HUB WEB, controlhub.top/zaopin, `sensor.json`) has the same 200 codes and its ranges: 10,100 to 12,000 in steps of 100 as half the DPI with `ex = 0x22` (doubled), then 12,100 to 20,000 with `ex = 0x11` and 20,200 to 24,000 with `0x33`; its `cfg.json` gives the Z11 (MID 9) 12,000 at most, so hrtz offers 50 to 12,000. ATK's table for its PAW3395 SE is the same, code for code (`atk_dpi::Method::Table`).
+
+A DPI-lock button holds one code byte and no `ex`, so on a Z11 it goes to 10,000.
 
 A Z11 as it came (its owner's report): codes 31, 18, 9, 56, 75 and 150 at 0x0C, which are 1,350, 800, 400, 2,400, 3,200 and 6,400 DPI by the table (read 50 per step they'd be 1,600, 950, 500, 2,850, 3,800 and 7,550).
 
 ### What each sensor has
 
-From the vendor driver's `driver_sensor.h`: motion sync on the 3395 and 3950 only; the sensor mode, ripple control and angle snapping ("fixline") on the 3395, 3311, 3370, 3335 and 3950; lift-off calibration on the 3395, 3370, 3399, 3335 and 3950. hrtz offers the Z11 no motion sync and LP and HP only (Corded is the 3395's and 3950's), and a Zaopin it doesn't know none of these, nor its DPI.
+From the vendor driver's `driver_sensor.h`: motion sync on the 3395 and 3950 only; the sensor mode, ripple control and angle snapping ("fixline") on the 3395, 3311, 3370, 3335 and 3950; lift-off calibration on the 3395, 3370, 3399, 3335 and 3950. Zaopin's web app (`sensor.json`) agrees, and adds the 3955 and 8980: it shows lift-off only for the 3395, 3370, 3335, 3950, 3955 and 8980, so not on a 3311, and its sensor modes are LP, HP and Corded (Corded automatic). hrtz offers the Z11 no motion sync, no lift-off, and LP and HP, and a Zaopin it doesn't know none of these, nor its DPI.
+
+The web app's `cfg.json` lists Zaopin's models by MID with their sensors: 1 to 3, 7, 10 to 13 a 3395; 4 to 6, 8, 14 to 16 a 3950; 9 a 3311 (the Z11). It names none; hrtz knows 1 to 6 and 9.
 
 ### Buttons
 

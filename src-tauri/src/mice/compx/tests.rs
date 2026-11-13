@@ -160,12 +160,12 @@ fn a_z11_reads_and_writes_its_dpi_by_its_sensors_table() {
     let s = r.state();
     assert_eq!((s.model.as_deref(), s.key.as_deref()), (Some("Z11"), Some("compx/7-9")));
     let caps = s.capabilities.unwrap();
-    assert_eq!(caps.dpi.map(|d| d.max), Some(10000));
-    assert!(!caps.motion_sync && caps.angle_snapping);
+    assert_eq!(caps.dpi.map(|d| d.max), Some(12000));
+    assert!(!caps.motion_sync && caps.angle_snapping && caps.lod.is_none());
     let st = r.settings();
     let dpis: Vec<u32> = st.stages.as_ref().unwrap().iter().take(6).map(|x| x.dpi).collect();
     assert_eq!(dpis, [1350, 800, 400, 2400, 3200, 6400], "not 1,600, 950, 500, 2,850, 3,800, 7,550");
-    assert!(st.motion_sync.is_none(), "a PAW3311 has none");
+    assert!(st.motion_sync.is_none() && st.lod.is_none(), "a PAW3311 has neither");
     let mut next = st.clone();
     next.stages.as_mut().unwrap()[0].dpi = 1600;
     let (req, _) = r.mark();

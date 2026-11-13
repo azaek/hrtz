@@ -204,6 +204,7 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
             light: m.light,
             brightness_steps: m.light.then(|| BRIGHTNESS_STEPS.to_vec()),
             speeds: m.light.then(|| SPEEDS.to_vec()),
+            above: None,
         }),
         polling: Some(PollingCaps {
             rates: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= link::max_polling_hz(kind)).collect(),

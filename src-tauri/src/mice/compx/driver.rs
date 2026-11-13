@@ -715,7 +715,7 @@ impl Driver for Connected {
             if let (Some(d), Some(now)) = (&caps.dpi, &offered.stages) {
                 for (i, st) in now.iter().enumerate() {
                     let changed = was.get(i).map(|w| w.dpi) != Some(st.dpi);
-                    if changed && (st.dpi < d.min || st.dpi > d.max || !st.dpi.is_multiple_of(d.step)) {
+                    if changed && !d.holds(st.dpi) {
                         bail!("DPI must be between {} and {}, in steps of {}.", d.min, d.max, d.step);
                     }
                 }

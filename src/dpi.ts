@@ -1,8 +1,13 @@
 // DPI values for one mouse: its range and step, typed input, and where a new stage goes.
 
-/** A mouse's DPI range and step, from its capabilities. */
-export type DpiRange = { min: number; max: number; step: number };
-export const dpiRange = (dpi: DpiRange): DpiRange => ({ min: dpi.min, max: dpi.max, step: dpi.step });
+/** A mouse's DPI range and step, from its capabilities; `above`, a coarser step above a DPI. */
+export type DpiRange = { min: number; max: number; step: number; above?: { from: number; step: number } };
+export const dpiRange = (dpi: DpiRange): DpiRange => ({ min: dpi.min, max: dpi.max, step: dpi.step, above: dpi.above });
+
+/** The step at `v`: the coarser one above `above.from`. */
+export const stepAt = (r: DpiRange, v: number) => (r.above && v > r.above.from ? r.above.step : r.step);
+/** The step from `v` to its neighbour in `dir`. */
+export const stepNear = (r: DpiRange, v: number, dir: number) => stepAt(r, dir > 0 ? v + 1 : v);
 
 /** The values players use most. Drags settle on them. */
 export const COMMON_DPI = [400, 800, 1600, 3200, 6400];
@@ -11,7 +16,10 @@ export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.ma
 export const fmtDpi = (dpi: number) => dpi.toLocaleString("en-US");
 /** 1600 → "1.6K", 30000 → "30K", 800 → "800". */
 export const shortDpi = (dpi: number) => (dpi >= 1000 ? `${+(dpi / 1000).toFixed(dpi % 1000 ? 1 : 0)}K` : `${dpi}`);
-export const toStep = (r: DpiRange, v: number) => clamp(Math.round(v / r.step) * r.step, r.min, r.max);
+export const toStep = (r: DpiRange, v: number) => {
+  const s = stepAt(r, clamp(v, r.min, r.max));
+  return clamp(Math.round(v / s) * s, r.min, r.max);
+};
 
 /** "1600", "1,600", "1.6k", "800*2", "3200/2" → a number, or null. */
 export function parseDpi(text: string): number | null {
@@ -30,7 +38,8 @@ export function parseDpi(text: string): number | null {
 export function nextFree(r: DpiRange, v: number, taken: Set<number>, dir: 1 | -1): number {
   for (const d of [dir, -dir]) {
     let x = toStep(r, v);
-    while (taken.has(x) && x + d * r.step >= r.min && x + d * r.step <= r.max) x += d * r.step;
+    const next = () => x + d * stepNear(r, x, d);
+    while (taken.has(x) && next() >= r.min && next() <= r.max) x = next();
     if (!taken.has(x)) return x;
   }
   return toStep(r, v);

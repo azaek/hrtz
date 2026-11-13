@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
-import { clamp, fmtDpi, nextFree, parseDpi, toStep, type DpiRange } from "@/dpi";
+import { clamp, fmtDpi, nextFree, parseDpi, stepAt, stepNear, toStep, type DpiRange } from "@/dpi";
 import { cn } from "@/lib/utils";
 import { fieldLook } from "@/kit";
 
@@ -29,7 +29,7 @@ export function DpiField(props: {
   }, [props.value, focused]);
 
   const step = (dir: 1 | -1, big: boolean) => {
-    const v = nextFree(r, clamp(props.value + dir * (big ? 500 : r.step), r.min, r.max), props.taken, dir);
+    const v = nextFree(r, clamp(props.value + dir * (big ? 500 : stepNear(r, props.value, dir)), r.min, r.max), props.taken, dir);
     props.onChange(v);
     setText(String(v));
     props.onNote(null);
@@ -66,7 +66,7 @@ export function DpiField(props: {
         : raw < r.min
           ? { text: `The minimum is ${r.min}.` }
           : v !== raw
-            ? { text: `Rounded to ${fmtDpi(v)}, in steps of ${r.step}.` }
+            ? { text: `Rounded to ${fmtDpi(v)}, in steps of ${stepAt(r, v)}.` }
             : null,
     );
     setText(String(v));

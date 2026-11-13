@@ -61,8 +61,11 @@ pub fn encode_axis(method: Method, dpi: u32) -> Option<(u8, u8)> {
             }
         }
         Method::Table => {
-            let n = (dpi.is_multiple_of(50) && (50..=10000).contains(&dpi)).then_some(dpi / 50)?;
-            table_codes().nth(n as usize - 1).map(|code| (code, 0))
+            // Above 10,000, half of it doubled (bit 1), so in steps of 100.
+            let (half, nibble) =
+                if dpi > 10000 { (dpi.is_multiple_of(100) && dpi <= 20000).then_some((dpi / 2, 2))? } else { (dpi, 0) };
+            let n = (half.is_multiple_of(50) && (50..=10000).contains(&half)).then_some(half / 50)?;
+            table_codes().nth(n as usize - 1).map(|code| (code, nibble))
         }
         Method::Paw3955 => None,
     }
@@ -156,6 +159,12 @@ mod tests {
         assert_eq!(table_codes().count(), 200);
         assert_eq!(encode_stage(Method::Table, 10000).unwrap()[0], 235);
         assert!(encode_stage(Method::Table, 10050).is_none());
+        // Above 10,000, half of it with the doubling bit in both nibbles (0x22): Zaopin's web app
+        // offers a Z11 10,100 to 12,000 this way.
+        let half = encode_stage(Method::Table, 6000).unwrap()[0];
+        assert_eq!(encode_stage(Method::Table, 12000).unwrap()[..3], [half, half, 0x22]);
+        assert_eq!(decode_stage(Method::Table, &encode_stage(Method::Table, 10100).unwrap()), Some(10100));
+        assert!(encode_stage(Method::Table, 20100).is_none());
         assert_eq!(decode_axis(Method::Table, 235, 2), Some(20000));
         assert_eq!(decode_axis(Method::Table, 7, 0), None, "a skipped code");
     }

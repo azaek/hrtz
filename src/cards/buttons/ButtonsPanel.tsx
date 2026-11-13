@@ -126,7 +126,8 @@ export function ButtonsPanel({
               key={sel}
               action={shown}
               catalog={catalog}
-              maxDpi={caps.dpi?.max ?? 12800}
+              // A DPI lock is one code byte, so none of a sensor's doubled steps.
+              maxDpi={caps.dpi?.above?.from ?? caps.dpi?.max ?? 12800}
               disabled={off || onlyLeft}
               onChange={(a) => e.set(sel, a)}
               recordNow={e.waiting === sel}

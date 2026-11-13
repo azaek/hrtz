@@ -3,7 +3,7 @@
 use super::atk_dpi::Method;
 use super::image::{MAX_STAGES, PEAK_TIMEOUTS_S, POLLING, SLEEP_TIMES_S};
 use crate::mice::model::{
-    Capabilities, DpiCaps, Lod, PollingCaps, Range, SensorMode, SensorModeCaps, Settings, Supported,
+    Capabilities, DpiCaps, Lod, PollingCaps, Range, SensorMode, SensorModeCaps, Settings, StepsAbove, Supported,
 };
 
 /// Zaopin's maker ID, from the handshake: every Zaopin model has it.
@@ -18,7 +18,9 @@ pub fn is_zaopin(cid: u8, mid: u8) -> bool {
 }
 
 /// A Zaopin's sensor. MIDs 1 to 6 are the vendor app's list (its Config.ini); the Z11 (MID 9) is
-/// from its owner's report (Mayank_j, 2026-11-12).
+/// from its owner's report (Mayank_j, 2026-11-12) and Zaopin's web app (Control HUB WEB,
+/// controlhub.top/zaopin: its cfg.json and sensor.json, 2026-11-13). The web app lists more
+/// models (7, 8, 10 to 16) without names; hrtz doesn't know them yet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sensor {
     Paw3395,
@@ -84,21 +86,23 @@ pub fn link(device_type: u8) -> (bool, u32) {
 
 pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
     // PAW3950 models (the MAX line) go to 30K and down to 0.7 mm lift-off; PAW3395 models to 26K;
-    // the PAW3311 to 10,000, where the vendor's table of its codes stops (Zaopin sells the Z11 as
-    // 12,000, which would take the doubling flag: not offered until an owner's check confirms it).
-    // The vendor's sensor list (driver_sensor.h) offers motion sync on the PAW3395 and PAW3950 only,
-    // and the sensor mode, ripple control and angle snapping on all three. A model hrtz doesn't know
-    // may have any sensor, so none of these, and no DPI: its stages may be stored another way.
+    // the Z11's PAW3311 to 12,000, as Zaopin's web app offers it: its table in steps of 50 to
+    // 10,000, then half of it doubled, in steps of 100. Zaopin's sensor lists (the driver's
+    // driver_sensor.h, the web app's sensor.json) offer motion sync on the PAW3395 and PAW3950
+    // only, lift-off on those but not the PAW3311, and the sensor mode, ripple control and angle
+    // snapping on all three. A model hrtz doesn't know may have any sensor, so none of these, and
+    // no DPI: its stages may be stored another way.
     let sensor = sensor(mid);
     let (wired, max_polling_hz) = link(device_type);
-    let mut lod = vec![Lod::Mid, Lod::High];
-    if sensor == Some(Sensor::Paw3950) {
-        lod.insert(0, Lod::Low);
-    }
+    let lod = match sensor {
+        Some(Sensor::Paw3311) => None,
+        Some(Sensor::Paw3950) => Some(vec![Lod::Low, Lod::Mid, Lod::High]),
+        _ => Some(vec![Lod::Mid, Lod::High]),
+    };
     let max_dpi = sensor.map(|s| match s {
         Sensor::Paw3395 => 26000,
         Sensor::Paw3950 => 30000,
-        Sensor::Paw3311 => 10000,
+        Sensor::Paw3311 => 12000,
     });
     // Corded is the PAW3395's and PAW3950's: a PAW3311 has LP and HP.
     let paw3311 = sensor == Some(Sensor::Paw3311);
@@ -114,9 +118,10 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
             light: true,
             brightness_steps: None,
             speeds: None,
+            above: (sensor == Some(Sensor::Paw3311)).then_some(StepsAbove { from: 10000, step: 100 }),
         }),
         polling: Some(PollingCaps { rates: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= max_polling_hz).collect() }),
-        lod: Some(lod),
+        lod,
         sensor_mode: sensor.map(|_| SensorModeCaps {
             modes: if paw3311 {
                 vec![SensorMode::Lp, SensorMode::Hp]
@@ -162,6 +167,7 @@ pub fn offered(s: Settings, caps: &Capabilities) -> Settings {
         dpi_stage: s.dpi_stage.filter(|_| dpi),
         stages: s.stages.filter(|_| dpi),
         dpi_light: s.dpi_light.filter(|_| dpi),
+        lod: s.lod.filter(|_| caps.lod.is_some()),
         sensor_mode: s.sensor_mode.filter(|_| caps.sensor_mode.is_some()),
         motion_sync: s.motion_sync.filter(|_| caps.motion_sync),
         angle_snapping: s.angle_snapping.filter(|_| caps.angle_snapping),
@@ -210,13 +216,15 @@ mod tests {
         assert_eq!(dpi_method(9), Method::Table);
         assert_eq!(dpi_method(4), Method::Step50);
         let dpi = caps.dpi.unwrap();
-        assert_eq!((dpi.min, dpi.max, dpi.step), (50, 10000, 50));
-        // No motion sync on a PAW3311, as in the vendor's sensor list; no Corded mode.
+        assert_eq!((dpi.min, dpi.max, dpi.step), (50, 12000, 50));
+        assert!(dpi.holds(10000) && dpi.holds(10100) && dpi.holds(12000));
+        assert!(!dpi.holds(10050) && !dpi.holds(12100) && !dpi.holds(25));
+        // No motion sync or lift-off on a PAW3311, as in Zaopin's sensor lists; no Corded mode.
         assert!(!caps.motion_sync && caps.angle_snapping && caps.ripple_control);
         let mode = caps.sensor_mode.unwrap();
         assert_eq!(mode.modes, vec![SensorMode::Lp, SensorMode::Hp]);
         assert!(!mode.corded_when_wired && mode.corded_from_hz.is_none());
-        assert_eq!(caps.lod, Some(vec![Lod::Mid, Lod::High]));
+        assert_eq!(caps.lod, None);
         assert!(supported().iter().any(|m| m.key == "compx/7-9" && m.model == "Z11" && !m.tested));
     }
 

@@ -7,7 +7,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ## Unreleased
 
 ### New
-- The Zaopin Z11, not tested yet: its DPI stages (up to 10,000), polling rate, lift-off distance, sensor mode, debounce, angle snapping, ripple control, buttons and onboard profiles. Have one? Its Not tested badge opens a 2-minute check.
+- The Zaopin Z11, not tested yet, with Zaopin's own picture: its DPI stages (up to 12,000), polling rate, sensor mode, debounce, angle snapping, ripple control, buttons and onboard profiles. Have one? Its Not tested badge opens a 2-minute check.
 - 159 more ATK, VXE and MAD mice, not tested yet: every model in ATK's own app, among them VXE's R1 line, ATK's Dragonfly F1, X1, A9, U2, Y9 and F1, and the MAD R. Their polling rate (up to 8K on an 8K or NearLink receiver), debounce, motion sync, angle snapping, ripple control and the four onboard profiles; on most, the DPI stages and the DPI light; and lift-off where it's 1 or 2 mm (0.7 mm on a PAW3950). On models with a PAW3311, PAW3315 or CORE26K sensor, the DPI follows once an owner's check confirms how they keep it. Have one? Its Not tested badge opens a 2-minute check.
 
 ### Fixed

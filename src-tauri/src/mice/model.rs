@@ -267,6 +267,32 @@ pub struct DpiCaps {
     /// Its breathing speeds (of 1-5) likewise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speeds: Option<Vec<u8>>,
+    /// A coarser step above a DPI, where the sensor reaches a value by doubling half of it (a
+    /// PAW3311's 100 above 10,000): `step` up to `from`, this step above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub above: Option<StepsAbove>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct StepsAbove {
+    pub from: u32,
+    pub step: u32,
+}
+
+impl DpiCaps {
+    /// The step at `dpi`: `step`, or the coarser one above `above.from`.
+    pub fn step_at(&self, dpi: u32) -> u32 {
+        match self.above {
+            Some(a) if dpi > a.from => a.step,
+            _ => self.step,
+        }
+    }
+
+    /// Whether the mouse has `dpi`: in its range, on its step there.
+    pub fn holds(&self, dpi: u32) -> bool {
+        (self.min..=self.max).contains(&dpi) && dpi.is_multiple_of(self.step_at(dpi))
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

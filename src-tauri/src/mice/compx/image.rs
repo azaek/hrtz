@@ -394,7 +394,7 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities, method: Method
     if s.stages.len() != MAX_STAGES || s.buttons.len() != BUTTON_SLOTS {
         return Err("settings are incomplete".into());
     }
-    if s.lod != old.lod && caps.lod.as_ref().is_some_and(|l| !l.contains(&s.lod)) {
+    if s.lod != old.lod && caps.lod.as_ref().is_none_or(|l| !l.contains(&s.lod)) {
         return Err("this mouse doesn't have that lift-off distance".into());
     }
     // Only the steps the maker's app offers, where it offers some (an ATK's): a value it never
@@ -412,10 +412,14 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities, method: Method
         }
         // A stage left as the mouse holds it is fine, as for the polling rate.
         for (i, (st, _)) in s.stages.iter().zip(&old.stages).enumerate().filter(|(_, (st, was))| st != was) {
-            if st.dpi < dpi.min || st.dpi > dpi.max || st.dpi % dpi.step != 0 {
+            if !dpi.holds(st.dpi) {
+                let steps = match dpi.above {
+                    Some(a) => format!("{} up to {} and of {} above", dpi.step, a.from, a.step),
+                    None => dpi.step.to_string(),
+                };
                 return Err(format!(
-                    "{} DPI must be a multiple of {} between {} and {}",
-                    st.dpi, dpi.step, dpi.min, dpi.max
+                    "{} DPI must be a multiple of {steps}, between {} and {}",
+                    st.dpi, dpi.min, dpi.max
                 ));
             }
             if st.dpi != old.stages.get(i).map_or(0, |w| w.dpi) && stage_bytes(method, st.dpi).is_none() {
@@ -471,7 +475,7 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities, method: Method
             let Some(d) = caps.dpi.as_ref() else {
                 return Err("this mouse has no DPI stages".into());
             };
-            if *dpi < d.min || *dpi > d.max || dpi % d.step != 0 || lock_code(method, *dpi).is_none() {
+            if !d.holds(*dpi) || lock_code(method, *dpi).is_none() {
                 return Err(format!("{dpi} DPI can't be set on this mouse"));
             }
         }
@@ -797,9 +801,20 @@ mod tests {
             diff(&img, &out, 10),
             vec![(addr::DPI, vec![37, 37]), (addr::DPI + 3, vec![checksum(&[37, 37, 0])])]
         );
-        // Past the table's top.
-        next.stages[0].dpi = 10050;
-        assert!(validate_fields(&next, &s, &caps, Method::Table).is_err());
+        // 10,100 to 12,000 in steps of 100, doubled; not between, nor past the Z11's top.
+        next.stages[0].dpi = 12000;
+        validate_fields(&next, &s, &caps, Method::Table).unwrap();
+        let out = encode_fields(&next, &img, Method::Table);
+        assert_eq!(out[addr::DPI..addr::DPI + 4], atk_dpi::encode_stage(Method::Table, 12000).unwrap()[..]);
+        assert_eq!(decode_fields(&out, Method::Table).stages[0].dpi, 12000);
+        for dpi in [10050, 12100] {
+            next.stages[0].dpi = dpi;
+            assert!(validate_fields(&next, &s, &caps, Method::Table).is_err(), "{dpi}");
+        }
+        // A DPI lock is one code byte: no doubled steps.
+        let mut lock = s.clone();
+        lock.buttons[3] = ButtonAction::DpiLock { dpi: 10100 };
+        assert!(validate_fields(&lock, &s, &caps, Method::Table).is_err());
     }
 
     #[test]
@@ -837,6 +852,11 @@ mod tests {
             &|n| n.sensor_mode = if n.sensor_mode == SensorMode::Hp { SensorMode::Lp } else { SensorMode::Hp }
         ));
         assert!(refused(&|n| n.buttons[3] = ButtonAction::DpiLock { dpi: 800 }));
+        // The Z11 has no lift-off setting.
+        let z11 = super::super::models::capabilities(9, 2);
+        let mut next = s.clone();
+        next.lod = if next.lod == Lod::High { Lod::Mid } else { Lod::High };
+        assert!(validate_fields(&next, &s, &z11, Method::Step50).is_err());
         // What it offers is fine.
         assert!(!refused(&|n| n.debounce_ms = 4));
         assert!(!refused(&|n| n.polling_hz = 500));

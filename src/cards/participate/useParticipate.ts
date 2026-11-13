@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, message, type ButtonAction, type CaptureScreen, type DeviceState, type MeterSample, type Settings } from "@/api";
 import { useCapture, useHold } from "@/cards/lab/parts";
+import { dpiRange, stepNear } from "@/dpi";
 import { actionLabel } from "@/hid";
 import { useRawInput } from "@/rawInput";
 import { useStore } from "@/store";
@@ -159,7 +160,9 @@ export function useParticipate() {
       if (s?.stages && caps?.dpi) {
         const i = s.dpiStage ?? 0;
         const from = s.stages[i].dpi;
-        const to = from + caps.dpi.step <= caps.dpi.max ? from + caps.dpi.step : from - caps.dpi.step;
+        const r = dpiRange(caps.dpi);
+        const up = from + stepNear(r, from, 1);
+        const to = up <= r.max ? up : from - stepNear(r, from, -1);
         const after = await api.applySettings({ ...s, stages: s.stages.map((x, j) => (j === i ? { ...x, dpi: to } : x)) });
         const back = await api.applySettings(s);
         write = {
