@@ -1,6 +1,7 @@
 //! Typed view of the mouse flash image. Decoding falls back to the vendor app's defaults for fields
 //! whose check byte is invalid; encoding only touches the bytes of fields it knows about.
 
+use super::atk_dpi::{self, Method};
 use super::protocol::{CONFIG_REGION, FLASH_SIZE, checksum, group_valid};
 use crate::mice::model::{
     ButtonAction, Capabilities, DpiAction, DpiLight, DpiStage, LightEffect, Lod, MouseButton, ScrollDirection,
@@ -73,20 +74,33 @@ impl From<Fields> for Settings {
     }
 }
 
-/// The settings `f` holds.
+/// The settings `f` holds, its DPI read 50 per step (a PAW3395's or PAW3950's).
 pub fn decode(f: &[u8]) -> Settings {
-    decode_fields(f).into()
+    decode_as(f, Method::Step50)
+}
+
+/// The settings `f` holds, its DPI read as `method` keeps it.
+pub fn decode_as(f: &[u8], method: Method) -> Settings {
+    decode_fields(f, method).into()
 }
 
 /// Check `new` against the mouse's limits; a setting it leaves out keeps what `image` holds.
 pub fn validate(new: &Settings, image: &[u8], caps: &Capabilities) -> Result<(), String> {
-    let old = decode_fields(image);
-    validate_fields(&old.with(new), &old, caps)
+    validate_as(new, image, caps, Method::Step50)
+}
+
+pub fn validate_as(new: &Settings, image: &[u8], caps: &Capabilities, method: Method) -> Result<(), String> {
+    let old = decode_fields(image, method);
+    validate_fields(&old.with(new), &old, caps, method)
 }
 
 /// Write every setting `new` gives into a copy of `image`.
 pub fn encode(new: &Settings, image: &[u8]) -> Vec<u8> {
-    encode_fields(&decode_fields(image).with(new), image)
+    encode_as(new, image, Method::Step50)
+}
+
+pub fn encode_as(new: &Settings, image: &[u8], method: Method) -> Vec<u8> {
+    encode_fields(&decode_fields(image, method).with(new), image, method)
 }
 
 pub(crate) const POLLING: [(u32, u8); 7] =
@@ -147,6 +161,42 @@ pub fn dpi_encode(dpi: u32) -> (u8, u8) {
     (raw as u8, (hi << 2) | (hi << 6))
 }
 
+/// A stage's DPI from its 4 bytes, as `method` keeps it; None when its check byte is off or the
+/// method has no such code.
+fn stage_dpi(method: Method, b: &[u8]) -> Option<u32> {
+    match method {
+        Method::Step50 => group_valid(b).then(|| dpi_decode(b[0], b[2])),
+        _ => atk_dpi::decode_stage(method, b),
+    }
+}
+
+/// A stage of `dpi`, as `method` keeps it; None for a DPI it can't hold.
+fn stage_bytes(method: Method, dpi: u32) -> Option<[u8; 4]> {
+    match method {
+        Method::Step50 => {
+            let (x, ex) = dpi_encode(dpi);
+            Some([x, x, ex, checksum(&[x, x, ex])])
+        }
+        _ => atk_dpi::encode_stage(method, dpi).and_then(|b| b.try_into().ok()),
+    }
+}
+
+/// A DPI-lock button's DPI from its one code byte: 50 per step, or `method`'s code undoubled.
+fn lock_dpi(method: Method, code: u8) -> Option<u32> {
+    match method {
+        Method::Step50 => Some((code as u32 + 1) * 50),
+        _ => atk_dpi::decode_axis(method, code, 0),
+    }
+}
+
+/// The code byte for a DPI-lock button at `dpi`; None for a DPI one byte can't hold.
+fn lock_code(method: Method, dpi: u32) -> Option<u8> {
+    match method {
+        Method::Step50 => Some(dpi_encode(dpi).0),
+        _ => atk_dpi::encode_axis(method, dpi).filter(|(_, nibble)| *nibble == 0).map(|(code, _)| code),
+    }
+}
+
 fn polling_code(hz: u32) -> Option<u8> {
     POLLING.iter().find(|p| p.0 == hz).map(|p| p.1)
 }
@@ -172,14 +222,14 @@ fn decode_light(f: &[u8]) -> DpiLight {
     }
 }
 
-fn decode_fields(f: &[u8]) -> Fields {
+fn decode_fields(f: &[u8], method: Method) -> Fields {
     assert!(f.len() >= CONFIG_REGION.max(addr::SHORTCUTS + BUTTON_SLOTS * addr::SHORTCUT_LEN));
     let stage_count = pair(f, addr::STAGE_COUNT).filter(|n| (1..=8).contains(n)).unwrap_or(6);
     let stages = (0..MAX_STAGES)
         .map(|i| {
             let d = addr::DPI + 4 * i;
             let c = addr::DPI_COLOR + 4 * i;
-            let dpi = if group_valid(&f[d..d + 4]) { dpi_decode(f[d], f[d + 2]) } else { 1600 };
+            let dpi = stage_dpi(method, &f[d..d + 4]).unwrap_or(1600);
             let color = if group_valid(&f[c..c + 4]) { [f[c], f[c + 1], f[c + 2]] } else { [255, 255, 255] };
             DpiStage { dpi, color: format!("#{:02X}{:02X}{:02X}", color[0], color[1], color[2]) }
         })
@@ -207,11 +257,11 @@ fn decode_fields(f: &[u8]) -> Fields {
         peak_timeout_enabled: pair(f, addr::PEAK_ENABLE).is_some_and(|v| v != 0),
         peak_timeout_s: pair(f, addr::PEAK_TIMEOUT).unwrap_or(6) as u32 * 10,
         sleep_s: pair(f, addr::SLEEP).filter(|v| *v > 0).unwrap_or(10) as u32,
-        buttons: (0..BUTTON_SLOTS).map(|i| decode_button(f, i)).collect(),
+        buttons: (0..BUTTON_SLOTS).map(|i| decode_button(f, i, method)).collect(),
     }
 }
 
-fn decode_button(f: &[u8], i: usize) -> ButtonAction {
+fn decode_button(f: &[u8], i: usize, method: Method) -> ButtonAction {
     let a = addr::BUTTONS + 4 * i;
     if !group_valid(&f[a..a + 4]) {
         return ButtonAction::Disabled;
@@ -236,7 +286,7 @@ fn decode_button(f: &[u8], i: usize) -> ButtonAction {
         (5, _) => decode_keys(f, i),
         (6, _) => ButtonAction::Macro { slot: p1, repeat: p2 },
         (7, _) => ButtonAction::PollingSwitch,
-        (10, _) => ButtonAction::DpiLock { dpi: (p1 as u32 + 1) * 50 },
+        (10, _) => lock_dpi(method, p1).map_or(ButtonAction::Raw { code, p1, p2 }, |dpi| ButtonAction::DpiLock { dpi }),
         _ => ButtonAction::Raw { code, p1, p2 },
     }
 }
@@ -283,7 +333,7 @@ fn put_shortcut(f: &mut [u8], i: usize, events: &[[u8; 3]]) {
     f[end] = checksum(&f[s..end]);
 }
 
-fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction) {
+fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction, method: Method) {
     let (code, p1, p2) = match b {
         ButtonAction::Disabled => (0, 0, 0),
         ButtonAction::Mouse { button } => (
@@ -325,7 +375,8 @@ fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction) {
         }
         ButtonAction::Macro { slot, repeat } => (6, *slot, *repeat),
         ButtonAction::PollingSwitch => (7, 0, 0),
-        ButtonAction::DpiLock { dpi } => (10, dpi_encode(*dpi).0, 0),
+        // One `validate_fields` refuses can't come here.
+        ButtonAction::DpiLock { dpi } => (10, lock_code(method, *dpi).unwrap_or(0), 0),
         ButtonAction::Raw { code, p1, p2 } => (*code, *p1, *p2),
         // Refused by `validate_fields`.
         ButtonAction::Profile { .. } | ButtonAction::Vendor { .. } => (0, 0, 0),
@@ -334,7 +385,7 @@ fn encode_button(f: &mut [u8], i: usize, b: &ButtonAction) {
 }
 
 /// Validate `s` against device limits, returning a human-readable reason on failure.
-fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), String> {
+fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities, method: Method) -> Result<(), String> {
     // A rate above this link's limit may already be stored for the other link; keeping it is fine.
     let rates = caps.polling.as_ref().map_or(&[][..], |p| &p.rates[..]);
     if s.polling_hz != old.polling_hz && !rates.contains(&s.polling_hz) {
@@ -343,7 +394,7 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
     if s.stages.len() != MAX_STAGES || s.buttons.len() != BUTTON_SLOTS {
         return Err("settings are incomplete".into());
     }
-    if s.lod != old.lod && caps.lod.as_ref().is_some_and(|l| !l.contains(&s.lod)) {
+    if s.lod != old.lod && caps.lod.as_ref().is_none_or(|l| !l.contains(&s.lod)) {
         return Err("this mouse doesn't have that lift-off distance".into());
     }
     // Only the steps the maker's app offers, where it offers some (an ATK's): a value it never
@@ -360,12 +411,19 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
             return Err("DPI stage out of range".into());
         }
         // A stage left as the mouse holds it is fine, as for the polling rate.
-        for (st, _) in s.stages.iter().zip(&old.stages).filter(|(st, was)| st != was) {
-            if st.dpi < dpi.min || st.dpi > dpi.max || st.dpi % dpi.step != 0 {
+        for (i, (st, _)) in s.stages.iter().zip(&old.stages).enumerate().filter(|(_, (st, was))| st != was) {
+            if !dpi.holds(st.dpi) {
+                let steps = match dpi.above {
+                    Some(a) => format!("{} up to {} and of {} above", dpi.step, a.from, a.step),
+                    None => dpi.step.to_string(),
+                };
                 return Err(format!(
-                    "{} DPI must be a multiple of {} between {} and {}",
-                    st.dpi, dpi.step, dpi.min, dpi.max
+                    "{} DPI must be a multiple of {steps}, between {} and {}",
+                    st.dpi, dpi.min, dpi.max
                 ));
+            }
+            if st.dpi != old.stages.get(i).map_or(0, |w| w.dpi) && stage_bytes(method, st.dpi).is_none() {
+                return Err(format!("{} DPI can't be set on this mouse", st.dpi));
             }
             parse_color(&st.color).ok_or_else(|| format!("{} is not a #RRGGBB colour", st.color))?;
         }
@@ -383,6 +441,20 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
         // Where no DPI is offered (an ATK whose DPI method isn't settled), nothing of it changes.
         return Err("this mouse has no DPI stages".into());
     }
+    // What the model doesn't offer stays as the mouse holds it.
+    for (changed, offered, what) in [
+        (s.motion_sync != old.motion_sync, caps.motion_sync, "motion sync"),
+        (s.angle_snapping != old.angle_snapping, caps.angle_snapping, "angle snapping"),
+        (s.ripple_control != old.ripple_control, caps.ripple_control, "ripple control"),
+    ] {
+        if changed && !offered {
+            return Err(format!("this mouse doesn't offer {what}"));
+        }
+    }
+    if s.sensor_mode != old.sensor_mode && !caps.sensor_mode.as_ref().is_some_and(|m| m.modes.contains(&s.sensor_mode))
+    {
+        return Err("this mouse doesn't have that sensor mode".into());
+    }
     if s.debounce_ms > 20 {
         return Err("debounce must be 0-20 ms".into());
     }
@@ -395,7 +467,18 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities) -> Result<(), 
     if !(1..=255).contains(&s.sleep_s) {
         return Err("sleep must be 1-255 s".into());
     }
-    for b in &s.buttons {
+    for (i, b) in s.buttons.iter().enumerate() {
+        // A DPI lock only where the DPI is offered, at a DPI it holds.
+        if let ButtonAction::DpiLock { dpi } = b
+            && old.buttons.get(i) != Some(b)
+        {
+            let Some(d) = caps.dpi.as_ref() else {
+                return Err("this mouse has no DPI stages".into());
+            };
+            if !d.holds(*dpi) || lock_code(method, *dpi).is_none() {
+                return Err(format!("{dpi} DPI can't be set on this mouse"));
+            }
+        }
         if let ButtonAction::Keys { modifiers, keys } = b
             && modifiers.count_ones() as usize + keys.len() > 3
         {
@@ -424,9 +507,9 @@ fn parse_color(c: &str) -> Option<[u8; 3]> {
 }
 
 /// Write every modelled field of `s` into a copy of `image`.
-fn encode_fields(s: &Fields, image: &[u8]) -> Vec<u8> {
+fn encode_fields(s: &Fields, image: &[u8], method: Method) -> Vec<u8> {
     let mut f = image.to_vec();
-    let old = decode_fields(image);
+    let old = decode_fields(image, method);
     // Only fields the caller changed are written, so invalid-but-untouched bytes stay as they are.
     let mut pair_if = |changed: bool, a: usize, v: u8| {
         if changed {
@@ -473,9 +556,11 @@ fn encode_fields(s: &Fields, image: &[u8]) -> Vec<u8> {
     // A stage's DPI and its colour each only when it changed: an ATK's colours aren't offered.
     for (i, st) in s.stages.iter().enumerate().take(MAX_STAGES) {
         let was = old.stages.get(i);
-        if was.map(|w| w.dpi) != Some(st.dpi) {
-            let (x, ex) = dpi_encode(st.dpi);
-            put_triple(&mut f, addr::DPI + 4 * i, [x, x, ex]);
+        // One `validate_fields` refuses can't come here.
+        if was.map(|w| w.dpi) != Some(st.dpi)
+            && let Some(b) = stage_bytes(method, st.dpi)
+        {
+            f[addr::DPI + 4 * i..addr::DPI + 4 * i + 4].copy_from_slice(&b);
         }
         if was.map(|w| &w.color) != Some(&st.color) {
             put_triple(&mut f, addr::DPI_COLOR + 4 * i, parse_color(&st.color).unwrap_or([255, 255, 255]));
@@ -483,7 +568,7 @@ fn encode_fields(s: &Fields, image: &[u8]) -> Vec<u8> {
     }
     for (i, b) in s.buttons.iter().enumerate().take(BUTTON_SLOTS) {
         if old.buttons.get(i) != Some(b) {
-            encode_button(&mut f, i, b);
+            encode_button(&mut f, i, b, method);
         }
     }
     f
@@ -585,7 +670,7 @@ mod tests {
 
     #[test]
     fn decodes_a_z1_pro_max_image() {
-        let s = decode_fields(&FIXTURE);
+        let s = decode_fields(&FIXTURE, Method::Step50);
         assert_eq!(s.polling_hz, 4000);
         assert_eq!(s.dpi_stage_count, 4);
         assert_eq!(s.dpi_stage, 1);
@@ -613,40 +698,40 @@ mod tests {
 
     #[test]
     fn unchanged_settings_encode_to_identical_image() {
-        let s = decode_fields(&FIXTURE);
-        assert!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10).is_empty());
+        let s = decode_fields(&FIXTURE, Method::Step50);
+        assert!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE, Method::Step50), 10).is_empty());
     }
 
     #[test]
     fn single_change_produces_single_write() {
-        let mut s = decode_fields(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE, Method::Step50);
         s.debounce_ms = 4;
-        let d = diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10);
+        let d = diff(&FIXTURE, &encode_fields(&s, &FIXTURE, Method::Step50), 10);
         assert_eq!(d, vec![(0xA9, vec![4, 0x51])]);
     }
 
     #[test]
     fn sleep_after_writes_its_own_pair() {
-        let mut s = decode_fields(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE, Method::Step50);
         s.sleep_s = 30;
-        assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10), vec![(0xBB, vec![30, 0x37])]);
+        assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE, Method::Step50), 10), vec![(0xBB, vec![30, 0x37])]);
         s.sleep_s = 120;
-        assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE), 10), vec![(0xBB, vec![120, 0xDD])]);
+        assert_eq!(diff(&FIXTURE, &encode_fields(&s, &FIXTURE, Method::Step50), 10), vec![(0xBB, vec![120, 0xDD])]);
     }
 
     #[test]
     fn dpi_light_reads_and_writes_only_what_changed() {
-        let light = decode_fields(&FIXTURE).dpi_light;
+        let light = decode_fields(&FIXTURE, Method::Step50).dpi_light;
         assert_eq!(light, DpiLight { effect: LightEffect::Steady, brightness: 5, speed: 3 });
         let with = |l: DpiLight, img: &[u8]| {
-            let mut s = decode_fields(img);
+            let mut s = decode_fields(img, Method::Step50);
             s.dpi_light = l;
-            encode_fields(&s, img)
+            encode_fields(&s, img, Method::Step50)
         };
         // Off clears the switch and keeps the effect, as the vendor app does.
         let off = with(DpiLight { effect: LightEffect::Off, ..light }, &FIXTURE);
         assert_eq!(diff(&FIXTURE, &off, 10), vec![(0x52, vec![0, 0x55])]);
-        assert_eq!(decode_fields(&off).dpi_light.effect, LightEffect::Off);
+        assert_eq!(decode_fields(&off, Method::Step50).dpi_light.effect, LightEffect::Off);
         let breathing = with(DpiLight { effect: LightEffect::Breathing, ..light }, &off);
         assert_eq!(diff(&off, &breathing, 2), vec![(0x4C, vec![2, 0x53]), (0x52, vec![1, 0x54])]);
         let bright = with(DpiLight { brightness: 10, ..light }, &FIXTURE);
@@ -659,7 +744,7 @@ mod tests {
     fn a_dpi_light_with_a_bad_check_byte_reads_as_off() {
         let mut img = FIXTURE.clone();
         img[0x53] ^= 1;
-        assert_eq!(decode_fields(&img).dpi_light.effect, LightEffect::Off);
+        assert_eq!(decode_fields(&img, Method::Step50).dpi_light.effect, LightEffect::Off);
     }
 
     #[test]
@@ -672,20 +757,108 @@ mod tests {
 
     #[test]
     fn key_combo_round_trips() {
-        let mut s = decode_fields(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE, Method::Step50);
         // Ctrl + Shift + Esc
         s.buttons[3] = ButtonAction::Keys { modifiers: 0x03, keys: vec![41] };
-        let img = encode_fields(&s, &FIXTURE);
-        assert_eq!(decode_fields(&img).buttons[3], s.buttons[3]);
+        let img = encode_fields(&s, &FIXTURE, Method::Step50);
+        assert_eq!(decode_fields(&img, Method::Step50).buttons[3], s.buttons[3]);
         let slot = shortcut_slot(3);
         assert_eq!(img[slot], 6);
     }
 
     #[test]
     fn media_key_round_trips() {
-        let mut s = decode_fields(&FIXTURE);
+        let mut s = decode_fields(&FIXTURE, Method::Step50);
         s.buttons[4] = ButtonAction::Media { usage: 0x00CD };
-        let img = encode_fields(&s, &FIXTURE);
-        assert_eq!(decode_fields(&img).buttons[4], s.buttons[4]);
+        let img = encode_fields(&s, &FIXTURE, Method::Step50);
+        assert_eq!(decode_fields(&img, Method::Step50).buttons[4], s.buttons[4]);
+    }
+
+    /// The test image with the stages a Z11 came with (Mayank_j's report, 2026-11-12): codes 31,
+    /// 18, 9, 56, 75 and 150, mode byte 0.
+    fn z11_image() -> Vec<u8> {
+        let mut f = FIXTURE.clone();
+        for (i, code) in [31u8, 18, 9, 56, 75, 150, 150, 150].into_iter().enumerate() {
+            f[addr::DPI + 4 * i..addr::DPI + 4 * i + 4].copy_from_slice(&[code, code, 0, checksum(&[code, code, 0])]);
+        }
+        f
+    }
+
+    #[test]
+    fn a_z11_keeps_its_dpi_in_the_paw3311_table() {
+        let img = z11_image();
+        let dpis = |s: &Fields| s.stages.iter().map(|x| x.dpi).collect::<Vec<_>>();
+        // As the vendor's table reads them, not 50 per step (1,600, 950, 500, 2,850, 3,800, 7,550).
+        let s = decode_fields(&img, Method::Table);
+        assert_eq!(dpis(&s), [1350, 800, 400, 2400, 3200, 6400, 6400, 6400]);
+        let mut next = s.clone();
+        next.stages[0].dpi = 1600;
+        let caps = super::super::models::capabilities(9, 2);
+        validate_fields(&next, &s, &caps, Method::Table).unwrap();
+        let out = encode_fields(&next, &img, Method::Table);
+        // Only what changed: X and Y, then the check byte (the mode byte stays 0).
+        assert_eq!(
+            diff(&img, &out, 10),
+            vec![(addr::DPI, vec![37, 37]), (addr::DPI + 3, vec![checksum(&[37, 37, 0])])]
+        );
+        // 10,100 to 12,000 in steps of 100, doubled; not between, nor past the Z11's top.
+        next.stages[0].dpi = 12000;
+        validate_fields(&next, &s, &caps, Method::Table).unwrap();
+        let out = encode_fields(&next, &img, Method::Table);
+        assert_eq!(out[addr::DPI..addr::DPI + 4], atk_dpi::encode_stage(Method::Table, 12000).unwrap()[..]);
+        assert_eq!(decode_fields(&out, Method::Table).stages[0].dpi, 12000);
+        for dpi in [10050, 12100] {
+            next.stages[0].dpi = dpi;
+            assert!(validate_fields(&next, &s, &caps, Method::Table).is_err(), "{dpi}");
+        }
+        // A DPI lock is one code byte: no doubled steps.
+        let mut lock = s.clone();
+        lock.buttons[3] = ButtonAction::DpiLock { dpi: 10100 };
+        assert!(validate_fields(&lock, &s, &caps, Method::Table).is_err());
+    }
+
+    #[test]
+    fn a_dpi_lock_button_goes_by_the_same_table() {
+        let img = z11_image();
+        let s = decode_fields(&img, Method::Table);
+        let caps = super::super::models::capabilities(9, 2);
+        let mut next = s.clone();
+        next.buttons[3] = ButtonAction::DpiLock { dpi: 800 };
+        validate_fields(&next, &s, &caps, Method::Table).unwrap();
+        let out = encode_fields(&next, &img, Method::Table);
+        let a = addr::BUTTONS + 4 * 3;
+        assert_eq!(out[a..a + 3], [10, 18, 0]);
+        assert_eq!(decode_fields(&out, Method::Table).buttons[3], ButtonAction::DpiLock { dpi: 800 });
+        // A code the table skips is left as it is.
+        let mut skipped = out.clone();
+        put_triple(&mut skipped, a, [10, 7, 0]);
+        assert_eq!(decode_fields(&skipped, Method::Table).buttons[3], ButtonAction::Raw { code: 10, p1: 7, p2: 0 });
+    }
+
+    #[test]
+    fn what_a_model_doesnt_offer_is_refused() {
+        let s = decode_fields(&FIXTURE, Method::Step50);
+        // A Zaopin hrtz doesn't know: no DPI, no motion sync, no sensor mode.
+        let caps = super::super::models::capabilities(10, 2);
+        let refused = |change: &dyn Fn(&mut Fields)| {
+            let mut next = s.clone();
+            change(&mut next);
+            validate_fields(&next, &s, &caps, Method::Step50).is_err()
+        };
+        assert!(refused(&|n| n.stages[0].dpi = 800));
+        assert!(refused(&|n| n.motion_sync = !n.motion_sync));
+        assert!(refused(&|n| n.angle_snapping = !n.angle_snapping));
+        assert!(refused(
+            &|n| n.sensor_mode = if n.sensor_mode == SensorMode::Hp { SensorMode::Lp } else { SensorMode::Hp }
+        ));
+        assert!(refused(&|n| n.buttons[3] = ButtonAction::DpiLock { dpi: 800 }));
+        // The Z11 has no lift-off setting.
+        let z11 = super::super::models::capabilities(9, 2);
+        let mut next = s.clone();
+        next.lod = if next.lod == Lod::High { Lod::Mid } else { Lod::High };
+        assert!(validate_fields(&next, &s, &z11, Method::Step50).is_err());
+        // What it offers is fine.
+        assert!(!refused(&|n| n.debounce_ms = 4));
+        assert!(!refused(&|n| n.polling_hz = 500));
     }
 }

@@ -83,6 +83,9 @@ export interface Capabilities {
     brightnessSteps?: number[];
     /** Its breathing speeds (of 1-5) likewise. */
     speeds?: number[];
+    /** A coarser step above a DPI, where the sensor doubles half of the value (a PAW3311's 100
+     *  above 10,000): `step` up to `from`, this step above. */
+    above?: { from: number; step: number };
   };
   /** The rates this connection carries, lowest first. The mouse may hold a higher one, set for its
    *  other connection. */

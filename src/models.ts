@@ -8,6 +8,7 @@ import mid3 from "./assets/models/mid3.png";
 import mid4 from "./assets/models/mid4.png";
 import mid5 from "./assets/models/mid5.png";
 import mid6 from "./assets/models/mid6.png";
+import mid9 from "./assets/models/mid9.png";
 import atkU2PlusBlack from "./assets/models/atk-u2-plus-black.webp";
 import superlightBlack from "./assets/models/superlight-black.webp";
 import superlightMagenta from "./assets/models/superlight-magenta.webp";
@@ -64,7 +65,8 @@ export const backupFits = (b: { key: string | null; model: string }, d: { key?: 
 export const ofModel = (key: string | null | undefined, model: string): boolean => !!key && (key === model || key.startsWith(`${model}/`));
 
 /** How far hrtz is with a mouse it runs: tried on the real model, listed but not tried yet, or a
- *  model it doesn't know (a Zaopin with another MID: not supported yet, run with cautious limits).
+ *  model it doesn't know (a Zaopin with another MID: not supported yet, run without its DPI and
+ *  what depends on its sensor).
  *  A simulated mouse (`sim/…`) counts as the real model. Nothing for a receiver with no mouse. */
 export type Support = "tested" | "untested" | "unknown";
 export const supportOf = (key: string | null | undefined, supported: { key: string; tested: boolean }[]): Support | undefined => {
@@ -97,6 +99,9 @@ export const MODEL_ART: Record<number, ModelArt> = {
   4: { name: "Z1 PRO MAX", image: mid4, size: [298, 263], hotspots: {"0": [105, 203], "1": [34, 163], "2": [91, 134], "4": [216, 166], "3": [253, 131], "5": [180, 128], "13": [290, 236], "14": [246, 236], "15": [202, 236]} },
   5: { name: "Z2 MAX", image: mid5, size: [310, 276], hotspots: {"0": [99, 218], "1": [34, 183], "2": [86, 157], "4": [208, 165], "3": [240, 131], "5": [213, 210], "13": [294, 237], "14": [250, 237], "15": [206, 237]} },
   6: { name: "Z2 mini MAX", image: mid6, size: [308, 293], hotspots: {"0": [96, 240], "1": [32, 196], "2": [88, 177], "4": [205, 186], "3": [231, 141], "5": [167, 167], "13": [291, 251], "14": [247, 251], "15": [203, 251]} },
+  // Zaopin's web app's render (Control HUB WEB, img/devices/mouse/0709.png), scaled into the frame;
+  // the positions measured on it. Its DPI button is underneath.
+  9: { name: "Z11", image: mid9, size: [298, 263], hotspots: {"0": [135, 160], "1": [40, 140], "2": [82, 152], "4": [190, 170], "3": [224, 142]} },
 };
 
 /** An ATK's picture by its CID and MID: ATK's own top view from its app (ATK HUB), turned into the

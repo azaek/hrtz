@@ -60,7 +60,7 @@ export function summaryLines(c: Checks): Line[] {
     lines.push({ ok: seen.length === seeable.length, text: `Buttons: ${seen.length} of ${seeable.length} seen` });
     for (const b of seeable.filter((x) => !x.seen)) lines.push({ ok: false, text: `${b.name}: no press seen (set to ${b.does})` });
   }
-  for (const b of c.buttons.filter((x) => x.seen === null)) lines.push({ ok: null, text: `${b.name} is set to ${b.does}, which hrtz can't see` });
+  for (const b of c.buttons.filter((x) => x.seen === null)) lines.push({ ok: null, text: b.why ? `${b.name}: ${b.why}` : `${b.name} is set to ${b.does}, which hrtz can't see` });
   if (c.write) {
     const w = c.write;
     lines.push(

@@ -101,6 +101,26 @@ impl SimMouse {
 
     /// A VXE R1 PRO (PAW3395) on its 8K receiver, under CompX's vendor ID as VXE's R1 line is,
     /// answering as an ATK does: otherwise the U2 Plus's image.
+    /// A Zaopin Z11 (PAW3311) on its cable, awake, on profile 1, with the test image in all four but
+    /// for its stages: 1,350, 800, 400, 2,400, 3,200 and 6,400 DPI kept in its sensor's table, as
+    /// Mayank_j's came (his report, 2026-11-12).
+    pub fn z11() -> Self {
+        let mut f = sample_image();
+        for (i, dpi) in [1350u32, 800, 400, 2400, 3200, 6400, 6400, 6400].into_iter().enumerate() {
+            let stage = super::atk_dpi::encode_stage(super::atk_dpi::Method::Table, dpi).expect("in the table");
+            f[0x0C + 4 * i..0x0C + 4 * i + 4].copy_from_slice(&stage);
+        }
+        Self {
+            usb: (p::VENDOR_ID, 0xF511),
+            mid: 9,
+            device_type: 2,
+            firmware: [0x03, 0x13],
+            battery: (99, true, 4298),
+            profiles: vec![f; 4],
+            ..Default::default()
+        }
+    }
+
     pub fn r1_pro() -> Self {
         Self { usb: (p::VENDOR_ID, 0xF58C), mid: 7, device_type: 5, ..Self::u2_plus() }
     }
@@ -400,8 +420,8 @@ fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Re
     connect(opened, board)
 }
 
-/// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, `u2plus`
-/// or `r1pro` for an ATK, `unknown` for a Zaopin model hrtz doesn't know, or several, comma-separated), to try
+/// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, `z11`,
+/// `u2plus` or `r1pro` for an ATK, `unknown` for a Zaopin model hrtz doesn't know, or several, comma-separated), to try
 /// several mice with one. Their keys start `sim/`, so they never take over
 /// what a real Zaopin keeps.
 pub struct SimFamily {
@@ -425,7 +445,8 @@ impl SimFamily {
                     "z1promax" => SimMouse::default(),
                     "u2plus" => SimMouse::u2_plus(),
                     "r1pro" => SimMouse::r1_pro(),
-                    "unknown" => SimMouse { mid: 9, device_type: 0, battery: (72, false, 3900), ..Default::default() },
+                    "z11" => SimMouse::z11(),
+                    "unknown" => SimMouse { mid: 10, device_type: 0, battery: (72, false, 3900), ..Default::default() },
                     _ => return None,
                 };
                 Some((format!("sim:{}", n.trim()), Arc::new(Mutex::new(m))))

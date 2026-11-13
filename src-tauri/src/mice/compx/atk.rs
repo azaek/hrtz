@@ -59,7 +59,7 @@ impl Sensor {
         match self {
             Sensor::Paw3395 | Sensor::Paw3395Ultra | Sensor::Paw3950 | Sensor::Paw3950Dm => Some(Method::Step50),
             Sensor::Paw3950Ultra => Some(Method::Ultra),
-            Sensor::Paw3395Se => Some(Method::Paw3395Se),
+            Sensor::Paw3395Se => Some(Method::Table),
             Sensor::Paw3955 => Some(Method::Paw3955),
             Sensor::Paw3311 | Sensor::Paw3315 | Sensor::Core26k => None,
         }
@@ -204,6 +204,7 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
             light: m.light,
             brightness_steps: m.light.then(|| BRIGHTNESS_STEPS.to_vec()),
             speeds: m.light.then(|| SPEEDS.to_vec()),
+            above: None,
         }),
         polling: Some(PollingCaps {
             rates: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= link::max_polling_hz(kind)).collect(),
