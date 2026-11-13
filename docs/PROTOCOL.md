@@ -8,10 +8,12 @@ Commands marked **do not use** can change the device's identity or put it into f
 
 | | VID | PID | Notes |
 |---|---|---|---|
-| Mouse (wired) | 0x3554 | 0xF526, 0xF50F | |
-| Dongle | 0x3554 | 0xF524, 0xF50D, 0xF527 | F527 = 8K dongle (CH32V305) |
+| Mouse (wired) | 0x3554 | 0xF526, 0xF50F, 0xF511 | F511 = a Z11 ("2.4G Dual Mode Mouse") |
+| Dongle | 0x3554 | 0xF524, 0xF50D, 0xF527, 0xF5D5 | F527 = 8K dongle (CH32V305); F5D5 = a Z11's 1K receiver ("2.4G Wireless Receiver") |
 
-Models are identified by `CID`/`MID` from the handshake, not by PID. CID 7 = Zaopin. MID: 1 ZI PRO, 2 Z2, 3 Z2 mini, 4 Z1 PRO MAX, 5 Z2 MAX, 6 Z2 mini MAX. Device type 5 = 8K dongle.
+Models are identified by `CID`/`MID` from the handshake, not by PID. CID 7 = Zaopin. MID: 1 ZI PRO, 2 Z2, 3 Z2 mini, 4 Z1 PRO MAX, 5 Z2 MAX, 6 Z2 mini MAX (the vendor app's list), 9 Z11 (PAW3311, from an owner's report, 2026-11-12). Device type 5 = 8K dongle.
+
+A Z11's receiver (F5D5) answered the handshake with CID 0 and MID 0 while the Z11 was paired, likely while it slept (it sleeps after 10 s). hrtz takes 0, 0 as a receiver with no mouse paired, and asks again once the receiver says a mouse is there.
 
 ## Transport
 
@@ -97,6 +99,16 @@ decode: dpi = ((x | ((ex >> 6) << 8)) + 1) * 50
 
 `ex & 0x22` switches to 100-DPI steps and `ex & 0x11` to doubling; neither is used on the 3395/3950.
 
+### DPI (PAW3311, the Z11)
+
+A table, not steps: the vendor driver's `driver_sensor.h` (`SENSOR_3311_DPI_<dpi>`) gives a code for each DPI from 50 to 10,000 in steps of 50, 200 in all, from 1 to 235 with 35 codes skipped (7, 13, 20, … every 6 or 7). `x = y = code`, `ex = 0`. The vendor app doubles a table DPI where `ex & 0x22`, and again where `ex & 0x11`; hrtz offers 50 to 10,000 only, where every source agrees. ATK's table for its PAW3395 SE is the same, code for code (`atk_dpi::Method::Table`).
+
+A Z11 as it came (its owner's report): codes 31, 18, 9, 56, 75 and 150 at 0x0C, which are 1,350, 800, 400, 2,400, 3,200 and 6,400 DPI by the table (read 50 per step they'd be 1,600, 950, 500, 2,850, 3,800 and 7,550).
+
+### What each sensor has
+
+From the vendor driver's `driver_sensor.h`: motion sync on the 3395 and 3950 only; the sensor mode, ripple control and angle snapping ("fixline") on the 3395, 3311, 3370, 3335 and 3950; lift-off calibration on the 3395, 3370, 3399, 3335 and 3950. hrtz offers the Z11 no motion sync and LP and HP only (Corded is the 3395's and 3950's), and a Zaopin it doesn't know none of these, nor its DPI.
+
 ### Buttons
 
 `type`: 0 disabled, 1 mouse button, 2 DPI, 3 horizontal scroll, 4 fire key, 5 shortcut/media, 6 macro, 7 polling-rate switch, 8 lighting, 9 profile switch, 10 DPI lock, 11 vertical scroll.
@@ -106,7 +118,7 @@ decode: dpi = ((x | ((ex >> 6) << 8)) + 1) * 50
 - type 3 / 11: `p1` = 1 left/up, 2 right/down
 - type 4: `p1` = interval (10-255 ms), `p2` = repeat count (0 = while held)
 - type 6: `p1` = macro slot, `p2` = repeat count / cycle mode
-- type 10: `p1` = (DPI / 50) - 1
+- type 10: `p1` = (DPI / 50) - 1, or the table's code on a PAW3311
 - type 5: the action lives in the shortcut slot for this button
 
 Default Z1 PRO MAX layout: 0 left, 1 right, 2 middle, 3 back, 4 forward, 5 DPI loop.
@@ -133,7 +145,7 @@ ATK's mice use this channel too: the same packets, checksum, commands and flash 
   - PAW3950 Ultra: 10 per step to 10,000, then `(dpi - 10050) / 50` with bit 1; above 30,000 halved with bit 0.
   - PAW3395 SE: a table of 200 codes for 50 to 10,000 (1 to 235, skipping 35); above 10,000 halved with bit 1.
   - PAW3955: 6-byte stages at 0x1B00 + 6i (8 of them): X and Y as `dpi - 1` in 16 bits, flags (bit 0 X doubled, bit 4 Y), check byte; `dpi / 2 - 1` with the flag from 40,000.
-  - Not settled, so not offered: PAW3311 and PAW3315 (ATK HUB 3.2.32 uses lookup tables, the SE's and its own; mouse-protocol counts 100 per step from 200) and CORE26K (ATK reads a step-100 and a doubled flag that mouse-protocol doesn't).
+  - Not settled, so not offered: PAW3311 and PAW3315 (ATK HUB 3.2.32 uses lookup tables, the SE's and its own; mouse-protocol counts 100 per step from 200) and CORE26K (ATK reads a step-100 and a doubled flag that mouse-protocol doesn't). A Zaopin PAW3311 uses the SE's table (above), which backs ATK HUB's reading, but ATK's table marks 5,050 to 9,000 as doubled where Zaopin's doesn't, so an ATK PAW3311 stays off until an owner's check shows which.
 - Lift-off on a PAW3950 Ultra and a PAW3955 is codes 1 to 11 for 0.7 to 1.7 mm, at the same 0x0A: code 2 is 0.8 mm there but 2 mm on a PAW3395.
 - The VXE R1 SE's 1K receiver (0x373B:0x1085) keeps the polling rate in a row of its own (mouse-protocol's "live settings"), not at 0x00: hrtz doesn't offer it there.
 - ATK's app writes in groups: the system row 0x00 to 0x09 whole (0x06 and 0x08 hold other settings, written back), the DPI stages and colours two at a time, a PAW3955's stages one at a time. hrtz does the same; mouse-protocol's captures of an R1 Pro Max agree.

@@ -129,6 +129,82 @@ fn a_receiver_with_no_mouse_paired_is_still_taken() {
 }
 
 #[test]
+fn a_receiver_that_answered_for_no_mouse_asks_again_once_its_mouse_wakes() {
+    // A Z11's receiver answered CID 0 and MID 0 with the Z11 paired (Mayank_j, 2026-11-12).
+    let mut r = Rig::connected(SimMouse { cid: 0, mid: 0, online: false, device_type: 0, ..SimMouse::z11() });
+    assert_eq!(r.state().key.as_deref(), Some("compx/0-0"));
+    {
+        let mut m = r.mouse.lock();
+        (m.cid, m.mid, m.online) = (7, 9, true);
+    }
+    // Awake: asked again, and let go, to be met afresh.
+    r.w.housekeeping();
+    r.w.housekeeping();
+    let s = r.state();
+    assert_eq!((s.key.as_deref(), s.model.as_deref()), (Some("compx/7-9"), Some("Z11")));
+    assert_eq!(r.settings().stages.unwrap()[0].dpi, 1350);
+}
+
+#[test]
+fn a_receiver_with_no_mouse_isnt_asked_again_while_none_wakes() {
+    let mut r = Rig::connected(SimMouse { cid: 0, mid: 0, online: false, ..Default::default() });
+    let (req, _) = r.mark();
+    r.w.housekeeping();
+    assert!(!r.mouse.lock().commands_since(req).contains(&cmd::HANDSHAKE));
+    assert!(r.state().connected);
+}
+
+#[test]
+fn a_z11_reads_and_writes_its_dpi_by_its_sensors_table() {
+    let mut r = Rig::connected(SimMouse::z11());
+    let s = r.state();
+    assert_eq!((s.model.as_deref(), s.key.as_deref()), (Some("Z11"), Some("compx/7-9")));
+    let caps = s.capabilities.unwrap();
+    assert_eq!(caps.dpi.map(|d| d.max), Some(10000));
+    assert!(!caps.motion_sync && caps.angle_snapping);
+    let st = r.settings();
+    let dpis: Vec<u32> = st.stages.as_ref().unwrap().iter().take(6).map(|x| x.dpi).collect();
+    assert_eq!(dpis, [1350, 800, 400, 2400, 3200, 6400], "not 1,600, 950, 500, 2,850, 3,800, 7,550");
+    assert!(st.motion_sync.is_none(), "a PAW3311 has none");
+    let mut next = st.clone();
+    next.stages.as_mut().unwrap()[0].dpi = 1600;
+    let (req, _) = r.mark();
+    r.w.apply_settings(&next).unwrap();
+    let m = r.mouse.lock();
+    assert_eq!(m.writes_since(req), vec![0x0C, 0x0F], "X and Y, then the check byte");
+    assert_eq!(m.image()[0x0C..0x10], [37, 37, 0, checksum(&[37, 37, 0])]);
+    drop(m);
+    assert_eq!(r.settings().stages.unwrap()[0].dpi, 1600);
+    // Motion sync stays as the mouse holds it.
+    let held = r.mouse.lock().image()[0xAB] != 0;
+    let mut sync = r.settings();
+    sync.motion_sync = Some(!held);
+    assert!(r.w.apply_settings(&sync).is_err());
+}
+
+#[test]
+fn a_zaopin_hrtz_doesnt_know_shows_no_dpi_and_tells_none() {
+    let mut r = Rig::connected(SimMouse { mid: 10, ..Default::default() });
+    let s = r.state();
+    assert!(s.connected && s.capabilities.as_ref().unwrap().dpi.is_none());
+    let st = s.settings.unwrap();
+    assert!(st.stages.is_none() && st.dpi_stage.is_none() && st.dpi_light.is_none());
+    assert!(st.motion_sync.is_none() && st.angle_snapping.is_none() && st.sensor_mode.is_none());
+    assert!(st.polling_hz.is_some() && st.debounce_ms.is_some() && st.buttons.is_some());
+    // Its DPI button isn't told as a DPI.
+    let (_, seen) = r.mark();
+    r.mouse.lock().status(status::DPI);
+    r.w.drain_unsolicited();
+    assert!(!r.events_since(seen).iter().any(|e| matches!(e, DeviceEvent::Dpi { .. })));
+    // What it offers is written.
+    let mut next = st.clone();
+    next.debounce_ms = Some(2);
+    let (req, _) = r.mark();
+    r.w.apply_settings(&next).unwrap();
+    assert_eq!(r.mouse.lock().writes_since(req), vec![0xA9]);
+}
+
+#[test]
 fn waking_shows_awake_at_once_then_the_settings() {
     let mut r = Rig::connected(SimMouse { online: false, ..Default::default() });
     let (_, seen) = r.mark();
@@ -880,7 +956,7 @@ mod atk_mice {
             device_type: atk::link::DONGLE_1K,
             ..SimMouse::u2_plus()
         };
-        let mut r = Rig::connected(stored_as(mouse, Method::Paw3395Se));
+        let mut r = Rig::connected(stored_as(mouse, Method::Table));
         assert!(r.state().capabilities.unwrap().polling.is_none());
         let mut next = r.settings();
         next.polling_hz = Some(500);

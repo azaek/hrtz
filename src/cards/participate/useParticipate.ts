@@ -14,11 +14,13 @@ const RAW = { left: 0, right: 1, middle: 2, back: 3, forward: 4 } as const;
 export type Stage = "idle" | "reading" | "moving" | "buttons" | "writing" | "done";
 
 /** A button, and whether pressing it was seen: by raw input for a mouse button, by the mouse's
- *  stage or profile changing for one that switches them. `null`: nothing hrtz can see (a key). */
+ *  stage or profile changing for one that switches them. `null`: nothing hrtz can see (a key), or
+ *  nothing a press would change, and `why` says which. */
 export interface ButtonCheck {
   name: string;
   does: string;
   seen: boolean | null;
+  why?: string;
 }
 
 /** What the check found, for the card and the report. */
@@ -194,11 +196,18 @@ export function useParticipate() {
     // A simulated mouse has no buttons of its own: the real mouse's clicks stand in, but one seen
     // only by the mouse's stage or profile changing (the DPI button) can't be pressed on it.
     const simulated = !!device.key?.startsWith("sim/");
+    // With one DPI stage, a DPI button has no stage to move to (Mayank_j's Z11, 2026-11-12).
+    const oneStage = (a: ButtonAction | undefined) => a?.kind === "dpi" && device.settings?.dpiStageCount === 1;
     const seenBy = (a: ButtonAction | undefined) => {
       const by = seenOn(a);
-      return simulated && by === "state" ? null : by;
+      return (simulated && by === "state") || oneStage(a) ? null : by;
     };
-    const buttons: ButtonCheck[] = physical.map(([i, name]) => ({ name, does: actionLabel(actions[i] ?? { kind: "disabled" }), seen: seenBy(actions[i]) === null ? null : false }));
+    const buttons: ButtonCheck[] = physical.map(([i, name]) => ({
+      name,
+      does: actionLabel(actions[i] ?? { kind: "disabled" }),
+      seen: seenBy(actions[i]) === null ? null : false,
+      ...(oneStage(actions[i]) && { why: "only one DPI stage is on, so a press changes nothing" }),
+    }));
     Object.assign(run.current, {
       key: device.key ?? null,
       write,

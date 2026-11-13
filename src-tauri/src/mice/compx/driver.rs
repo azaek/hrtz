@@ -338,14 +338,31 @@ struct Connected {
 
 impl Connected {
     fn refresh_settings(&mut self, board: &Board) {
-        let mut decoded = image::decode(&self.image);
-        if let Some(model) = self.atk.as_ref().and_then(|a| a.model) {
-            decoded = atk::offered(&decoded, model);
-            // Its stages' DPI as its sensor stores them.
-            if let Some(stages) = decoded.stages.as_mut() {
-                atk::read_stages(model, &self.image, stages);
+        let decoded = match &self.atk {
+            Some(a) => {
+                let mut decoded = image::decode(&self.image);
+                if let Some(model) = a.model {
+                    decoded = atk::offered(&decoded, model);
+                    // Its stages' DPI as its sensor stores them.
+                    if let Some(stages) = decoded.stages.as_mut() {
+                        atk::read_stages(model, &self.image, stages);
+                    }
+                }
+                decoded
             }
-        }
+            // A Zaopin's DPI as its model keeps it, and only what hrtz offers on the model.
+            None => {
+                let (mid, caps) = {
+                    let s = board.read();
+                    (s.mid, s.capabilities.clone())
+                };
+                let decoded = image::decode_as(&self.image, models::dpi_method(mid));
+                match caps {
+                    Some(caps) => models::offered(decoded, &caps),
+                    None => decoded,
+                }
+            }
+        };
         board.set(|s| s.settings = Some(decoded));
     }
 
@@ -603,6 +620,23 @@ impl Driver for Connected {
         if self.atk.is_some() {
             return self.load_atk(board);
         }
+        // A receiver that answered for no mouse (CID 0, MID 0) may have been asked while its mouse
+        // slept: a Z11's receiver answered so with a Z11 paired (Mayank_j's report, 2026-11-12; the
+        // Z11 sleeps after 10 s). Now that a mouse is there, ask again, and meet it afresh if the
+        // receiver names it.
+        let met = {
+            let s = board.read();
+            (s.cid, s.mid)
+        };
+        if met == (0, 0) {
+            let nonce: [u8; 4] = rand_bytes();
+            let r = self.transact(&p::packet(cmd::HANDSHAKE, 0, &nonce, Some(8)), REPLY_TIMEOUT)?;
+            let d = p::payload(&r);
+            if (d[4], d[5]) != (0, 0) {
+                self.lost = true;
+                bail!("the receiver now names its mouse ({}, {}): meeting it again", d[4], d[5]);
+            }
+        }
         let fw = self.transact_simple(cmd::VERSION)?;
         let profile = self.transact_simple(cmd::GET_PROFILE)?;
         let long_range = self.transact_simple(cmd::GET_LONG_RANGE).ok();
@@ -693,8 +727,9 @@ impl Driver for Connected {
                 atk::write_stages(m, &mut target, &was, now).map_err(|e| anyhow!(e))?;
             }
         } else {
-            image::validate(new, &self.image, &caps).map_err(|e| anyhow!(e))?;
-            target = image::encode(new, &self.image);
+            let method = models::dpi_method(board.read().mid);
+            image::validate_as(new, &self.image, &caps, method).map_err(|e| anyhow!(e))?;
+            target = image::encode_as(new, &self.image, method);
         }
         if let Some(m) = model {
             for (addr, len) in atk::fields(m) {

@@ -64,7 +64,8 @@ export const backupFits = (b: { key: string | null; model: string }, d: { key?: 
 export const ofModel = (key: string | null | undefined, model: string): boolean => !!key && (key === model || key.startsWith(`${model}/`));
 
 /** How far hrtz is with a mouse it runs: tried on the real model, listed but not tried yet, or a
- *  model it doesn't know (a Zaopin with another MID: not supported yet, run with cautious limits).
+ *  model it doesn't know (a Zaopin with another MID: not supported yet, run without its DPI and
+ *  what depends on its sensor).
  *  A simulated mouse (`sim/…`) counts as the real model. Nothing for a receiver with no mouse. */
 export type Support = "tested" | "untested" | "unknown";
 export const supportOf = (key: string | null | undefined, supported: { key: string; tested: boolean }[]): Support | undefined => {

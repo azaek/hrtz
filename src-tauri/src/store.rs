@@ -8,6 +8,7 @@ use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::mice::compx::atk_dpi::Method;
 use crate::mice::compx::protocol::FLASH_SIZE;
 use crate::mice::compx::{image, models};
 use crate::mice::model::{ButtonAction, Settings};
@@ -849,7 +850,10 @@ impl Backups {
         if file.format == LOGITECH_FORMAT {
             return crate::mice::hidpp::backup::settings(&image, file.device.profile_index, file.device.wired);
         }
-        Ok(image::decode(&image))
+        // A Zaopin's DPI as its model keeps it (the Z11's by its sensor's table).
+        let d = &file.device;
+        let method = if d.cid == models::CID { models::dpi_method(d.mid) } else { Method::Step50 };
+        Ok(image::decode_as(&image, method))
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {

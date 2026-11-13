@@ -6,7 +6,9 @@
 //! How an ATK sensor stores a DPI stage, for the methods two readings of ATK's own app agree on
 //! (mouse-protocol's of ATK HUB 3.2.27, hrtz's of 3.2.32, 2026-11-13). A 4-byte stage is X, Y, a
 //! byte of two mode nibbles (X low, Y high) and a check byte; a PAW3955's 6-byte stage is X and Y
-//! as 16-bit values, flags and a check byte. Each group sums to 0x55, as a Zaopin's does.
+//! as 16-bit values, flags and a check byte. Each group sums to 0x55, as a Zaopin's does. A
+//! Zaopin keeps its stages the same way: its PAW3395 and PAW3950 models by `Step50`, its PAW3311
+//! (the Z11) by `Table`.
 
 use super::protocol::checksum;
 
@@ -18,8 +20,10 @@ pub enum Method {
     /// 10 per step to 10,000, then 50 from 10,050 (bit 1), doubled above 30,000 (bit 0): the
     /// PAW3950 Ultra's.
     Ultra,
-    /// A table of 200 codes for 50 to 10,000, doubled above (bit 1): the PAW3395 SE's.
-    Paw3395Se,
+    /// A table of 200 codes for 50 to 10,000, doubled above (bit 1): an ATK PAW3395 SE's, and a
+    /// Zaopin PAW3311's (the Zaopin driver's `driver_sensor.h` has the same codes, entry for entry,
+    /// and its app doubles a table DPI where the mode byte has 0x22).
+    Table,
     /// `dpi - 1` as 16 bits, in 6-byte stages from 0x1B00: the PAW3955's.
     Paw3955,
 }
@@ -27,18 +31,18 @@ pub enum Method {
 /// Where a PAW3955 keeps its stages, 6 bytes each.
 pub const PAW3955_STAGES: usize = 0x1B00;
 
-/// The PAW3395 SE's codes, in DPI order from 50: 1 to 235 but these.
-const SE_SKIPPED: [u8; 35] = [
+/// The table's codes, in DPI order from 50: 1 to 235 but these.
+const TABLE_SKIPPED: [u8; 35] = [
     7, 13, 20, 26, 33, 40, 46, 53, 60, 66, 73, 80, 86, 93, 100, 106, 113, 120, 126, 133, 140, 146, 153, 160, 166, 173,
     180, 186, 193, 200, 206, 213, 220, 226, 233,
 ];
 
-fn se_codes() -> impl Iterator<Item = u8> {
-    (1..=235u8).filter(|c| !SE_SKIPPED.contains(c))
+fn table_codes() -> impl Iterator<Item = u8> {
+    (1..=235u8).filter(|c| !TABLE_SKIPPED.contains(c))
 }
 
 /// One axis as (value byte, mode nibble).
-fn encode_axis(method: Method, dpi: u32) -> Option<(u8, u8)> {
+pub fn encode_axis(method: Method, dpi: u32) -> Option<(u8, u8)> {
     match method {
         Method::Step50 => {
             let count = (dpi / 50).checked_sub(1)?;
@@ -56,15 +60,15 @@ fn encode_axis(method: Method, dpi: u32) -> Option<(u8, u8)> {
                 Some((code as u8, (((code >> 8) << 2) | 2) as u8))
             }
         }
-        Method::Paw3395Se => {
+        Method::Table => {
             let n = (dpi.is_multiple_of(50) && (50..=10000).contains(&dpi)).then_some(dpi / 50)?;
-            se_codes().nth(n as usize - 1).map(|code| (code, 0))
+            table_codes().nth(n as usize - 1).map(|code| (code, 0))
         }
         Method::Paw3955 => None,
     }
 }
 
-fn decode_axis(method: Method, byte: u8, nibble: u8) -> Option<u32> {
+pub fn decode_axis(method: Method, byte: u8, nibble: u8) -> Option<u32> {
     let count = (((nibble as u32 >> 2) & 3) << 8) | byte as u32;
     match method {
         Method::Step50 => {
@@ -75,11 +79,11 @@ fn decode_axis(method: Method, byte: u8, nibble: u8) -> Option<u32> {
             let dpi = if nibble & 2 != 0 { 10050 + count * 50 } else { (count + 1) * 10 };
             Some(if nibble & 1 != 0 { dpi * 2 } else { dpi })
         }
-        Method::Paw3395Se => {
+        Method::Table => {
             if nibble & !2 != 0 {
                 return None;
             }
-            let dpi = (se_codes().position(|c| c == byte)? as u32 + 1) * 50;
+            let dpi = (table_codes().position(|c| c == byte)? as u32 + 1) * 50;
             Some(if nibble & 2 != 0 { dpi * 2 } else { dpi })
         }
         Method::Paw3955 => None,
@@ -146,14 +150,14 @@ mod tests {
     }
 
     #[test]
-    fn the_se_table_is_atks() {
+    fn the_table_is_atks_and_a_zaopin_paw3311s() {
         // ATK's app writes 400 DPI as code 9 (codes 7 and 13 are skipped).
-        assert_eq!(encode_stage(Method::Paw3395Se, 400).unwrap()[0], 9);
-        assert_eq!(se_codes().count(), 200);
-        assert_eq!(encode_stage(Method::Paw3395Se, 10000).unwrap()[0], 235);
-        assert!(encode_stage(Method::Paw3395Se, 10050).is_none());
-        assert_eq!(decode_axis(Method::Paw3395Se, 235, 2), Some(20000));
-        assert_eq!(decode_axis(Method::Paw3395Se, 7, 0), None, "a skipped code");
+        assert_eq!(encode_stage(Method::Table, 400).unwrap()[0], 9);
+        assert_eq!(table_codes().count(), 200);
+        assert_eq!(encode_stage(Method::Table, 10000).unwrap()[0], 235);
+        assert!(encode_stage(Method::Table, 10050).is_none());
+        assert_eq!(decode_axis(Method::Table, 235, 2), Some(20000));
+        assert_eq!(decode_axis(Method::Table, 7, 0), None, "a skipped code");
     }
 
     #[test]
@@ -170,7 +174,7 @@ mod tests {
         for (method, range) in [
             (Method::Step50, (50, 30000)),
             (Method::Ultra, (50, 30000)),
-            (Method::Paw3395Se, (200, 10000)),
+            (Method::Table, (200, 10000)),
             (Method::Paw3955, (50, 40000)),
         ] {
             for dpi in (range.0..=range.1).step_by(50) {

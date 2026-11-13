@@ -59,7 +59,7 @@ impl Sensor {
         match self {
             Sensor::Paw3395 | Sensor::Paw3395Ultra | Sensor::Paw3950 | Sensor::Paw3950Dm => Some(Method::Step50),
             Sensor::Paw3950Ultra => Some(Method::Ultra),
-            Sensor::Paw3395Se => Some(Method::Paw3395Se),
+            Sensor::Paw3395Se => Some(Method::Table),
             Sensor::Paw3955 => Some(Method::Paw3955),
             Sensor::Paw3311 | Sensor::Paw3315 | Sensor::Core26k => None,
         }
