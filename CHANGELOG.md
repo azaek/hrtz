@@ -9,11 +9,13 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ### New
 - The Zaopin Z11, not tested yet, with Zaopin's own picture: its DPI stages (up to 12,000), polling rate, sensor mode, debounce, angle snapping, ripple control, buttons and onboard profiles. Have one? Its Not tested badge opens a 2-minute check.
 - 159 more ATK, VXE and MAD mice, not tested yet: every model in ATK's own app, among them VXE's R1 line, ATK's Dragonfly F1, X1, A9, U2, Y9 and F1, and the MAD R. Their polling rate (up to 8K on an 8K or NearLink receiver), debounce, motion sync, angle snapping, ripple control and the four onboard profiles; on most, the DPI stages and the DPI light; and lift-off where it's 1 or 2 mm (0.7 mm on a PAW3950). On models with a PAW3311, PAW3315 or CORE26K sensor, the DPI follows once an owner's check confirms how they keep it. Have one? Its Not tested badge opens a 2-minute check.
+- VXE's R1 mice show ATK's own picture of the R1. On VXE's own receivers and cables (the R1, R1 PRO and R1 PRO MAX among them), and on the ATK X1 Pro Max and A9 Plus NK, hrtz also sets the sleep timer, from 30 seconds to 30 minutes.
 
 ### Fixed
 - On a Zaopin model hrtz doesn't know yet, the DPI could show wrong (a Z11 set to 1,350 showed 1,600). Until the model is added, hrtz leaves its DPI, motion sync, angle snapping, ripple control and sensor mode as they are.
 - When a receiver doesn't say which mouse it has, hrtz asks again once the mouse wakes.
 - The mouse check no longer marks the DPI button as failed when only one DPI stage is on.
+- A report for a mouse hrtz doesn't run now says which model its receiver named, instead of 0, 0.
 
 ## 0.4.1 — 2026-11-12
 

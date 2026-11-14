@@ -360,13 +360,20 @@ impl Worker {
 
     /// Let go of the connection. The state keeps who the mouse was, so the UI knows which went.
     fn disconnect(&mut self) {
-        let (was, key, foreign) = {
+        let (was, key, foreign, ids) = {
             let s = self.board.read();
-            (s.connected, s.key.clone(), s.foreign)
+            (s.connected, s.key.clone(), s.foreign, (s.cid, s.mid, s.device_type))
         };
         self.driver = None;
         self.loaded = false;
-        self.board.set(|s| *s = DeviceState { key, foreign, ..DeviceState::default() });
+        self.board.set(|s| {
+            *s = DeviceState { key, foreign, ..DeviceState::default() };
+            // A device left alone keeps what it answered, for Inspect a mouse's report: without
+            // it, snowyuonA's VXE receiver read as 0, 0 (2026-11-14).
+            if foreign {
+                (s.cid, s.mid, s.device_type) = ids;
+            }
+        });
         if was {
             self.board.publish(None);
         }

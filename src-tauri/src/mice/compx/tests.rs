@@ -115,6 +115,8 @@ fn another_makers_mouse_is_left_alone() {
     let s = r.state();
     assert!(!s.connected && s.key.is_none() && s.model.is_none() && s.settings.is_none());
     assert!(s.foreign, "kept apart from a mouse that hasn't answered yet");
+    // What it answered stays, for Inspect a mouse's report (0.4.1 lost it: snowyuonA's read 0, 0).
+    assert_eq!((s.cid, s.mid, s.device_type), (2, 1, 5));
     assert_eq!(r.mouse.lock().commands_since(0), [cmd::HANDSHAKE], "nothing asked after the handshake");
     assert!(r.events_since(0).is_empty());
 }
@@ -638,6 +640,48 @@ mod atk_mice {
     }
 
     #[test]
+    fn a_vxe_r1_pro_on_its_1k_receiver_is_met_as_an_atk() {
+        // snowyuonA's: "VXE NordicMouse 1K Dongle", 3554:F58A (2026-11-14).
+        let r = Rig::connected(SimMouse { usb: (p::VENDOR_ID, 0xF58A), device_type: 0, ..SimMouse::r1_pro() });
+        let s = r.state();
+        assert!(s.connected && !s.foreign);
+        assert_eq!((s.key.as_deref(), s.model.as_deref()), (Some("compx/2-7"), Some("R1 PRO (PAW3395)")));
+        let caps = s.capabilities.unwrap();
+        assert!(!caps.wired && caps.polling.unwrap().rates.last() == Some(&1000));
+        assert!(r.settings().dpi().is_some());
+    }
+
+    #[test]
+    fn an_r1_sleeps_after_one_of_atks_times_kept_at_0xad() {
+        let mut r = Rig::connected(SimMouse::r1_pro());
+        let caps = r.state().capabilities.unwrap();
+        assert_eq!(caps.sleep_times_s.as_deref(), Some(&atk::R1_SLEEP_S[..]));
+        // The test image holds 12 there: 120 s.
+        assert_eq!(r.settings().sleep_s, Some(120));
+        let held_0xbb = r.mouse.lock().image()[0xBB..0xBD].to_vec();
+        let mut next = r.settings();
+        next.sleep_s = Some(1800);
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0xA9], "the row from debounce, whole");
+        assert_eq!(m.image()[0xAD..0xAF], [180, checksum(&[180])]);
+        assert_eq!(m.image()[0xBB..0xBD], held_0xbb[..], "a Zaopin's sleep pair left alone");
+        drop(m);
+        assert_eq!(r.settings().sleep_s, Some(1800));
+        // Only ATK's choices.
+        next.sleep_s = Some(90);
+        assert!(r.w.apply_settings(&next).is_err());
+    }
+
+    #[test]
+    fn an_atk_off_the_r1_line_offers_no_sleep_time() {
+        let r = Rig::connected(SimMouse::u2_plus());
+        assert!(r.state().capabilities.unwrap().sleep_times_s.is_none());
+        assert_eq!(r.settings().sleep_s, None);
+    }
+
+    #[test]
     fn under_compx_vid_on_a_product_id_atk_doesnt_list_its_left_alone() {
         let r = Rig::connected(SimMouse { usb: (p::VENDOR_ID, 0xF5D5), ..SimMouse::r1_pro() });
         let s = r.state();
@@ -957,7 +1001,8 @@ mod atk_mice {
             ..SimMouse::u2_plus()
         };
         let mut r = Rig::connected(stored_as(mouse, Method::Table));
-        assert!(r.state().capabilities.unwrap().polling.is_none());
+        let caps = r.state().capabilities.unwrap();
+        assert!(caps.polling.is_none() && caps.sleep_times_s.is_none(), "kept elsewhere there");
         let mut next = r.settings();
         next.polling_hz = Some(500);
         assert!(r.w.apply_settings(&next).is_err(), "not written");

@@ -226,7 +226,7 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         return connect_atk(m, opened.family, !wired, Some(device_type), opened.product_id, port, board);
     }
     if !models::is_zaopin(cid, mid) {
-        board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
+        board.set(|s| *s = DeviceState { cid, mid, device_type, foreign: true, ..DeviceState::default() });
         return Err(LeftAlone::not_zaopin(cid, mid).into());
     }
     board.set(|s| {
@@ -286,8 +286,15 @@ fn connect_atk(
     // A PAW3955's stages are kept past a Zaopin's flash.
     m.image.resize(atk::memory_len(model), 0xFF);
     let mut caps = atk::capabilities(model, kind);
+    // Under CompX's vendor ID, every ATK sleeps as an R1 does (mouse-protocol's shared R1
+    // transport): snowyuonA's VXE R1 PRO on 3554:F58A.
+    if atk::on_compx_product(product_id) {
+        caps.sleep_times_s = Some(atk::R1_SLEEP_S.to_vec());
+    }
+    // The R1 SE's own receiver keeps these elsewhere (mouse-protocol's "live settings").
     if product_id == atk::R1_SE_RECEIVER {
         caps.polling = None;
+        caps.sleep_times_s = None;
     }
     board.set(|s| {
         *s = DeviceState {
@@ -346,6 +353,10 @@ impl Connected {
                     // Its stages' DPI as its sensor stores them.
                     if let Some(stages) = decoded.stages.as_mut() {
                         atk::read_stages(model, &self.image, stages);
+                    }
+                    // Its sleep time as ATK keeps it, where it's offered.
+                    if board.read().capabilities.as_ref().is_some_and(|c| c.sleep_times_s.is_some()) {
+                        decoded.sleep_s = atk::sleep_s(&self.image);
                     }
                 }
                 decoded
@@ -725,6 +736,15 @@ impl Driver for Connected {
             target[p::FLASH_SIZE..].copy_from_slice(&self.image[p::FLASH_SIZE..]);
             if let Some(now) = &offered.stages {
                 atk::write_stages(m, &mut target, &was, now).map_err(|e| anyhow!(e))?;
+            }
+            // Its sleep time, where offered: 0xAD in 10 s steps, not a Zaopin's 0xBB.
+            if let (Some(s), Some(times)) = (new.sleep_s, caps.sleep_times_s.as_ref())
+                && Some(s) != atk::sleep_s(&self.image)
+            {
+                if !times.contains(&s) {
+                    bail!("This mouse doesn't offer a sleep time of {s} s.");
+                }
+                atk::put_sleep(&mut target, s);
             }
         } else {
             let method = models::dpi_method(board.read().mid);

@@ -14,4 +14,6 @@ They belong to Logitech. They are **not** covered by this project's license, and
 
 `atk-u2-plus-black.webp` is ATK's own render of the U2 Plus, from ATK's app (ATK HUB 3.2.32, its device picture for the U2), turned 45° and scaled into the frame above as the Superlights are.
 
+`atk-r1-black.webp` is ATK's own render of VXE's R1, from the same app (its device picture for the R1), turned and scaled the same way. hrtz shows it for every model of VXE's R1 line.
+
 It belongs to ATK. It is **not** covered by this project's license, and is included only to show which mouse is connected. If ATK asks, it will be removed.

@@ -35,7 +35,7 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
         ? "Lowers the polling rate on low battery, until charged."
         : "Lowers the polling rate when the battery is low.";
   const s = device?.settings;
-  // The sleep timer (flash 0xBB) was measured on a Z1 PRO MAX (2026-10-17); other models offer none.
+  // The sleep timer: a Z1 PRO MAX's (0xBB, measured 2026-10-17) and the R1 line's (ATK's 0xAD); others offer none.
   const sleepTimes = caps?.sleepTimesS ?? [];
   // A value set elsewhere stays one of the choices, so it shows as chosen.
   const sleepS = s?.sleepS;
@@ -71,13 +71,31 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
           title="Sleep after"
           description={device?.online ? "Idle time before the mouse sleeps. Longer uses more battery." : "Wake the mouse to change this."}
         >
-          <Choice
-            label="Sleep after"
-            value={sleepS}
-            disabled={!device?.online}
-            options={sleepChoices.map((t) => ({ value: t, label: shortTime(t) }))}
-            onChange={(t) => void commit({ ...s, sleepS: t })}
-          />
+          {sleepChoices.length > 5 ? (
+            // An R1 has eight, too many for one row.
+            <Dropdown
+              aria-label="Sleep after"
+              style={{ minWidth: 128 }}
+              disabled={!device?.online}
+              value={shortTime(sleepS)}
+              selectedOptions={[String(sleepS)]}
+              onOptionSelect={(_, d) => d.optionValue && void commit({ ...s, sleepS: Number(d.optionValue) })}
+            >
+              {sleepChoices.map((t) => (
+                <Option key={t} value={String(t)}>
+                  {shortTime(t)}
+                </Option>
+              ))}
+            </Dropdown>
+          ) : (
+            <Choice
+              label="Sleep after"
+              value={sleepS}
+              disabled={!device?.online}
+              options={sleepChoices.map((t) => ({ value: t, label: shortTime(t) }))}
+              onChange={(t) => void commit({ ...s, sleepS: t })}
+            />
+          )}
         </SettingCard>
       )}
       <SettingCard icon={<BatteryWarning20Regular />} title="Low battery alert" description="Notifies you once when the battery drops to this level.">
