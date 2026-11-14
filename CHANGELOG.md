@@ -14,6 +14,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - On a Zaopin model hrtz doesn't know yet, the DPI could show wrong (a Z11 set to 1,350 showed 1,600). Until the model is added, hrtz leaves its DPI, motion sync, angle snapping, ripple control and sensor mode as they are.
 - When a receiver doesn't say which mouse it has, hrtz asks again once the mouse wakes.
 - The mouse check no longer marks the DPI button as failed when only one DPI stage is on.
+- A report for a mouse hrtz doesn't run now says which model its receiver named, instead of 0, 0.
 
 ## 0.4.1 — 2026-11-12
 

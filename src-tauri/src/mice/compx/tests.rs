@@ -115,6 +115,8 @@ fn another_makers_mouse_is_left_alone() {
     let s = r.state();
     assert!(!s.connected && s.key.is_none() && s.model.is_none() && s.settings.is_none());
     assert!(s.foreign, "kept apart from a mouse that hasn't answered yet");
+    // What it answered stays, for Inspect a mouse's report (0.4.1 lost it: snowyuonA's read 0, 0).
+    assert_eq!((s.cid, s.mid, s.device_type), (2, 1, 5));
     assert_eq!(r.mouse.lock().commands_since(0), [cmd::HANDSHAKE], "nothing asked after the handshake");
     assert!(r.events_since(0).is_empty());
 }
@@ -635,6 +637,18 @@ mod atk_mice {
         let commands = r.mouse.lock().commands_since(0);
         assert_eq!(commands[..3], [cmd::HANDSHAKE, cmd::ONLINE, atk::CID_MID]);
         assert!(!commands.contains(&cmd::PC_DRIVER_STATUS), "{commands:02X?}");
+    }
+
+    #[test]
+    fn a_vxe_r1_pro_on_its_1k_receiver_is_met_as_an_atk() {
+        // snowyuonA's: "VXE NordicMouse 1K Dongle", 3554:F58A (2026-11-14).
+        let r = Rig::connected(SimMouse { usb: (p::VENDOR_ID, 0xF58A), device_type: 0, ..SimMouse::r1_pro() });
+        let s = r.state();
+        assert!(s.connected && !s.foreign);
+        assert_eq!((s.key.as_deref(), s.model.as_deref()), (Some("compx/2-7"), Some("R1 PRO (PAW3395)")));
+        let caps = s.capabilities.unwrap();
+        assert!(!caps.wired && caps.polling.unwrap().rates.last() == Some(&1000));
+        assert!(r.settings().dpi().is_some());
     }
 
     #[test]

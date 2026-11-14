@@ -226,7 +226,7 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         return connect_atk(m, opened.family, !wired, Some(device_type), opened.product_id, port, board);
     }
     if !models::is_zaopin(cid, mid) {
-        board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
+        board.set(|s| *s = DeviceState { cid, mid, device_type, foreign: true, ..DeviceState::default() });
         return Err(LeftAlone::not_zaopin(cid, mid).into());
     }
     board.set(|s| {
