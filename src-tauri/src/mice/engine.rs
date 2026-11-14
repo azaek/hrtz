@@ -82,6 +82,14 @@ pub struct DeviceState {
     /// waiting to wake, and the UI never hears of it.
     #[serde(skip)]
     pub foreign: bool,
+    /// Left alone, but it answered as one that speaks the family's protocol: Inspect a mouse can
+    /// read it (`Worker::read_only`), when its owner asks.
+    #[serde(skip)]
+    pub speaks: bool,
+    /// Its mouse hasn't answered yet (asleep, or switched off): hrtz waits for it, and Inspect a
+    /// mouse says to wake it.
+    #[serde(skip)]
+    pub waiting: bool,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -305,6 +313,9 @@ impl Worker {
                         self.connect_error = Some(why);
                     }
                     self.disconnect();
+                    if self.finder.asleep() {
+                        self.board.set(|s| s.waiting = true);
+                    }
                 }
             }
             return FIND_EVERY;
@@ -360,9 +371,9 @@ impl Worker {
 
     /// Let go of the connection. The state keeps who the mouse was, so the UI knows which went.
     fn disconnect(&mut self) {
-        let (was, key, foreign, ids) = {
+        let (was, key, foreign, speaks, ids) = {
             let s = self.board.read();
-            (s.connected, s.key.clone(), s.foreign, (s.cid, s.mid, s.device_type))
+            (s.connected, s.key.clone(), s.foreign, s.speaks, (s.cid, s.mid, s.device_type))
         };
         self.driver = None;
         self.loaded = false;
@@ -372,6 +383,7 @@ impl Worker {
             // it, snowyuonA's VXE receiver read as 0, 0 (2026-11-14).
             if foreign {
                 (s.cid, s.mid, s.device_type) = ids;
+                s.speaks = speaks;
             }
         });
         if was {
@@ -464,6 +476,39 @@ impl Worker {
         }))
     }
 
+    /// Inspect a mouse's reading of a mouse hrtz left alone: who it is and its memory, with nothing
+    /// written. Only for one that answered as speaking the family's protocol, and only when its
+    /// owner starts it: until then, a mouse hrtz doesn't run is sent nothing more.
+    pub fn read_only(&mut self, progress: &mut dyn FnMut(usize, usize)) -> Result<serde_json::Value> {
+        if self.driver.is_some() {
+            bail!("hrtz runs this mouse: its own check reads it.");
+        }
+        let readable = {
+            let s = self.board.read();
+            s.foreign && s.speaks
+        };
+        if !readable {
+            bail!("hrtz can't read this mouse yet.");
+        }
+        self.finder.read_only(progress)
+    }
+
+    /// Inspect a mouse's one tried change on a mouse hrtz left alone, when its owner asks for it:
+    /// its polling rate changed, then (`restore`) put back. The same mice as `read_only`.
+    pub fn trial(&mut self, restore: bool) -> Result<serde_json::Value> {
+        if self.driver.is_some() {
+            bail!("hrtz runs this mouse: its own check tries a change.");
+        }
+        let readable = {
+            let s = self.board.read();
+            s.foreign && s.speaks
+        };
+        if !readable {
+            bail!("hrtz can't read this mouse yet.");
+        }
+        self.finder.trial(restore)
+    }
+
     /// Save profile names on the mouse, where it keeps them (by profile; one unchanged is left).
     pub fn set_profile_names(&mut self, names: &[String]) -> Result<()> {
         self.require_online()?;
@@ -541,11 +586,13 @@ impl Worker {
         self.board.read().clone()
     }
 
-    /// Tell the mouse no configuration app is listening any more.
+    /// Tell the mouse no configuration app is listening any more, and put back a change Inspect a
+    /// mouse was trying on one hrtz leaves alone.
     pub fn goodbye(&mut self) {
         if let Some(d) = self.driver.as_mut() {
             d.goodbye();
         }
+        self.finder.leave();
     }
 }
 

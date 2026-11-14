@@ -8,6 +8,8 @@ pub mod atk_dpi;
 mod driver;
 pub mod image;
 pub mod models;
+mod pieces;
+mod probe;
 pub mod protocol;
 #[cfg(any(test, debug_assertions))]
 pub(crate) mod sim;

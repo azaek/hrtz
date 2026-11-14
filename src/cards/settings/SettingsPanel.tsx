@@ -19,7 +19,7 @@ import { Group, SettingCard } from "@/components";
 import { UndoNote } from "@/kit";
 import { linkName } from "@/links";
 import { familyOf, makerOf, supportOf } from "@/models";
-import { reportUrl, type ReportForm } from "@/report";
+import { reportUrl } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { forgetMouse, restoreMouse, run, savePrefs, setInspecting, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
@@ -73,7 +73,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   }, []);
 
   const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
-  const report = (form: ReportForm) => void reportUrl(form, device).then(openUrl).catch((e) => toast(message(e), "error"));
+  const report = () => void reportUrl(device).then(openUrl).catch((e) => toast(message(e), "error"));
   // A model hrtz hasn't been tried on, or doesn't know: its owner's report is what makes it supported.
   const supported = useStore((x) => x.supported);
   const support = device?.connected ? supportOf(device.key, supported) : undefined;
@@ -227,7 +227,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
 
       <Group title="Help">
         <SettingCard icon={<Bug20Regular />} title="Report a problem" description="Opens a GitHub issue with your hrtz version, mouse and Windows filled in.">
-          <Button onClick={() => report("bug_report")}>Report</Button>
+          <Button onClick={report}>Report</Button>
         </SettingCard>
         <SettingCard icon={<SearchInfo20Regular />} title="Inspect a mouse" description="Mouse not supported yet? Save a report and request support.">
           <Button onClick={() => setInspecting(true)}>Inspect</Button>

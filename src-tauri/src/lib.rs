@@ -433,11 +433,37 @@ async fn inspect_mice(ctx: State<'_, Arc<Ctx>>) -> CmdResult<Vec<inspect::Inspec
     tauri::async_runtime::spawn_blocking(move || inspect::inspect(&known)).await.map_err(|e| e.to_string())
 }
 
-/// Save Inspect a mouse's report for one device to `path`.
+/// Inspect a mouse's check of a mouse hrtz leaves alone, on `connection` (as `inspect_mice` listed
+/// it): who it is and its memory, read as its maker's own app reads them, with nothing written
+/// (`Worker::read_only`). Sent only when its owner starts the check. How far the memory is read
+/// goes out as `inspect-progress`.
 #[tauri::command]
-fn save_inspection(app: AppHandle, path: String, device: serde_json::Value) -> CmdResult<()> {
-    let report = inspect::report(&device, &app.package_info().version.to_string(), &win::windows_version());
-    std::fs::write(path, serde_json::to_vec_pretty(&report).unwrap_or_default()).map_err(|e| e.to_string())
+async fn inspect_read(app: AppHandle, ctx: State<'_, Arc<Ctx>>, connection: String) -> CmdResult<serde_json::Value> {
+    let engine =
+        ctx.hub.engine_at(&connection).ok_or("It isn't plugged in any more. Plug it back in and check again.")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.call(move |w| {
+            w.read_only(&mut |done, total| {
+                let _ = app.emit("inspect-progress", (done, total));
+            })
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(err)
+}
+
+/// Inspect a mouse's one tried change on a mouse hrtz leaves alone, on `connection`, when its owner
+/// asks for it: its polling rate set to another rate, then (`restore`) put back, with the check
+/// measuring in between (`Worker::trial`). One never put back is put back by itself.
+#[tauri::command]
+async fn inspect_trial(ctx: State<'_, Arc<Ctx>>, connection: String, restore: bool) -> CmdResult<serde_json::Value> {
+    let engine =
+        ctx.hub.engine_at(&connection).ok_or("It isn't plugged in any more. Plug it back in and check again.")?;
+    tauri::async_runtime::spawn_blocking(move || engine.call(move |w| w.trial(restore)))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
 }
 
 /// Copy hrtz's add-on into SignalRGB's plugins folder (SignalRGB loads it when it next starts).
@@ -1798,7 +1824,8 @@ pub fn run() {
             prepare_update,
             apply_settings,
             inspect_mice,
-            save_inspection,
+            inspect_read,
+            inspect_trial,
             install_signalrgb_addon,
             set_profile,
             set_long_range,
@@ -2001,6 +2028,8 @@ mod lab {
             // The stand-in backend says where the receiver is.
             port: None,
             foreign: false,
+            speaks: false,
+            waiting: false,
         };
         write("device.json", serde_json::to_value(&state).unwrap());
 

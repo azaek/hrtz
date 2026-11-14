@@ -14,6 +14,7 @@ use parking_lot::Mutex;
 use super::atk;
 use super::driver::{Maker, Opened, connect};
 use super::image::sample_image;
+use super::probe::Trials;
 use super::protocol::{self as p, Packet, checksum, cmd};
 use crate::mice::{Board, Driver, Family, Finder, Link};
 
@@ -51,6 +52,12 @@ pub struct SimMouse {
     pub forget_writes: bool,
     /// How many receivers (or mice on cables) are plugged in.
     pub receivers: usize,
+    /// Falls asleep after answering this many more memory reads.
+    pub sleeps_after_reads: Option<usize>,
+    /// Gives its memory only once told an app is listening (0x02), as a maker's app tells it.
+    pub needs_listening: bool,
+    /// Told an app is listening.
+    pub listening: bool,
 }
 
 impl Default for SimMouse {
@@ -76,6 +83,9 @@ impl Default for SimMouse {
             reject_write_at: None,
             forget_writes: false,
             receivers: 1,
+            sleeps_after_reads: None,
+            needs_listening: false,
+            listening: false,
         }
     }
 }
@@ -99,8 +109,6 @@ impl SimMouse {
         }
     }
 
-    /// A VXE R1 PRO (PAW3395) on its 8K receiver, under CompX's vendor ID as VXE's R1 line is,
-    /// answering as an ATK does: otherwise the U2 Plus's image.
     /// A Zaopin Z11 (PAW3311) on its cable, awake, on profile 1, with the test image in all four but
     /// for its stages: 1,350, 800, 400, 2,400, 3,200 and 6,400 DPI kept in its sensor's table, as
     /// Mayank_j's came (his report, 2026-11-12).
@@ -121,8 +129,74 @@ impl SimMouse {
         }
     }
 
+    /// A VXE R1 PRO (PAW3395) on its 8K receiver, under CompX's vendor ID as VXE's R1 line is,
+    /// answering as an ATK does: otherwise the U2 Plus's image.
     pub fn r1_pro() -> Self {
         Self { usb: (p::VENDOR_ID, 0xF58C), mid: 7, device_type: 5, ..Self::u2_plus() }
+    }
+
+    /// Another maker's mouse on Zaopin's vendor ID, through its 1K receiver: it answers as a
+    /// Zaopin does, with its own maker's ID, so hrtz leaves it alone and Inspect a mouse can read
+    /// it.
+    pub fn foreign() -> Self {
+        Self {
+            cid: 3,
+            mid: 21,
+            device_type: 0,
+            firmware: [0x01, 0x05],
+            battery: (58, false, 3820),
+            ..Default::default()
+        }
+    }
+
+    /// A tester's mouse, from the report Inspect a mouse saved of it (`path`): who it answered as,
+    /// how it was connected, its firmware and its memory, in all four profiles. So what hrtz makes
+    /// of their mouse can be worked on here, without going back to them. A report with several
+    /// connections gives its first with memory.
+    pub fn from_report(text: &str) -> Option<Self> {
+        use base64::Engine as _;
+        let report: serde_json::Value = serde_json::from_str(text).ok()?;
+        let (c, memory) = report["connections"].as_array()?.iter().find_map(|c| {
+            // A mouse hrtz read (`read`), or one it ran (`device`).
+            let text = c["read"]["memory"].as_str().or(c["device"]["memory"].as_str())?;
+            let bytes = base64::engine::general_purpose::STANDARD.decode(text).ok()?;
+            (!bytes.is_empty()).then_some((c, bytes))
+        })?;
+        let (read, mouse) = (&c["read"], &c["mouse"]);
+        let byte = |v: &serde_json::Value| v.as_u64().map(|n| n as u8);
+        // An ATK's own answer (0x10) before the handshake's.
+        let who = [&read["model"], &read["answeredAs"], mouse].into_iter().find(|w| w["cid"].is_u64())?;
+        let kind = byte(&read["answeredAs"]["deviceType"]).or(byte(&mouse["deviceType"])).unwrap_or(0);
+        let usb = c["ids"]
+            .as_str()
+            .and_then(|ids| ids.split_once(':'))
+            .and_then(|(v, p)| Some((u16::from_str_radix(v, 16).ok()?, u16::from_str_radix(p, 16).ok()?)))
+            .unwrap_or((p::VENDOR_ID, 0xFFFF));
+        let wired = read["wired"].as_bool().unwrap_or(atk::link::wired(kind));
+        let atk = usb.0 == atk::VENDOR_ID;
+        // "1.05", as the reading writes it: hex, major and minor.
+        let firmware = read["firmware"]
+            .as_str()
+            .or(mouse["firmware"].as_str())
+            .and_then(|f| f.split_once('.'))
+            .and_then(|(a, b)| Some([u8::from_str_radix(a, 16).ok()?, u8::from_str_radix(b, 16).ok()?]))
+            .unwrap_or([0, 0]);
+        let mut image = memory;
+        if image.len() < p::FLASH_SIZE {
+            image.resize(p::FLASH_SIZE, 0xFF);
+        }
+        Some(Self {
+            maker: if atk { Maker::Atk { receiver: !wired } } else { Maker::Zaopin },
+            usb,
+            echo_writes: !atk,
+            cid: byte(&who["cid"])?,
+            mid: byte(&who["mid"])?,
+            device_type: kind,
+            firmware,
+            battery: (byte(&read["battery"]["level"]).unwrap_or(80), false, 3950),
+            profiles: vec![image; 4],
+            ..Default::default()
+        })
     }
 
     fn is_atk(&self) -> bool {
@@ -174,6 +248,14 @@ impl SimMouse {
     }
 
     fn answer(&mut self, r: &Packet) {
+        if r[1] == cmd::READ_FLASH
+            && let Some(left) = self.sleeps_after_reads.as_mut()
+        {
+            match left.checked_sub(1) {
+                Some(n) => *left = n,
+                None => self.online = false,
+            }
+        }
         if self.is_atk() {
             return self.answer_atk(r);
         }
@@ -187,7 +269,10 @@ impl SimMouse {
             cmd::HANDSHAKE => {
                 p::packet(cmd::HANDSHAKE, 0, &[0x49, 0x05, 0x0C, 0xEA, self.cid, self.mid, self.device_type], Some(8))
             }
-            cmd::PC_DRIVER_STATUS => reply(&[r[6]]),
+            cmd::PC_DRIVER_STATUS => {
+                self.listening = r[6] != 0;
+                reply(&[r[6]])
+            }
             cmd::ONLINE => reply(&[self.online as u8]),
             cmd::BATTERY => {
                 let (level, charging, mv) = self.battery;
@@ -209,9 +294,11 @@ impl SimMouse {
                 self.long_range = r[6] != 0;
                 reply(&[r[6]])
             }
+            cmd::READ_FLASH | cmd::WRITE_FLASH if self.needs_listening && !self.listening => return,
             cmd::READ_FLASH => {
                 let (addr, len) = (p::packet_addr(r) as usize, r[5] as usize);
-                let data = self.image()[addr..addr + len].to_vec();
+                // Nothing is kept past its memory, and it says nothing of it.
+                let Some(data) = self.image().get(addr..addr + len).map(<[u8]>::to_vec) else { return };
                 p::packet(cmd::READ_FLASH, addr as u16, &data, None)
             }
             cmd::WRITE_FLASH => {
@@ -292,7 +379,7 @@ impl SimMouse {
             }
             cmd::READ_FLASH => {
                 let (addr, len) = (p::packet_addr(r) as usize, r[5] as usize);
-                let data = self.image()[addr..addr + len].to_vec();
+                let Some(data) = self.image().get(addr..addr + len).map(<[u8]>::to_vec) else { return };
                 p::packet(cmd::READ_FLASH, addr as u16, &data, None)
             }
             cmd::WRITE_FLASH => {
@@ -385,45 +472,94 @@ impl Link for SimLink {
 }
 
 /// Finds the simulated receiver while it's plugged in.
-#[cfg(test)]
-pub struct SimFinder(pub Arc<Mutex<SimMouse>>);
+pub struct SimFinder {
+    mouse: Arc<Mutex<SimMouse>>,
+    /// The key's first part: `compx` in a test; `sim` in a dev build, from the start (met under
+    /// its real key first, it would be taken for that mouse).
+    family: &'static str,
+    /// The last look found a receiver with its mouse not linked, as `HidFinder` keeps it.
+    asleep: bool,
+    /// A change Inspect a mouse is trying on it, as `HidFinder` keeps it.
+    trials: Trials,
+}
 
-#[cfg(test)]
+impl SimFinder {
+    /// A test's receiver, in a port of its own.
+    #[cfg(test)]
+    pub fn new(mouse: Arc<Mutex<SimMouse>>) -> Self {
+        static PORTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let port = PORTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self::at(mouse, &format!("test:{port}"))
+    }
+
+    /// A test's receiver in port `id`: plugged into one again, it's the same connection.
+    #[cfg(test)]
+    pub fn at(mouse: Arc<Mutex<SimMouse>>, id: &str) -> Self {
+        Self { mouse, family: "compx", asleep: false, trials: Trials::of(id) }
+    }
+
+    fn open(&self) -> Result<Opened> {
+        if self.mouse.lock().unplugged {
+            bail!("no Zaopin receiver found");
+        }
+        // Under CompX's vendor ID it's opened as a Zaopin is, whoever it answers as.
+        let (maker, usb) = {
+            let m = self.mouse.lock();
+            (if m.usb.0 == p::VENDOR_ID { Maker::Zaopin } else { m.maker }, m.usb)
+        };
+        Ok(Opened {
+            family: self.family,
+            maker,
+            product_id: usb.1,
+            link: Box::new(SimLink(self.mouse.clone())),
+            gap: Duration::ZERO,
+            #[cfg(windows)]
+            port: None,
+        })
+    }
+}
+
 impl Finder for SimFinder {
     fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
-        find(&self.0, "compx", board)
+        // As `HidFinder`: a change Inspect a mouse tried, which its window never put back.
+        if self.trials.overdue() {
+            self.leave();
+        }
+        self.asleep = false;
+        connect(self.open()?, board).inspect_err(|e| self.asleep = e.is::<crate::mice::Waiting>())
     }
 
     fn count(&mut self) -> usize {
-        self.0.lock().receivers
+        self.mouse.lock().receivers
     }
-}
 
-fn find(mouse: &Arc<Mutex<SimMouse>>, family: &'static str, board: &Board) -> Result<Box<dyn Driver>> {
-    if mouse.lock().unplugged {
-        bail!("no Zaopin receiver found");
+    fn asleep(&self) -> bool {
+        self.asleep
     }
-    // Under CompX's vendor ID it's opened as a Zaopin is, whoever it answers as.
-    let (maker, usb) = {
-        let m = mouse.lock();
-        (if m.usb.0 == p::VENDOR_ID { Maker::Zaopin } else { m.maker }, m.usb)
-    };
-    let opened = Opened {
-        family,
-        maker,
-        product_id: usb.1,
-        link: Box::new(SimLink(mouse.clone())),
-        gap: Duration::ZERO,
-        #[cfg(windows)]
-        port: None,
-    };
-    connect(opened, board)
+
+    fn read_only(&mut self, progress: &mut dyn FnMut(usize, usize)) -> Result<serde_json::Value> {
+        super::probe::read(self.open()?, progress)
+    }
+
+    fn trial(&mut self, restore: bool) -> Result<serde_json::Value> {
+        let opened = self.open()?;
+        if restore { self.trials.restore(opened) } else { self.trials.change(opened) }
+    }
+
+    fn leave(&mut self) {
+        if self.trials.pending()
+            && let Ok(opened) = self.open()
+        {
+            let _ = self.trials.restore(opened);
+        }
+    }
 }
 
 /// Simulated mice beside the real ones, in a dev build: `HRTZ_SIM=z2mini` (or `z1promax`, `z11`,
-/// `u2plus` or `r1pro` for an ATK, `unknown` for a Zaopin model hrtz doesn't know, or several, comma-separated), to try
-/// several mice with one. Their keys start `sim/`, so they never take over
-/// what a real Zaopin keeps.
+/// `u2plus` or `r1pro` for an ATK, `unknown` for a Zaopin model hrtz doesn't know, `foreign` for
+/// another maker's mouse hrtz leaves alone, or several, comma-separated), to try several mice with
+/// one. `report:<file>` is a tester's mouse, from the report Inspect a mouse saved of it (a path
+/// without commas). Their keys start `sim/`, so they never take over what a real Zaopin keeps.
 pub struct SimFamily {
     pub(crate) mice: Vec<(String, Arc<Mutex<SimMouse>>)>,
 }
@@ -447,7 +583,15 @@ impl SimFamily {
                     "r1pro" => SimMouse::r1_pro(),
                     "z11" => SimMouse::z11(),
                     "unknown" => SimMouse { mid: 10, device_type: 0, battery: (72, false, 3900), ..Default::default() },
-                    _ => return None,
+                    "foreign" => SimMouse::foreign(),
+                    name => {
+                        let path = name.strip_prefix("report:")?;
+                        let made = std::fs::read_to_string(path).ok().and_then(|text| SimMouse::from_report(&text));
+                        if made.is_none() {
+                            eprintln!("HRTZ_SIM: no mouse with memory in the report at {path}");
+                        }
+                        return made.map(|m| ("sim:report".to_string(), Arc::new(Mutex::new(m))));
+                    }
                 };
                 Some((format!("sim:{}", n.trim()), Arc::new(Mutex::new(m))))
             })
@@ -463,20 +607,6 @@ impl Family for SimFamily {
 
     fn finder(&self, id: &str) -> Box<dyn Finder> {
         let mouse = self.mice.iter().find(|(i, _)| i == id).map(|(_, m)| m.clone()).expect("a simulated mouse");
-        Box::new(DevSimFinder(mouse))
-    }
-}
-
-/// The simulated mouse under a `sim/` key from the start: met under its real key first, it would
-/// be taken for that mouse.
-struct DevSimFinder(Arc<Mutex<SimMouse>>);
-
-impl Finder for DevSimFinder {
-    fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
-        find(&self.0, "sim", board)
-    }
-
-    fn count(&mut self) -> usize {
-        self.0.lock().receivers
+        Box::new(SimFinder { mouse, family: "sim", asleep: false, trials: Trials::of(id) })
     }
 }

@@ -405,8 +405,92 @@ export interface Inspected {
   supported: string | null;
   /** The key of the mouse hrtz runs there, where it does, so its check can run on it. */
   key: string | null;
-  /** What its report holds: its IDs, names and each interface's report descriptor. */
+  reach: Reach;
+  /** The connection to read it on, where hrtz can (`reach` is "reads"). */
+  connection: string | null;
+  /** What Windows knows of it: its IDs, names and each interface's report descriptor. */
   device: unknown;
+}
+
+/**
+ * How far hrtz gets with a listed mouse:
+ * - `runs`: hrtz runs it, so its check reads it, measures it, and on a model it knows tries a change.
+ * - `asleep`: hrtz has its connection, but its mouse hasn't answered yet.
+ * - `reads`: hrtz leaves it alone, but it speaks a protocol hrtz knows: its check reads it and
+ *   changes nothing.
+ * - `windows`: only what Windows knows of it.
+ */
+export type Reach = "runs" | "asleep" | "reads" | "windows";
+
+/** One way of reading a setting's bytes. */
+export interface Way {
+  /** Which piece read it: a DPI method (`step50`, `ultra`, `table`, `paw3955`), a maker's place
+   *  for it, or a scale. */
+  piece: string;
+  /** As its owner would know it: "400 / 800 / 1,600 DPI". */
+  text: string;
+  value: unknown;
+  /** Where this way keeps it, when it's not where the setting says. */
+  at?: string;
+  /** The way its maker's own list gives this model. */
+  expected?: boolean;
+}
+
+/** One setting of a mouse's memory, as far as hrtz gets with it: `kept` where its check byte is
+ *  right, and read each way hrtz knows (`ways`; none for a value no way holds). Neither says the
+ *  value is right: that takes a measurement, or its owner's word. */
+export interface Reading {
+  id: string;
+  name: string;
+  at: string;
+  bytes: string;
+  kept: boolean;
+  ways: Way[];
+}
+
+/** A mouse's memory, read a piece at a time. */
+export interface Picture {
+  settings: Reading[];
+  /** How many of them are kept where hrtz looked, of how many. */
+  kept: number;
+  of: number;
+}
+
+/** A change Inspect a mouse tried on a mouse hrtz leaves alone: its polling rate, in Hz. */
+export interface TrialChange {
+  what: string;
+  from: number;
+  to: number;
+  /** The mouse held the new rate when read back. */
+  kept: boolean;
+}
+
+/** Inspect a mouse's reading of a mouse hrtz leaves alone (`reach` "reads"). The rest of what it
+ *  holds (every question and its answer, its memory) goes into the report as it came. */
+export interface MouseRead {
+  /** Its receiver says the mouse isn't linked: nothing more was asked. */
+  asleep: boolean;
+  /** On its cable, rather than through a receiver. */
+  wired: boolean;
+  /** Who the handshake says it is. */
+  answeredAs: { cid: number; mid: number; deviceType: number } | null;
+  /** Who it says it is, asked as ATK's app asks. */
+  model?: { cid: number; mid: number } | null;
+  /** The model's name, where ATK's app names it. */
+  knownAs?: string | null;
+  firmware?: string | null;
+  /** How much of its memory it gave, of how much was asked for. */
+  memorySize?: number;
+  memoryWanted?: number;
+  /** Why the reading stopped short, when it did. */
+  stopped?: string | null;
+  /** It stopped short because the mouse went to sleep. */
+  fellAsleep?: boolean;
+  /** It gave no memory until told an app was listening, as its maker's app tells it: whether it
+   *  took that. Null where it didn't need telling. */
+  listening?: boolean | null;
+  /** What its memory holds, a piece at a time. None for a mouse that gave too little of it. */
+  picture?: Picture | null;
 }
 
 /** The SignalRGB link: SignalRGB setting the mice's DPI lights through hrtz's add-on. */
@@ -668,8 +752,14 @@ export const api = {
   applySettings: (settings: Settings) => invoke<Settings>("apply_settings", { mouse, settings }),
   /** Every mouse or mouse receiver Windows lists, read from Windows' records: nothing is sent to them. */
   inspectMice: () => invoke<Inspected[]>("inspect_mice"),
-  /** Save one device's Inspect a mouse report to `path`. */
-  saveInspection: (path: string, device: unknown) => invoke<void>("save_inspection", { path, device }),
+  /** Inspect a mouse's check of a mouse hrtz leaves alone, on the connection it was listed with:
+   *  who it is and its memory, read as its maker's app reads them. Nothing is written. Only when
+   *  its owner starts the check. */
+  inspectRead: (connection: string) => invoke<MouseRead>("inspect_read", { connection }),
+  /** One change tried on a mouse hrtz leaves alone, when its owner asks for it: its polling rate
+   *  set to another rate, then (`restore`) put back. One never put back is put back by hrtz. */
+  inspectTrial: (connection: string, restore: boolean) =>
+    invoke<TrialChange | { restored: boolean }>("inspect_trial", { connection, restore }),
   /** Copy hrtz's add-on into SignalRGB's plugins folder; SignalRGB loads it when it next starts. */
   installSignalRgbAddon: () => invoke<void>("install_signalrgb_addon"),
   setProfile: (index: number) => invoke<void>("set_profile", { mouse, index }),
@@ -754,6 +844,8 @@ export const api = {
 export const on = {
   state: (f: (s: DeviceState) => void): Promise<UnlistenFn> => listen<DeviceState>("device-state", (e) => f(e.payload)),
   progress: (f: (p: [number, number]) => void) => listen<[number, number]>("device-progress", (e) => f(e.payload)),
+  /** How far `inspectRead` is with the mouse's memory: bytes read, of how many. */
+  inspectProgress: (f: (p: [number, number]) => void) => listen<[number, number]>("inspect-progress", (e) => f(e.payload)),
   /** Seconds the receiver keeps looking for a mouse to pair with. */
   pairing: (f: (secondsLeft: number) => void) => listen<number>("pairing", (e) => f(e.payload)),
   prefs: (f: (p: Prefs) => void) => listen<Prefs>("prefs", (e) => f(e.payload)),

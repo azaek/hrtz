@@ -183,12 +183,20 @@ hrtz is in beta. If you have one of the mice above, these help most:
 
 - **A model that isn't tested yet:** its card shows an amber **Not tested** badge. Click it (or
   **Inspect a mouse** in the title bar) for a 2-minute check on a full screen: move the mouse, press
-  each button, and hrtz changes one DPI stage and puts it back. It saves a report and opens a
-  GitHub issue to send it in. A few of those and a model moves to Tested.
+  each button, and hrtz changes one DPI stage and puts it back. A mouse with a receiver and a cable
+  is checked on each, into one report. hrtz then opens a GitHub issue with the report inside it, to
+  submit (or save the report as a file and send it any other way). A few of those and a model moves
+  to Tested.
 - **A mouse that isn't supported yet:** **Inspect a mouse**, in the title bar, checks what it safely
-  can and saves a report for a support request. A mouse hrtz doesn't run is only asked what it tells
-  Windows; a Zaopin model hrtz doesn't know yet (its badge says **Not supported yet**) is read and
-  measured too, with nothing written.
+  can and opens a support request with the report inside it:
+  - A mouse that speaks the same language as Zaopin's (some from ATK, VXE, VGN, Lamzu and Pulsar
+    do) is read once you start its check: which mouse it is, its firmware and its memory, the way
+    its own app reads them. hrtz then measures its polling rate and shows what it read, so you can
+    say whether that's what its own app shows. If you let it, it tries one change: the polling
+    rate set to another rate, counted, and put back.
+  - A Zaopin model hrtz doesn't know yet (its badge says **Not supported yet**) is read, measured
+    and asked about the same way.
+  - Any other mouse is only asked what it tells Windows, and the report says so.
 - **Something wrong:** Settings → **Report a problem** opens an issue with your hrtz version, mouse,
   firmware and Windows filled in.
 - **Questions and ideas:** [Discussions](https://github.com/azaek/hrtz/discussions).

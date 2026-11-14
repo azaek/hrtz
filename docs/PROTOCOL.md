@@ -15,6 +15,14 @@ Models are identified by `CID`/`MID` from the handshake, not by PID. CID 7 = Zao
 
 A Z11's receiver (F5D5) answered the handshake with CID 0 and MID 0 while the Z11 was paired, likely while it slept (it sleeps after 10 s). hrtz takes 0, 0 as a receiver with no mouse paired, and asks again once the receiver says a mouse is there.
 
+Other makers' mice (some from VGN, Lamzu, Pulsar and ATK) share this vendor ID, interface and messages, each with its own CID and memory layout. hrtz asks one the handshake, sees it isn't a Zaopin (or an ATK it runs), and sends it nothing more. Only when its owner starts its check in Inspect a mouse is it read (`src-tauri/src/mice/compx/probe.rs`): the handshake again, `0x03` (is the receiver's mouse linked?), `0x12` (firmware), `0x0E` (profile), `0x17` (long-range mode, on this vendor ID), `0x04` (battery) and `0x08` (its memory, 0x0000 to 0x1AFF, then 0x1B00 to 0x1B2F, where a PAW3955 keeps its stages; a mouse with nothing there doesn't answer), and on ATK's vendor ID `0x10` (who it is), as ATK's app asks. Each question goes into the report as sent, with what came back. A receiver whose mouse isn't linked is asked only the first two, once a second, until the mouse wakes.
+
+Nothing is written to its memory by the reading. `0x02` is sent only to a mouse that's there and gives none of its memory, as its maker's app sends it before reading: `[1]`, the memory asked for again, then `[0]`.
+
+What the memory holds is then read a piece at a time (`pieces.rs`): each setting where a Zaopin or an ATK keeps it, whether its check byte is right, and its value each way hrtz knows to read it (a stage's DPI up to four ways). Memory says where a setting is kept, not what its bytes mean, so the check measures the polling rate from raw input and asks its owner which reading of the DPI stages is theirs.
+
+Its owner can also let hrtz try one change (`probe::Trials`): the row at 0x00 written whole with another polling rate (500 Hz, or 1,000 from 500), read back, the rate counted from raw input, and the two bytes put back as they were. Only where those two bytes read as a rate and the count agreed with it. A change not put back within 45 s, or still set when hrtz quits, is put back by hrtz.
+
 ## Transport
 
 Interface `MI_01`, HID collection 5: usage page `0xFF02`, usage `0x02`, 17-byte input and output reports. Plain `WriteFile`/`ReadFile`; each open handle receives its own copy of input reports, so several programs can talk to the mouse at once.

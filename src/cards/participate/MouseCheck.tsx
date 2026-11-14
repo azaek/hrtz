@@ -1,20 +1,33 @@
-import { useState } from "react";
-import { Body1, Button, Caption1, Link, Title1 } from "@fluentui/react-components";
-import { CheckmarkCircle16Filled, Circle16Regular, DismissCircle16Filled } from "@fluentui/react-icons";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { api, message, type DeviceState, type Inspected } from "@/api";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Body1, Button, Link, Spinner } from "@fluentui/react-components";
+import type { DeviceState, Inspected } from "@/api";
 import { StepCard } from "@/kit";
-import { linkName } from "@/links";
-import { artOf, SUPPORT_TEXT, type Support } from "@/models";
-import { MousePicture } from "@/MousePicture";
-import { reportUrl } from "@/report";
-import { toast } from "@/store";
-import { buildReport, reportName, summaryLines, summaryText, type Line } from "./report";
+import type { Support } from "@/models";
+import { MouseHead } from "./parts";
+import { checkedPart, idsOf, nameOf, readPart, statusOf, windowsPart, type Part } from "./report";
+import { useMeasure } from "./useMeasure";
 import { useParticipate } from "./useParticipate";
+import { useRead } from "./useRead";
 
-const muted = { color: "var(--colorNeutralForeground3)" };
 const soft = { color: "var(--colorNeutralForeground2)" };
+
+/**
+ * What the check can do, by how far hrtz is with the mouse: a model it knows (tested or not), a
+ * mouse it runs without knowing the model, one it leaves alone but can read, one whose mouse
+ * hasn't answered yet, or one it only knows through Windows.
+ */
+type Kind = Support | "reads" | "asleep" | "windows";
+
+/** What the check does, said before it starts. */
+const ABOUT: Record<Exclude<Kind, "asleep">, string> = {
+  tested: "This model is tested. If something looks wrong, check it and send the report.",
+  untested: "A 2-minute check of what works on this model. It reads the mouse, measures its polling rate, asks you to press each button, and changes one DPI stage and puts it back.",
+  unknown:
+    "hrtz runs this mouse but doesn't know the model yet. The check reads its settings and memory, measures its polling rate and asks you to press each button. It changes nothing.",
+  reads:
+    "hrtz doesn't run this mouse yet, but can read it. The check reads which mouse it is and what its memory holds, the way its own app does, then measures its polling rate. It changes nothing. Close the mouse's own app first.",
+  windows: "hrtz can't read this mouse yet, so its report holds what it tells Windows: its IDs and how it connects. Nothing is sent to it.",
+};
 
 /** What each stage asks of you, while the full screen is up. */
 const DOING: Record<string, string> = {
@@ -24,111 +37,123 @@ const DOING: Record<string, string> = {
   writing: "Checking a change",
 };
 
-const hex = (n: number) => n.toString(16).toUpperCase().padStart(4, "0");
-/** "3554:F527", as Windows and the request form write a device's IDs; a simulated mouse has none. */
-export const idsOf = (m: Inspected) => (m.vendorId || m.productId ? `${hex(m.vendorId)}:${hex(m.productId)}` : "Simulated");
+/** How long a mouse is waited for before the card says what else to look at. */
+const SLOW_MS = 20_000;
+/** Movement counted for the polling rate of a mouse hrtz reads. */
+const COUNT_MS = 5000;
 
-/** What the check does, by how far hrtz is with the mouse. */
-const ABOUT: Record<Support | "windows", string> = {
-  windows: "hrtz doesn't run this mouse yet, so its report holds what it tells Windows: its IDs and how it connects. Nothing is sent to it.",
-  unknown:
-    "hrtz runs this mouse but doesn't know the model yet. The check reads its settings and memory, measures its polling rate and asks you to press each button. It changes nothing.",
-  untested: "A 2-minute check of what works on this model. It reads the mouse, measures its polling rate, asks you to press each button, and changes one DPI stage and puts it back.",
-  tested: "This model is tested. If something looks wrong, check it and send the report.",
-};
-
-/** What Windows says of a mouse hrtz doesn't run, a line each, for the result list. */
-function windowsLines(m: Inspected): Line[] {
-  const interfaces = (m.device as { interfaces?: unknown[] } | null)?.interfaces?.length ?? 0;
-  return [
-    { ok: true, text: `IDs ${idsOf(m)}` },
-    { ok: interfaces > 0, text: interfaces ? `${interfaces} interface${interfaces > 1 ? "s" : ""}, with what each reports` : "No interfaces read" },
-    { ok: null, text: "Nothing is sent to it until hrtz supports it" },
-  ];
-}
-
-function Results({ lines }: { lines: Line[] }) {
-  return (
-    <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-left">
-      {lines.map((l, i) => (
-        <li key={i} className="flex items-center gap-2 text-sm">
-          {l.ok === null ? (
-            <Circle16Regular style={muted} />
-          ) : l.ok ? (
-            <CheckmarkCircle16Filled style={{ color: "var(--colorPaletteGreenForeground1)" }} />
-          ) : (
-            <DismissCircle16Filled style={{ color: "var(--colorPaletteDarkOrangeForeground1)" }} />
-          )}
-          <span>{l.text}</span>
-        </li>
-      ))}
-    </ul>
-  );
+/** Whether `active` has lasted `ms`. */
+function useAfter(active: boolean, ms: number) {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    setLate(false);
+    if (!active) return;
+    const t = setTimeout(() => setLate(true), ms);
+    return () => clearTimeout(t);
+  }, [active, ms]);
+  return late;
 }
 
 /**
- * Inspect a mouse, for the mouse picked: one check that gathers everything hrtz can safely learn of
- * it, then one report to save and one GitHub issue to send it in. A mouse hrtz doesn't run gives
- * what it tells Windows. One it runs is read, its polling measured and each button pressed, on the
- * full screen; a model it knows also has one DPI stage changed and put back.
+ * Inspect a mouse's check of the mouse picked: everything hrtz can safely learn of it, handed on
+ * as one part of a report (`onDone`). One hrtz runs is read, its polling measured and each button
+ * pressed, on the full screen; a model it knows also has one DPI stage changed and put back. One
+ * it leaves alone but can read is read, then its polling rate measured (which sends it nothing),
+ * with nothing changed. A mouse that's asleep is waited for, with what to do said plainly: a
+ * report from a sleeping mouse holds next to nothing.
  */
-export function MouseCheck({ mouse, support, device }: { mouse: Inspected; support: Support | undefined; device: DeviceState | null }) {
+export function MouseCheck({ mouse, support, device, onDone }: { mouse: Inspected; support: Support | undefined; device: DeviceState | null; onDone: (part: Part) => void }) {
   const p = useParticipate();
-  const [saved, setSaved] = useState<string | null>(null);
-  const runs = !!support && !!device?.connected;
-  const kind = runs ? support : "windows";
+  const r = useRead(mouse.connection);
+  const m = useMeasure();
+  /** Still on the page: a count that ends after it's left isn't handed on. */
+  const here = useRef(true);
+  useEffect(() => {
+    here.current = true;
+    return () => {
+      here.current = false;
+    };
+  }, []);
+  const runs = mouse.reach === "runs" && !!device?.connected;
+  // A mouse hrtz runs without a model it lists (a receiver's mouse that names none) is read like
+  // one it doesn't know. One listed as run that the window hasn't heard of yet is waited for.
+  const kind: Kind = runs ? (support ?? "unknown") : mouse.reach === "reads" || mouse.reach === "windows" ? mouse.reach : "asleep";
   const writes = kind === "untested" || kind === "tested";
+  /** Start was pressed with the mouse asleep: the check of that kind starts once it wakes. */
+  const [waking, setWaking] = useState<Kind | null>(null);
+  /** Whether the run under way tries a change. */
+  const wrote = useRef(false);
   const running = p.stage !== "idle" && p.stage !== "done";
-  const done = runs ? p.stage === "done" && !!p.checks : true;
+  const reading = r.stage === "asking" || r.stage === "reading";
+  const waiting = !running && !reading && !m.on && (!!waking || r.stage === "waking" || kind === "asleep");
+  const slow = useAfter(waiting, SLOW_MS);
 
-  const save = async () => {
-    const name = runs && device ? reportName(device) : `hrtz-inspect-${mouse.name.replace(/[^\w-]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "mouse"}.json`;
-    const path = await saveDialog({ defaultPath: name, filters: [{ name: "Mouse report", extensions: ["json"] }] }).catch(() => null);
-    if (!path) return;
-    try {
-      if (runs && device && p.checks) {
-        const report = { ...(await buildReport(device, p.checks, p.dump)), inspection: mouse.device };
-        await api.saveReport(path, JSON.stringify(report, null, 2));
-      } else await api.saveInspection(path, mouse.device);
-      setSaved(path.split(/[\\/]/).pop() ?? path);
-    } catch (e) {
-      toast(message(e), "error");
-    }
-  };
-
-  // A model hrtz knows goes in as a test report; anything else as a request for support.
-  const send = async () => {
-    const check = p.checks ? summaryText(p.checks) : "";
-    const url =
-      writes && device
-        ? await reportUrl("mouse_report", device, { check })
-        : await reportUrl("mouse_request", null, { mouse: mouse.name, ids: idsOf(mouse), connection: device?.connected ? linkName(device) : "", check });
-    await openUrl(url).catch((e) => toast(message(e), "error"));
-  };
-
-  const start = () => {
-    setSaved(null);
+  const begin = () => {
+    wrote.current = writes;
     void p.start({ write: writes });
   };
+  const start = () => {
+    if (kind === "reads") void r.start();
+    else if (!device?.online) setWaking(kind);
+    else begin();
+  };
 
-  const lines = runs ? (p.checks ? summaryLines(p.checks) : []) : windowsLines(mouse);
+  // Awake: the check waited for starts. Should the mouse turn out to be another kind (its receiver
+  // names it only now), what its check does is said first, and Start asked again.
+  useEffect(() => {
+    if (!waking) return;
+    if (kind !== waking) setWaking(null);
+    else if (device?.online) {
+      setWaking(null);
+      begin();
+    }
+  }, [waking, kind, device?.online]);
+
+  useEffect(() => {
+    if (p.stage === "done" && p.checks && device) onDone(checkedPart(mouse, device, wrote.current, p.checks, p.dump));
+  }, [p.stage]);
+  // Read whole: its polling rate is counted, to hold against what its memory says. A reading
+  // that stopped short goes on as it is: it's checked again anyway.
+  useEffect(() => {
+    const read = r.read;
+    if (r.stage !== "done" || !read) return;
+    if ((read.memorySize ?? 0) < (read.memoryWanted ?? 1)) return onDone(readPart(mouse, read, null));
+    void m
+      .measure(COUNT_MS, { title: "Move the mouse in quick circles", detail: "Measures how often it reports, the way a game reads it." })
+      .then((measured) => here.current && onDone(readPart(mouse, read, measured)));
+  }, [r.stage]);
+
+  const wait = (detail: string, actions: ReactNode) => (
+    <div className="w-full text-left">
+      <StepCard
+        label="Waiting for the mouse"
+        title="Move your mouse to wake it"
+        detail={detail}
+        status={
+          <span className="flex items-center gap-2" style={soft}>
+            <Spinner size="extra-tiny" />
+            {slow ? "Still nothing. Check that it's switched on, and paired with this receiver." : "Waiting for it to answer"}
+          </span>
+        }
+        actions={actions}
+      />
+    </div>
+  );
 
   return (
     <div className="tw flex w-full flex-col items-center gap-3 text-center">
-      <MousePicture image={artOf(mouse.key, device?.variant)?.image} width={200} />
-      <Title1 as="h1" style={{ margin: 0 }}>
-        {mouse.name}
-      </Title1>
-      <Caption1 style={muted}>
-        {idsOf(mouse)} · {support ? SUPPORT_TEXT[support] : "Not supported yet"}
-      </Caption1>
-      <Body1 style={soft}>
-        {running
-          ? "Running full screen. Press Esc to stop; what it changed goes back."
-          : p.stopped && !done
-            ? "Stopped. Your settings are as they were."
-            : ABOUT[kind]}
-      </Body1>
+      <MouseHead artKey={mouse.key} variant={device?.variant} name={nameOf(mouse)} caption={`${idsOf(mouse)} · ${statusOf(mouse, support)}`} />
+      {kind !== "asleep" && (
+        <Body1 style={soft}>
+          {running
+            ? "Running full screen. Press Esc to stop; what it changed goes back."
+            : m.on
+              ? "Running full screen. Press Esc to skip it."
+              : p.stopped
+                ? "Stopped. Your settings are as they were."
+                : (r.error ?? ABOUT[kind])}
+        </Body1>
+      )}
 
       {running ? (
         <div className="w-full text-left">
@@ -143,36 +168,64 @@ export function MouseCheck({ mouse, support, device }: { mouse: Inspected; suppo
             }
           />
         </div>
-      ) : done ? (
-        <div className="flex w-full flex-col items-center gap-3">
-          <div className="w-full rounded-[var(--borderRadiusMedium)] border px-4 py-3">
-            <Results lines={lines} />
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button appearance="primary" onClick={() => void save()}>
-              Save report…
-            </Button>
-            <Button disabled={!saved} onClick={() => void send()}>
-              {writes ? "Open GitHub issue" : "Request support on GitHub"}
-            </Button>
-            {runs && (
-              <Link as="button" onClick={start}>
-                Check again
+      ) : m.on ? (
+        <div className="w-full text-left">
+          <StepCard
+            label="Measuring"
+            title={DOING.moving}
+            status={<span style={soft}>Follow the full screen.</span>}
+            actions={
+              <Link as="button" onClick={m.stop}>
+                Skip
               </Link>
-            )}
-          </div>
-          <Caption1 style={muted}>
-            {saved
-              ? `Saved as ${saved}. Drag the file into the GitHub issue.`
-              : "The report holds what the check found and the mouse's details; nothing that identifies you or this PC. It stays here until you send it."}
-          </Caption1>
+            }
+          />
         </div>
+      ) : reading ? (
+        <div className="w-full text-left">
+          <StepCard
+            label="Reading"
+            title="Reading the mouse"
+            detail="Which mouse it is, and what its memory holds. Keep it awake until it's done."
+            progress={r.progress}
+            status={<span style={soft}>{Math.round(r.progress * 100)}%</span>}
+          />
+        </div>
+      ) : waking ? (
+        wait(
+          "Its check starts once it answers.",
+          <Link as="button" onClick={() => setWaking(null)}>
+            Stop
+          </Link>,
+        )
+      ) : r.stage === "waking" ? (
+        wait(
+          "Its receiver answered, but the mouse is asleep. It's read once it wakes.",
+          <>
+            <Link as="button" onClick={() => onDone(windowsPart(mouse, true, r.asleep))}>
+              Use what's known instead
+            </Link>
+            <Link as="button" onClick={r.stop}>
+              Stop
+            </Link>
+          </>,
+        )
+      ) : kind === "asleep" ? (
+        wait(
+          "hrtz found its receiver, but the mouse hasn't answered yet. Its check shows here once it does.",
+          <Link as="button" onClick={() => onDone(windowsPart(mouse, true))}>
+            Use what Windows knows instead
+          </Link>,
+        )
+      ) : kind === "windows" ? (
+        <Button appearance="primary" onClick={() => onDone(windowsPart(mouse))}>
+          Continue
+        </Button>
       ) : (
-        <Button appearance="primary" disabled={!device?.online} onClick={start}>
+        <Button appearance="primary" onClick={start}>
           Start the check
         </Button>
       )}
-      {runs && !running && !done && !device?.online && <Caption1 style={muted}>Wake the mouse to check it.</Caption1>}
     </div>
   );
 }

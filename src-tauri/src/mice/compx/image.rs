@@ -114,7 +114,7 @@ pub const MAX_STAGES: usize = 8;
 const BRIGHTNESS: [u8; 10] = [16, 30, 60, 90, 128, 150, 180, 210, 230, 255];
 pub const BUTTON_SLOTS: usize = 16;
 
-mod addr {
+pub(super) mod addr {
     pub const POLLING: usize = 0x00;
     pub const STAGE_COUNT: usize = 0x02;
     pub const STAGE: usize = 0x04;
@@ -136,7 +136,7 @@ mod addr {
     pub const SHORTCUT_LEN: usize = 0x20;
 }
 
-fn pair(f: &[u8], a: usize) -> Option<u8> {
+pub(super) fn pair(f: &[u8], a: usize) -> Option<u8> {
     group_valid(&f[a..a + 2]).then_some(f[a])
 }
 
@@ -197,11 +197,11 @@ fn lock_code(method: Method, dpi: u32) -> Option<u8> {
     }
 }
 
-fn polling_code(hz: u32) -> Option<u8> {
+pub(super) fn polling_code(hz: u32) -> Option<u8> {
     POLLING.iter().find(|p| p.0 == hz).map(|p| p.1)
 }
 
-fn polling_hz(code: u8) -> Option<u32> {
+pub(super) fn polling_hz(code: u8) -> Option<u32> {
     POLLING.iter().find(|p| p.1 == code).map(|p| p.0)
 }
 
@@ -261,7 +261,7 @@ fn decode_fields(f: &[u8], method: Method) -> Fields {
     }
 }
 
-fn decode_button(f: &[u8], i: usize, method: Method) -> ButtonAction {
+pub(super) fn decode_button(f: &[u8], i: usize, method: Method) -> ButtonAction {
     let a = addr::BUTTONS + 4 * i;
     if !group_valid(&f[a..a + 4]) {
         return ButtonAction::Disabled;

@@ -1,6 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { currentDpi, topRate, type AutoReason, type BackupMeta, type ButtonAction, type ButtonEvent, type ConnStats, type DeviceState, type GameSensitivity, type KnownMouse, type MeterSample, type PadView, type PointerSettings, type Prefs, type RunningApp, type Settings, type Stroke, type WheelEvent } from "@/api";
+import { currentDpi, topRate, type AutoReason, type BackupMeta, type ButtonAction, type ButtonEvent, type ConnStats, type DeviceState, type GameSensitivity, type Inspected, type KnownMouse, type MeterSample, type MouseRead, type PadView, type Picture, type PointerSettings, type Prefs, type RunningApp, type Settings, type Stroke, type WheelEvent } from "@/api";
 
 /** This PC's data (src/lab/data), read through a glob: it's git-ignored, so a fresh clone has none
  *  and still type-checks. Without it the lab says how to make it. */
@@ -187,6 +187,8 @@ for (const v of Object.values(real.padSim)) {
 
 export const fake = {
   device: clone(real.device),
+  /** Mice beside the stand-in's own, met while the lab runs (Inspect a mouse's woken Z11). */
+  others: [] as DeviceState[],
   prefs: clone(real.prefs),
   mice: clone(real.mice),
   backups: clone(real.backups) as Backup[],
@@ -205,6 +207,213 @@ export function pushDevice(patch: Partial<DeviceState>) {
   void emit("device-state", fake.device);
   changed();
 }
+
+// ---- Inspect a mouse ------------------------------------------------------------------------------
+
+/**
+ * What else is plugged in beside the stand-in's mouse, for Inspect a mouse (lab-app.html?inspect):
+ * another maker's mouse hrtz leaves alone but can read, a receiver whose mouse hasn't answered,
+ * and a mouse hrtz knows only through Windows.
+ */
+export const inspectLab = {
+  /** Listed at all: the other labs keep to the stand-in's own mouse. */
+  on: false,
+  /** The other maker's mouse is asleep; or falls asleep while it's read. */
+  foreignAsleep: false,
+  foreignStops: false,
+  /** Its DPI stages read one way only; its maker's own list names it; its settings are kept
+   *  where hrtz doesn't look; it doesn't keep a change tried on it. */
+  foreignOneWay: false,
+  foreignListed: false,
+  foreignElsewhere: false,
+  foreignForgets: false,
+  /** Its polling rate now, and before a change being tried. */
+  foreignHz: 1000,
+  foreignWas: null as number | null,
+  /** Whose rate movement comes at while it's the one being read: null for the stand-in's own. */
+  counting: null as number | null,
+  /** The stand-in's own mouse is a model hrtz doesn't know (?unknown). */
+  unknown: false,
+  /** The waiting receiver's mouse woke: a Z11, which hrtz runs and hasn't been tried on. */
+  woken: false,
+};
+const Z11_KEY = "compx/7-9";
+
+/** Wake the waiting receiver's mouse: hrtz meets a Z11 on it. */
+export function wakeWaiting() {
+  if (inspectLab.woken) return;
+  inspectLab.woken = true;
+  const z11: DeviceState = {
+    ...clone(deviceJson as unknown as DeviceState),
+    rev: ++rev,
+    key: Z11_KEY,
+    model: "Z11",
+    mid: 9,
+    deviceType: 0,
+    firmware: "3.13",
+    connected: true,
+    online: true,
+  };
+  z11.settings = z11.settings && kindFirst(z11.settings);
+  fake.others = [z11];
+  void emit("device-state", z11);
+  changed();
+}
+
+/** What Windows says of a device, as the report keeps it. */
+const windowsSays = (name: string, vendorId: number, productId: number, hrtz: unknown) => ({
+  name,
+  manufacturer: null,
+  vendorId: `0x${vendorId.toString(16).toUpperCase().padStart(4, "0")}`,
+  productId: `0x${productId.toString(16).toUpperCase().padStart(4, "0")}`,
+  release: "0x0100",
+  bus: "usb",
+  hrtz,
+  interfaces: [
+    { interface: 0, collection: null, usagePage: "0x0001", usage: "0x0002", reportDescriptor: "05 01 09 02 A1 01 09 01 A1 00 C0 C0" },
+    { interface: 1, collection: 1, usagePage: "0xFF02", usage: "0x0002", reportDescriptor: "06 02 FF 09 02 A1 01 85 08 C0" },
+  ],
+});
+
+function inspected(): Inspected[] {
+  const listed = (name: string, vendorId: number, productId: number, more: Pick<Inspected, "reach"> & Partial<Inspected>, hrtz: unknown): Inspected => ({
+    name,
+    vendorId,
+    productId,
+    supported: null,
+    key: null,
+    connection: null,
+    device: windowsSays(name, vendorId, productId, hrtz),
+    ...more,
+  });
+  const list: Inspected[] = [];
+  if (inspectLab.on) {
+    list.push(listed("2.4G Wireless Receiver", 0x3554, 0xf5f4, { reach: "reads", connection: "lab:foreign" }, { answeredAs: { cid: 3, mid: 21, deviceType: 0 } }));
+    list.push(
+      inspectLab.woken
+        ? listed("Zaopin 1K Receiver", 0x3554, 0xf5d7, { reach: "runs", key: Z11_KEY, supported: "Z11" }, { model: "Z11", key: Z11_KEY })
+        : listed("Zaopin 1K Receiver", 0x3554, 0xf5d7, { reach: "asleep" }, { waiting: true }),
+    );
+    list.push(listed("USB Gaming Mouse", 0x1ea7, 0x0907, { reach: "windows" }, null));
+  }
+  const d = fake.device;
+  if (d.key) {
+    const logitech = d.key.startsWith("hidpp/");
+    list.push(
+      listed(
+        d.model ?? "Mouse",
+        logitech ? 0x046d : 0x3554,
+        logitech ? 0xc547 : 0xf5d5,
+        d.connected ? { reach: "runs", key: d.key, supported: d.model } : { reach: "windows" },
+        d.connected ? { model: d.model, key: d.key } : null,
+      ),
+    );
+  }
+  return list;
+}
+
+/** A made-up memory of the size and blankness of a real one, so a report packs as one would. */
+function labMemory(): string {
+  const f = new Uint8Array(6912).fill(0xff);
+  const rows = [0x01, 0x54, 0x04, 0x51, 0x01, 0x54, 0x00, 0x55, 0x00, 0x55, 0x01, 0x54, 0x07, 0x07, 0x00, 0x47, 0x0f, 0x0f, 0x00, 0x37, 0x1f, 0x1f, 0x00, 0x17, 0x3f, 0x3f, 0x00, 0xd7];
+  f.set(rows, 0);
+  f.set([0x04, 0x51, 0x01, 0x54, 0x03, 0x52, 0x00, 0x55, 0x00, 0x55], 0xa9);
+  let binary = "";
+  for (let i = 0; i < f.length; i += 0x8000) binary += String.fromCharCode(...f.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+/** What `pieces` makes of a memory, as the lab's mice have it: `hz` its polling rate, with
+ *  `oneWay` its stages read one way only, with `elsewhere` nothing where hrtz looks. */
+export function labPicture(hz: number, oneWay = false, elsewhere = false): Picture {
+  const code = { 125: 8, 250: 4, 500: 2, 1000: 1, 2000: 0x10, 4000: 0x20, 8000: 0x40 }[hz] ?? 1;
+  const pair = (v: number) => [v, (0x55 - v) & 0xff].map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+  const kept = (id: string, name: string, at: string, bytes: string, ways: Picture["settings"][number]["ways"]) => ({ id, name, at, bytes, kept: true, ways });
+  const settings = [
+    kept("polling", "Polling rate", "0x0000", pair(code), [{ piece: "rate", text: `${hz.toLocaleString("en-US")} Hz`, value: hz }]),
+    kept("stageCount", "DPI stages in use", "0x0002", pair(4), [{ piece: "count", text: "4 stages", value: 4 }]),
+    kept("stage", "DPI stage in use", "0x0004", pair(1), [{ piece: "index", text: "Stage 2", value: 1 }]),
+    kept("stages", "DPI stages", "0x000C", "07 07 00 47 0F 0F 00 37 1F 1F 00 17 3F 3F 00 D7", [
+      { piece: "step50", text: "400 / 800 / 1,600 / 3,200 DPI", value: [400, 800, 1600, 3200] },
+      ...(oneWay ? [] : [{ piece: "ultra", text: "80 / 160 / 320 / 640 DPI", value: [80, 160, 320, 640] }]),
+    ]),
+    kept("lod", "Lift-off distance", "0x000A", pair(1), [
+      { piece: "three", text: "1 mm", value: "1 mm" },
+      { piece: "eleven", text: "0.7 mm", value: "0.7 mm" },
+    ]),
+    kept("debounce", "Debounce", "0x00A9", pair(4), [{ piece: "ms", text: "4 ms", value: 4 }]),
+    kept("motionSync", "Motion sync", "0x00AB", pair(1), [{ piece: "switch", text: "On", value: true }]),
+    kept("angleSnapping", "Angle snapping", "0x00AF", pair(0), [{ piece: "switch", text: "Off", value: false }]),
+    kept("rippleControl", "Ripple control", "0x00B1", pair(0), [{ piece: "switch", text: "Off", value: false }]),
+    kept("sleep", "Sleep", "0x00BB", pair(30), [{ piece: "zaopin", text: "After 30 s", value: 30, at: "0x00BB" }]),
+    { id: "sensorMode", name: "Sensor mode", at: "0x00B9", bytes: "FF FF", kept: false, ways: [] },
+    kept("buttons", "Buttons", "0x0060", "01 01 00 53", [{ piece: "buttons", text: "Left click, Right click, Wheel click, Back, Forward, DPI cycle", value: [] }]),
+  ];
+  if (!elsewhere) return { settings, kept: 11, of: 12 };
+  return { settings: settings.map((s, i) => (i < 2 ? { ...s, ways: [] } : { ...s, kept: false, bytes: "00 00", ways: [] })), kept: 2, of: 12 };
+}
+
+/** A change tried on the other maker's mouse: its polling rate to another, then back. */
+async function inspectTrial(restore: boolean) {
+  await wait(300);
+  if (restore) {
+    if (inspectLab.foreignWas === null) throw "No change is being tried.";
+    inspectLab.foreignHz = inspectLab.foreignWas;
+    inspectLab.foreignWas = null;
+    inspectLab.counting = inspectLab.foreignHz;
+    return { restored: true };
+  }
+  if (inspectLab.foreignAsleep) throw "The mouse is asleep. Move it, then try again.";
+  const from = inspectLab.foreignHz;
+  const to = from === 500 ? 1000 : 500;
+  inspectLab.foreignWas = from;
+  if (!inspectLab.foreignForgets) inspectLab.foreignHz = to;
+  inspectLab.counting = inspectLab.foreignHz;
+  return { what: "Polling rate", from, to, kept: !inspectLab.foreignForgets };
+}
+
+/** The other maker's mouse, read: asleep while the lab says so, else its memory over a few seconds
+ *  (stopping short, should it fall asleep). */
+async function inspectRead(): Promise<MouseRead & Record<string, unknown>> {
+  const answeredAs = { cid: 3, mid: 21, deviceType: 0 };
+  await wait(250);
+  if (inspectLab.foreignAsleep) return { asleep: true, wired: false, answeredAs, asked: [] };
+  const total = 6912;
+  const steps = inspectLab.foreignStops ? 7 : 24;
+  for (let i = 0; i <= steps; i++) {
+    void emit("inspect-progress", [Math.round((i / 24) * total), total]);
+    await wait(130);
+  }
+  // Movement now comes at this mouse's rate: it's the one being measured next.
+  inspectLab.counting = inspectLab.foreignHz;
+  const hexed = (bytes: number[]) => bytes.map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+  const asked = ["handshake", "online", "version", "profile", "longRange", "battery"].map((what, i) => ({
+    what,
+    sent: hexed([8, i + 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x4c - i]),
+    got: hexed([8, i + 1, 0, 0, 0, 2, 1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0x44 - i]),
+    ms: 4,
+  }));
+  return {
+    asleep: false,
+    wired: false,
+    answeredAs,
+    model: null,
+    knownAs: inspectLab.foreignListed ? "VXE R1 PRO (PAW3395)" : null,
+    firmware: "1.05",
+    profile: 0,
+    longRange: false,
+    battery: { level: 58, charging: false },
+    asked,
+    listening: null,
+    picture: inspectLab.foreignStops ? null : labPicture(inspectLab.foreignHz, inspectLab.foreignOneWay, inspectLab.foreignElsewhere),
+    memoryWanted: total,
+    memorySize: Math.round((steps / 24) * total),
+    memory: labMemory(),
+    stopped: inspectLab.foreignStops ? "The receiver did not answer (command 0x08)." : null,
+    fellAsleep: inspectLab.foreignStops,
+  };
+}
+
 export function pushPrefs(prefs: Prefs) {
   fake.prefs = prefs;
   void emit("prefs", prefs);
@@ -277,7 +486,8 @@ const RAW_BUTTON = [0, 2, 1, 3, 4];
 const DPI = () => currentDpi(fake.device.settings) ?? 1600;
 const counts = (cm: number) => (cm / 2.54) * DPI();
 const countsPerS = (mps: number) => (mps / 0.0254) * DPI();
-const setHz = () => Math.min(fake.device.settings?.pollingHz ?? 1000, topRate(fake.device.capabilities) ?? 8000);
+/** The rate movement comes at: the mouse Inspect a mouse is reading, while it is; else the stand-in's own. */
+const setHz = () => inspectLab.counting ?? Math.min(fake.device.settings?.pollingHz ?? 1000, topRate(fake.device.capabilities) ?? 8000);
 
 /**
  * The world around the mouse, as the lab's panel sets it: where the receiver is, and what the
@@ -765,12 +975,29 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
     case "get_state":
       return fake.device;
     case "get_states":
-      return [fake.device];
+      return [fake.device, ...fake.others];
+    case "inspect_mice":
+      return inspected();
+    case "inspect_read":
+      return inspectRead();
+    case "inspect_trial":
+      return inspectTrial(!!args.restore);
+    case "windows_version":
+      return "Windows 11 26300";
+    case "plugin:app|version":
+      return "0.5.0";
+    // The issue form really opens, in a new tab: its fields are what hrtz filled in.
+    case "plugin:opener|open_url":
+      window.open(args.url as string, "_blank", "noopener");
+      return null;
+    case "plugin:opener|reveal_item_in_dir":
+      return null;
     case "supported_mice":
-      return [4, 1, 2, 5, 3, 6].map((mid) => ({
+      // `?unknown`: the stand-in's own model isn't one hrtz knows.
+      return [4, 1, 2, 5, 3, 6, 9].filter((mid) => !(inspectLab.unknown && `compx/7-${mid}` === fake.device.key)).map((mid) => ({
         family: "compx",
         brand: "Zaopin",
-        model: ["", "ZI PRO", "Z2", "Z2 mini", "Z1 PRO MAX", "Z2 MAX", "Z2 mini MAX"][mid],
+        model: ["", "ZI PRO", "Z2", "Z2 mini", "Z1 PRO MAX", "Z2 MAX", "Z2 mini MAX", "", "", "Z11"][mid],
         key: `compx/7-${mid}`,
         tested: mid === 4,
       })).concat(
@@ -815,16 +1042,25 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
     case "app_status":
       // `?away&quiet`: its receiver plugged in, the mouse asleep since hrtz started.
       return { foregroundExe: null, inUse: fake.device.key ?? null, vendorApps: LAB_VENDOR_APPS, hudShowing: false, quietPorts: new URLSearchParams(location.search).has("quiet") ? [LAB_PORT.path] : [] };
-    case "apply_settings":
+    case "apply_settings": {
       await wait(250);
-      pushDevice({ settings: args.settings as Settings });
+      const other = fake.others.find((d) => d.key === args.mouse);
+      if (other) {
+        fake.others = fake.others.map((d) => (d === other ? { ...d, settings: args.settings as Settings, rev: ++rev } : d));
+        void emit("device-state", fake.others.find((d) => d.key === args.mouse));
+      } else pushDevice({ settings: args.settings as Settings });
       return args.settings;
+    }
     case "set_profile":
       pushDevice({ profile: args.index as number });
       return null;
     case "mouse_report":
       // As the app reads it: the whole memory (with a progress bar), then the family's facts.
       await progress(4096);
+      // Movement comes at the stand-in's own rate again.
+      inspectLab.counting = null;
+      // A Zaopin's family gives its memory a piece at a time; a model hrtz doesn't know is asked about it.
+      if (inspectLab.unknown) return { memorySize: 6912, memory: labMemory(), family: { picture: labPicture(fake.device.settings?.pollingHz ?? 1000) } };
       return {
         memorySize: 4096,
         memory: "",
@@ -948,7 +1184,7 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
     case "battery_history":
       return [];
     case "plugin:dialog|save":
-      return "C:\\Users\\you\\Documents\\mouse-backup.json";
+      return `C:\\Users\\you\\Documents\\${(args.options as { defaultPath?: string } | undefined)?.defaultPath ?? "mouse-backup.json"}`;
     case "plugin:dialog|open":
       return "C:\\Users\\you\\Downloads\\mouse-backup.json";
     // A newer version, for the sidebar's update states: ?update=downloading (slow) or ?update=ready
@@ -987,5 +1223,5 @@ export function startFakeBackend() {
   mockIPC((cmd, args) => handle(cmd, (args ?? {}) as Record<string, unknown>), { shouldMockEvents: true });
   setupInput();
   // For scripted screenshots: the panel's "make something happen", from outside the page.
-  Object.assign(window, { lab: { play, movement, circlesAlong, dpiRuns, doubleClick, scrollNotches, stillFor, swipes, returns, liftOffAlong, plugInto, env, fake } });
+  Object.assign(window, { lab: { play, movement, circlesAlong, dpiRuns, doubleClick, scrollNotches, stillFor, swipes, returns, liftOffAlong, plugInto, env, fake, inspectLab, wakeWaiting } });
 }

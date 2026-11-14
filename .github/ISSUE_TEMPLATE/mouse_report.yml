@@ -5,11 +5,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        hrtz is tested on the **Zaopin Z1 PRO MAX** and the **Logitech PRO X SUPERLIGHT**. The other models it lists should work, but nobody has tried them yet. A report from any of them tells us what to fix before calling it supported.
+        A model hrtz lists as **Not tested** should work, but nobody has tried it yet. A report from its owner tells us what to fix before calling it tested.
 
-        The quickest report: click **Inspect a mouse** in hrtz's title bar (or the **Not tested** badge on your mouse), pick your mouse and run its 2-minute check, then save the report. Its summary fills in below; drag the file it saved into the box too.
+        In hrtz, click **Inspect a mouse** in the title bar (or the **Not tested** badge on your mouse), pick your mouse and run its 2-minute check. **Open GitHub issue** there opens this form with the report already in it: all that's left is to submit it.
 
-        hrtz backs your mouse up the first time it connects (Settings → Backups), so you can put everything back.
+        If your mouse has both a receiver and a cable, check it on each. Both go into the same report. hrtz backs your mouse up the first time it connects (Settings → Backups), so you can put everything back.
   - type: input
     id: mouse
     attributes:
@@ -18,53 +18,14 @@ body:
     validations:
       required: true
   - type: textarea
-    id: check
+    id: report
     attributes:
-      label: hrtz's check
-      description: Filled in by Help test. Drag the report file it saved in here too.
-      render: text
-  - type: input
-    id: firmware
-    attributes:
-      label: Firmware
-      description: Shown in Settings, under Mouse.
-      placeholder: "2.17"
-  - type: input
-    id: connection
-    attributes:
-      label: Connection
-      placeholder: 4K receiver
-  - type: checkboxes
-    id: works
-    attributes:
-      label: What works
-      description: Tick what behaves as it should.
-      options:
-        - label: The mouse is recognised, with the right name and picture
-        - label: Battery level and charging
-        - label: DPI stages, and the DPI button if it has one
-        - label: Polling rate
-        - label: Lift-off distance, sensor mode, motion sync, angle snapping, ripple control
-        - label: Click debounce and the peak performance timeout
-        - label: Buttons
-        - label: Profiles
-        - label: Backups and factory settings
-        - label: Sleep after
-        - label: The in-game HUD
+      label: Report
+      description: "hrtz fills this in, with the report inside it: leave the line starting hrtz-report as it is. A report saved as a file can be dragged in here instead."
+    validations:
+      required: true
   - type: textarea
     id: issues
     attributes:
-      label: What doesn't work, or looks wrong
-      description: Anything unticked above, with what happened instead.
-  - type: input
-    id: version
-    attributes:
-      label: hrtz version
-      placeholder: "0.2.0"
-    validations:
-      required: true
-  - type: input
-    id: windows
-    attributes:
-      label: Windows
-      placeholder: Windows 11 24H2 (26100)
+      label: Anything that doesn't work, or looks wrong
+      description: "What the check can't see, such as a setting that doesn't seem to apply, a wrong name or picture, or the in-game HUD."

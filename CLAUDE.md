@@ -5,7 +5,7 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 ## Commands
 
 - `pnpm tauri dev`: run the app (Vite on port 1420; the window reloads on save).
-- `pnpm dev:sim`: the same, with a simulated Z2 mini beside the real mice (`pnpm dev:sim z2mini,z1promax,superlight,superlight2` for more), to try several mice with one.
+- `pnpm dev:sim`: the same, with a simulated Z2 mini beside the real mice (`pnpm dev:sim z2mini,z1promax,superlight,superlight2` for more), to try several mice with one. `foreign` is another maker's mouse hrtz leaves alone, for Inspect a mouse's read-only check. `report:<file>` is a tester's mouse, from the report Inspect a mouse made of it (`pnpm report issue.txt` reads one out of a GitHub issue's text). `alone` has no simulated mouse: it leaves the real Zaopin and ATK mice alone, to try that check on one hrtz runs.
 - `npx tsc --noEmit -p .`: type-check the front end.
 - `npx vite build`: production front-end build.
 - `cd src-tauri && cargo test --lib`: Rust tests.
@@ -37,7 +37,7 @@ A Windows app for gaming mice: Tauri 2 (Rust) with a React 19 front end. Fluent 
 - `src/components/ui/`: shadcn primitives (CLI-added, style `base-nova`). Use them through the kit, or inside a `.tw` part.
 - `src/shadcn.css`: Tailwind and shadcn tokens, scoped to `.tw` parts. `base.css` and `states.css` hold the Fluent overrides and the soft states.
 - `hrtz-notes/` (git-ignored): the maintainer's private notes repo, cloned here: the design record (`DECISIONS.md`), plans, handoff and the full protocol notes. Code comments that cite `DECISIONS.md` mean this copy.
-- `lab-*.html` + `src/lab/`: dev-only design labs, not part of the build. `lab-app.html?page=lab` runs the real app in a browser on a stand-in backend with this PC's data, to look at any page as built. A lab whose direction has been picked is deleted once it's built.
+- `lab-*.html` + `src/lab/`: dev-only design labs, not part of the build. `lab-app.html?page=lab` runs the real app in a browser on a stand-in backend with this PC's data, to look at any page as built; `lab-app.html?inspect` opens Inspect a mouse with one of each kind of mouse plugged in (`&unknown`: this PC's own as a model hrtz doesn't know). A lab whose direction has been picked is deleted once it's built.
 
 ## Building UI
 
