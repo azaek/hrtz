@@ -185,6 +185,35 @@ pub const DEBOUNCE_MS: [u8; 7] = [0, 1, 2, 4, 8, 15, 20];
 /// commands (0x0E and 0x0F), the index from 0.
 pub const PROFILES: u8 = 4;
 
+/// The sleep times ATK's app offers, in seconds, kept at 0xAD in 10 s steps (ATK's app reads its
+/// sleep time there). mouse-protocol offers the same on its R1s and gives other ATKs other
+/// choices, so hrtz offers these only where the two agree (2026-11-14).
+pub const R1_SLEEP_S: [u32; 8] = [30, 60, 120, 180, 300, 1200, 1500, 1800];
+const SLEEP: usize = 0xAD;
+
+/// The models mouse-protocol gives the R1's sleep choices: its R1 family (R1, R1 PRO MAX, R1 SE+)
+/// and the two sharing the R1's settings (X1 Pro Max, A9 Plus NK). Any ATK met under CompX's
+/// vendor ID counts as an R1 there too (`on_compx_product`).
+const R1_SLEEP_MODELS: [(u8, u8); 6] = [(2, 11), (2, 12), (2, 27), (2, 32), (2, 39), (2, 83)];
+
+/// Whether `product_id` is one ATK's app lists under CompX's vendor ID (VXE's R1 line, ATK's
+/// Dragonfly F1): mouse-protocol's shared R1 transport.
+pub fn on_compx_product(product_id: u16) -> bool {
+    ON_COMPX_VID.contains(&product_id)
+}
+
+/// The sleep time `image` holds, in seconds; None where its check byte is off.
+pub fn sleep_s(image: &[u8]) -> Option<u32> {
+    p::group_valid(&image[SLEEP..SLEEP + 2]).then(|| image[SLEEP] as u32 * 10)
+}
+
+/// `seconds` as the sleep time, into `target` (in the row from 0xA9, which is written whole).
+pub fn put_sleep(target: &mut [u8], seconds: u32) {
+    let v = (seconds / 10) as u8;
+    target[SLEEP] = v;
+    target[SLEEP + 1] = p::checksum(&[v]);
+}
+
 /// What hrtz offers on an ATK, before it's tested: what ATK's app offers and keeps where a Zaopin
 /// does. The polling rate (to what the connection allows); the DPI stages (packed as a Zaopin's),
 /// and on a model with a DPI light, their colours and the light; the lift-off distance its sensor
@@ -216,6 +245,7 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
         angle_snapping: true,
         ripple_control: true,
         profiles: Some(PROFILES),
+        sleep_times_s: R1_SLEEP_MODELS.contains(&(m.cid, m.mid)).then(|| R1_SLEEP_S.to_vec()),
         battery: true,
         // ATK's app hears of a DPI-button press from the mouse (0x0A), as hrtz does; the driver
         // also reads the stage every second, in case this one doesn't say.
@@ -230,7 +260,8 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
 /// them, written back as held); the lift-off distance, where offered; the DPI stages two at a
 /// time (a PAW3955's one at a time, from 0x1B00); on a model with a DPI light, the colours two at
 /// a time and the light; and the row from debounce to ripple control, which holds ATK's sleep time
-/// too (0xAD), written back as held. Nothing of the DPI where it isn't offered.
+/// too (0xAD: set where it's offered, elsewhere written back as held). Nothing of the DPI where
+/// it isn't offered.
 pub fn fields(m: &Model) -> Vec<(usize, usize)> {
     let stages = MAX_STAGES as usize;
     let mut f = vec![(0x00, 10)];
@@ -326,6 +357,18 @@ mod tests {
             assert!(MODELS[i + 1..].iter().all(|b| (a.cid, a.mid) != (b.cid, b.mid)), "{a:?}");
             assert!(!a.tested && ["ATK", "VXE", "MAD"].contains(&a.brand));
         }
+    }
+
+    #[test]
+    fn the_sleep_time_where_atks_app_and_mouse_protocol_agree() {
+        let caps = |cid, mid| capabilities(model(cid, mid).unwrap(), link::DONGLE_1K).sleep_times_s;
+        assert_eq!(caps(2, 27).as_deref(), Some(&R1_SLEEP_S[..]), "R1 PRO MAX");
+        assert_eq!(caps(2, 83).as_deref(), Some(&R1_SLEEP_S[..]), "A9 Plus NK, with the R1's settings");
+        // On ATK's own vendor ID, mouse-protocol offers an R1 PRO (PAW3950 Ultra) other times.
+        assert_eq!(caps(2, 125), None);
+        assert_eq!(caps(2, 78), None, "U2 Plus");
+        // Under CompX's, the driver offers them on any (snowyuonA's receiver).
+        assert!(on_compx_product(0xF58A) && !on_compx_product(0x10C9));
     }
 
     #[test]

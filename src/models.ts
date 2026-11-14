@@ -9,6 +9,7 @@ import mid4 from "./assets/models/mid4.png";
 import mid5 from "./assets/models/mid5.png";
 import mid6 from "./assets/models/mid6.png";
 import mid9 from "./assets/models/mid9.png";
+import atkR1Black from "./assets/models/atk-r1-black.webp";
 import atkU2PlusBlack from "./assets/models/atk-u2-plus-black.webp";
 import superlightBlack from "./assets/models/superlight-black.webp";
 import superlightMagenta from "./assets/models/superlight-magenta.webp";
@@ -108,6 +109,13 @@ export const MODEL_ART: Record<number, ModelArt> = {
  *  frame above (see NOTICE.md). No buttons are placed: hrtz doesn't offer an ATK's yet. */
 const ATK_ART: Record<string, ModelArt> = {
   "2-78": { name: "U2 Plus", image: atkU2PlusBlack, size: [298, 263], hotspots: {}, view: "viewed from above" },
+  // VXE's R1 line shares one shell: ATK's app's R1 picture for each of its models in ATK's list.
+  ...Object.fromEntries(
+    ["1-20", "2-7", "2-8", "2-11", "2-12", "2-27", "2-28", "2-29", "2-30", "2-31", "2-32", "2-34", "2-57", "2-63", "2-67", "2-114", "2-116", "2-117", "2-125", "2-126", "2-127", "2-130", "2-136", "2-137"].map((k) => [
+      k,
+      { name: "R1", image: atkR1Black, size: [298, 263] as [number, number], hotspots: {}, view: "viewed from above" },
+    ]),
+  ),
 };
 
 /** Logitech's top view from G HUB, turned into the frame above, with G HUB's button markers moved
