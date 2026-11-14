@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.0 — 2026-11-14
 
 ### New
 - The Zaopin Z11, not tested yet, with Zaopin's own picture: its DPI stages (up to 12,000), polling rate, sensor mode, debounce, angle snapping, ripple control, buttons and onboard profiles. Have one? Its Not tested badge opens a 2-minute check.
