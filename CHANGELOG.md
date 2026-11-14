@@ -16,6 +16,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - When a receiver doesn't say which mouse it has, hrtz asks again once the mouse wakes.
 - The mouse check no longer marks the DPI button as failed when only one DPI stage is on.
 - A report for a mouse hrtz doesn't run now says which model its receiver named, instead of 0, 0.
+- Switching to a mouse that doesn't have the page you're on (Buttons, on an ATK) no longer leaves the window blank: hrtz moves to Sensor.
 
 ## 0.4.1 — 2026-11-12
 

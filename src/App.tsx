@@ -142,7 +142,7 @@ function Empty({ title, children, action }: { title: string; children: ReactNode
 /** `pages` and `start` are for the page labs, which show a page's directions inside the real app. */
 export default function App({ pages, start = "sensor" }: { pages?: Partial<Record<PageId, ComponentType>>; start?: PageId } = {}) {
   const s = useStyles();
-  const [page, setPage] = useState<PageId>(start);
+  const [chosen, setPage] = useState<PageId>(start);
   const [ready, setReady] = useState(false);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const device = useStore((st) => st.device);
@@ -155,6 +155,13 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   useEffect(() => {
     if (nav) setPage(nav.page as PageId);
   }, [nav?.n]);
+  // A page the mouse doesn't have (Buttons, after switching to an ATK) falls back to Sensor, at once:
+  // rendered for a mouse without it, the page would fail.
+  const offered = (p: PageId) => !device?.capabilities || (NEEDS[p]?.(device.capabilities) ?? true);
+  const page = offered(chosen) ? chosen : "sensor";
+  useEffect(() => {
+    if (page !== chosen) setPage(page);
+  }, [page, chosen]);
 
   useEffect(() => {
     init().finally(() => setReady(true));
@@ -272,7 +279,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
             e.preventDefault();
           }}
         >
-          {PAGES.filter((p) => !device?.capabilities || (NEEDS[p.id]?.(device.capabilities) ?? true)).map((p) => (
+          {PAGES.filter((p) => offered(p.id)).map((p) => (
             <NavRow
               key={p.id}
               icon={p.icon}
