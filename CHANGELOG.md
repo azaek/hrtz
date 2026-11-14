@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.1 — 2026-11-14
 
 ### Improved
 - Inspect a mouse learns more from a mouse hrtz doesn't run yet. One that speaks the same language as Zaopin's mice (some from ATK, VXE, VGN, Lamzu and Pulsar do) is now read when you start its check: which mouse it is, its firmware and its memory, the way its own app reads them. hrtz then measures its polling rate and shows what it read, so you can say whether that's what its own app shows.
