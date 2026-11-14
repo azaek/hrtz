@@ -754,8 +754,9 @@ pub fn save_pad() {
     }
 }
 
-/// What a raw input device is: one of the connected mice (by its USB port), else a Zaopin not met
-/// yet (by its vendor), else not one hrtz follows; and its port.
+/// What a raw input device is: one of the connected mice (by its USB port), else one on a vendor
+/// ID hrtz speaks to (Zaopin's, which other makers share, or ATK's) that it hasn't met or leaves
+/// alone, so Inspect a mouse can measure it; else not one hrtz follows. And its port.
 fn mouse_of(handle: HANDLE) -> Device {
     let mut len = 0u32;
     let name = unsafe {
@@ -772,7 +773,10 @@ fn mouse_of(handle: HANDLE) -> Device {
         .and_then(|path| MICE.lock().iter().find(|(p, _)| p == path).map(|(_, k)| Arc::<str>::from(k.as_str())));
     let seen = match key {
         Some(key) => Some(Some(key)),
-        None => name.to_ascii_lowercase().contains("vid_3554").then_some(None),
+        None => {
+            let name = name.to_ascii_lowercase();
+            (name.contains("vid_3554") || name.contains("vid_373b")).then_some(None)
+        }
     };
     (seen, port)
 }

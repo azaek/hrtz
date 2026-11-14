@@ -179,6 +179,12 @@ impl Finder for HidppFinder {
         }
         api.device_list().filter(|d| is_hidpp(d, p::USAGE_LONG)).count()
     }
+
+    /// Its mouse didn't answer the last time it was asked, and what's here isn't known to be
+    /// something else (a keyboard).
+    fn asleep(&self) -> bool {
+        self.quiet_since.is_some() && self.no_mouse_until.is_none_or(|t| Instant::now() >= t)
+    }
 }
 
 /// Something on this receiver speaks HID++ but has no sensor: a keyboard, say.

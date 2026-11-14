@@ -4,6 +4,17 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Improved
+- Inspect a mouse learns more from a mouse hrtz doesn't run yet. One that speaks the same language as Zaopin's mice (some from ATK, VXE, VGN, Lamzu and Pulsar do) is now read when you start its check: which mouse it is, its firmware and its memory, the way its own app reads them. hrtz then measures its polling rate and shows what it read, so you can say whether that's what its own app shows.
+- One check can be enough to add a mouse. On a mouse hrtz doesn't know, Inspect a mouse can try one change, if you let it: it sets the polling rate to another rate, counts the mouse's reports, and puts it back.
+- An ATK, VXE or MAD mouse whose DPI hrtz doesn't set yet (one with a PAW3311, PAW3315 or CORE26K sensor) now ends its check with one question about your DPI stages. Your answer is what lets us turn its DPI on.
+- A sleeping mouse no longer gives an empty report. Inspect a mouse says to move it, and its check starts once it answers.
+- One report for one mouse. After a check, Inspect a mouse offers the mouse's other connection (its receiver, or its cable) and adds that check to the same report.
+- A report now opens with what it comes to: everything we need, something to check again, or only what Windows knows.
+- Sending a report is one click. The GitHub issue opens with the report already inside it, so there's no file to attach. You can still save the report as a file and send it any other way.
+
 ## 0.5.0 — 2026-11-14
 
 ### New

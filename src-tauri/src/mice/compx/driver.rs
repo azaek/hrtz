@@ -11,6 +11,8 @@ use hidapi::HidApi;
 use super::atk;
 use super::image;
 use super::models;
+use super::pieces;
+use super::probe::Trials;
 use super::protocol::{self as p, Packet, cmd, status};
 use crate::mice::model::Settings;
 use crate::mice::{Board, DeviceEvent, DeviceState, Driver, Family, Finder, Follow, Link, Reading, Waiting};
@@ -33,7 +35,7 @@ impl Family for Compx {
     }
 
     fn finder(&self, id: &str) -> Box<dyn crate::mice::Finder> {
-        Box::new(HidFinder { api: None, path: id.to_string(), refused: None })
+        Box::new(HidFinder { api: None, path: id.to_string(), refused: None, asleep: false, trials: Trials::of(id) })
     }
 }
 
@@ -45,6 +47,10 @@ pub struct HidFinder {
     /// it isn't asked again while it stays plugged in, so hrtz doesn't keep interrupting that maker's
     /// own app.
     refused: Option<LeftAlone>,
+    /// The last look found an ATK's receiver with its mouse not linked.
+    asleep: bool,
+    /// A change Inspect a mouse is trying on a mouse left alone here.
+    trials: Trials,
 }
 
 /// A receiver, a mouse or a channel of one that hrtz doesn't run, and why.
@@ -60,6 +66,11 @@ impl LeftAlone {
     /// An ATK model hrtz doesn't run yet.
     fn other_atk(cid: u8, mid: u8) -> Self {
         Self(format!("an ATK mouse hrtz doesn't support yet (CID {cid}, MID {mid}), so it's left alone"))
+    }
+
+    /// A mouse hrtz runs, in a dev build told to leave them alone.
+    fn for_a_dev_run(cid: u8, mid: u8) -> Self {
+        Self(format!("left alone for this dev run (HRTZ_LEAVE_ALONE; CID {cid}, MID {mid})"))
     }
 }
 
@@ -111,19 +122,10 @@ impl HidFinder {
         }
         Ok(self.api.as_mut().unwrap())
     }
-}
 
-fn is_config_interface(d: &hidapi::DeviceInfo) -> bool {
-    (d.vendor_id() == p::VENDOR_ID || d.vendor_id() == atk::VENDOR_ID)
-        && d.usage_page() == p::CONFIG_USAGE_PAGE
-        && d.usage() == p::CONFIG_USAGE
-}
-
-impl Finder for HidFinder {
-    fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
-        if let Some(n) = &self.refused {
-            return Err(n.clone().into());
-        }
+    /// The connection, opened, and whose it is by its vendor ID. `None` for an ATK's other
+    /// collection on the same usage, which isn't the settings channel.
+    fn open(&mut self) -> Result<Option<Opened>> {
         let path = self.path.clone();
         let api = self.api()?;
         api.refresh_devices()?;
@@ -150,13 +152,10 @@ impl Finder for HidFinder {
         if maker != Maker::Zaopin {
             let mut buf = [0u8; 4096];
             if dev.get_report_descriptor(&mut buf).is_ok_and(|n| !report_ids(&buf[..n]).contains(&p::REPORT_ID)) {
-                let why = LeftAlone("not the settings channel, so it's left alone".into());
-                board.set(|s| *s = DeviceState { foreign: true, ..DeviceState::default() });
-                self.refused = Some(why.clone());
-                return Err(why.into());
+                return Ok(None);
             }
         }
-        let opened = Opened {
+        Ok(Some(Opened {
             family: "compx",
             maker,
             product_id: info.product_id(),
@@ -165,8 +164,58 @@ impl Finder for HidFinder {
             gap: Duration::from_millis(8),
             #[cfg(windows)]
             port: crate::usb::port_of(&info.path().to_string_lossy()),
+        }))
+    }
+}
+
+fn is_config_interface(d: &hidapi::DeviceInfo) -> bool {
+    (d.vendor_id() == p::VENDOR_ID || d.vendor_id() == atk::VENDOR_ID)
+        && d.usage_page() == p::CONFIG_USAGE_PAGE
+        && d.usage() == p::CONFIG_USAGE
+}
+
+impl Finder for HidFinder {
+    fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>> {
+        // A change Inspect a mouse tried, which its window never put back.
+        if self.trials.overdue() {
+            self.leave();
+        }
+        if let Some(n) = &self.refused {
+            return Err(n.clone().into());
+        }
+        self.asleep = false;
+        let Some(opened) = self.open()? else {
+            let why = LeftAlone("not the settings channel, so it's left alone".into());
+            board.set(|s| *s = DeviceState { foreign: true, ..DeviceState::default() });
+            self.refused = Some(why.clone());
+            return Err(why.into());
         };
-        connect(opened, board).inspect_err(|e| self.refused = e.downcast_ref::<LeftAlone>().cloned())
+        connect(opened, board).inspect_err(|e| {
+            self.refused = e.downcast_ref::<LeftAlone>().cloned();
+            self.asleep = e.is::<Waiting>();
+        })
+    }
+
+    fn asleep(&self) -> bool {
+        self.asleep
+    }
+
+    fn read_only(&mut self, progress: &mut dyn FnMut(usize, usize)) -> Result<serde_json::Value> {
+        let opened = self.open()?.ok_or_else(|| anyhow!("This isn't the mouse's settings channel."))?;
+        super::probe::read(opened, progress)
+    }
+
+    fn trial(&mut self, restore: bool) -> Result<serde_json::Value> {
+        let opened = self.open()?.ok_or_else(|| anyhow!("This isn't the mouse's settings channel."))?;
+        if restore { self.trials.restore(opened) } else { self.trials.change(opened) }
+    }
+
+    fn leave(&mut self) {
+        if self.trials.pending()
+            && let Ok(Some(opened)) = self.open()
+        {
+            let _ = self.trials.restore(opened);
+        }
     }
 
     fn count(&mut self) -> usize {
@@ -194,6 +243,13 @@ pub(crate) struct Opened {
     pub port: Option<crate::usb::UsbPort>,
 }
 
+/// A dev build told to leave the real mice on this channel alone (`HRTZ_LEAVE_ALONE`, set by
+/// `pnpm dev:sim alone`), so Inspect a mouse's reading of a mouse hrtz doesn't run can be tried on
+/// one it does. Never a simulated mouse: those say which kind they are themselves.
+fn leave_alone(family: &str) -> bool {
+    cfg!(debug_assertions) && family == "compx" && std::env::var_os("HRTZ_LEAVE_ALONE").is_some()
+}
+
 /// Meet the mouse: who it is and how it's connected, then ask it for status notifications.
 pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> {
     let mut m = Connected {
@@ -215,6 +271,11 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
     let r = m.transact(&p::packet(cmd::HANDSHAKE, 0, &nonce, Some(8)), REPLY_TIMEOUT)?;
     let d = p::payload(&r);
     let (cid, mid, device_type) = (d[4], d[5], d[6]);
+    if leave_alone(opened.family) {
+        board
+            .set(|s| *s = DeviceState { cid, mid, device_type, foreign: true, speaks: true, ..DeviceState::default() });
+        return Err(LeftAlone::for_a_dev_run(cid, mid).into());
+    }
     // An ATK under CompX's vendor ID (VXE's R1 line, ATK's Dragonfly F1): met as ATK's app meets it,
     // its connection type from this handshake.
     if atk::on_compx_vid(opened.product_id, cid, mid) {
@@ -226,7 +287,8 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         return connect_atk(m, opened.family, !wired, Some(device_type), opened.product_id, port, board);
     }
     if !models::is_zaopin(cid, mid) {
-        board.set(|s| *s = DeviceState { cid, mid, device_type, foreign: true, ..DeviceState::default() });
+        board
+            .set(|s| *s = DeviceState { cid, mid, device_type, foreign: true, speaks: true, ..DeviceState::default() });
         return Err(LeftAlone::not_zaopin(cid, mid).into());
     }
     board.set(|s| {
@@ -276,8 +338,16 @@ fn connect_atk(
     });
     let r = m.transact_simple(atk::CID_MID)?;
     let (cid, mid) = (r[6], r[7]);
+    if leave_alone(family) {
+        board.set(|s| {
+            *s = DeviceState { cid, mid, device_type: kind, foreign: true, speaks: true, ..DeviceState::default() }
+        });
+        return Err(LeftAlone::for_a_dev_run(cid, mid).into());
+    }
     let Some(model) = atk::model(cid, mid) else {
-        board.set(|s| *s = DeviceState { cid, mid, foreign: true, ..DeviceState::default() });
+        board.set(|s| {
+            *s = DeviceState { cid, mid, device_type: kind, foreign: true, speaks: true, ..DeviceState::default() }
+        });
         return Err(LeftAlone::other_atk(cid, mid).into());
     };
     if let Some(a) = m.atk.as_mut() {
@@ -331,7 +401,7 @@ struct Atk {
 }
 
 /// A Zaopin mouse, met, or an ATK.
-struct Connected {
+pub(super) struct Connected {
     link: Box<dyn Link>,
     gap: Duration,
     /// What's known of the mouse's memory: the first `LOADED_REGION` bytes once loaded, all of it
@@ -344,6 +414,11 @@ struct Connected {
 }
 
 impl Connected {
+    /// A connection with no mouse met on it, for Inspect a mouse's reading (`probe`).
+    pub(super) fn bare(link: Box<dyn Link>, gap: Duration) -> Self {
+        Self { link, gap, image: Vec::new(), pending_status: Vec::new(), lost: false, atk: None }
+    }
+
     fn refresh_settings(&mut self, board: &Board) {
         let decoded = match &self.atk {
             Some(a) => {
@@ -458,9 +533,14 @@ impl Connected {
     }
 
     fn transact(&mut self, pkt: &Packet, timeout: Duration) -> Result<Packet> {
+        self.ask(pkt, timeout, 3)
+    }
+
+    /// Send `pkt` and wait `timeout` for its answer, `tries` times at most.
+    pub(super) fn ask(&mut self, pkt: &Packet, timeout: Duration, tries: u8) -> Result<Packet> {
         let want = (pkt[1], p::packet_addr(pkt));
         let match_addr = matches!(pkt[1], cmd::READ_FLASH | cmd::WRITE_FLASH);
-        for _ in 0..3 {
+        for _ in 0..tries {
             self.write(pkt)?;
             let deadline = Instant::now() + timeout;
             while let Some(left) = deadline.checked_duration_since(Instant::now()) {
@@ -514,7 +594,7 @@ impl Connected {
         Ok(p::packet_valid(&pkt).then_some(pkt))
     }
 
-    fn read_flash(&mut self, addr: usize, len: usize) -> Result<Vec<u8>> {
+    pub(super) fn read_flash(&mut self, addr: usize, len: usize) -> Result<Vec<u8>> {
         let mut out = Vec::with_capacity(len);
         let mut a = addr;
         while out.len() < len {
@@ -546,7 +626,7 @@ impl Connected {
     /// Sends a change to an ATK as its own app does, without counting on an answer: an echo that
     /// comes within a tenth of a second is taken out of the way. The caller reads back what it
     /// changed.
-    fn send_unanswered(&mut self, pkt: &Packet) -> Result<()> {
+    pub(super) fn send_unanswered(&mut self, pkt: &Packet) -> Result<()> {
         self.write(pkt)?;
         let at = matches!(pkt[1], cmd::READ_FLASH | cmd::WRITE_FLASH).then(|| p::packet_addr(pkt));
         let deadline = Instant::now() + Duration::from_millis(100);
@@ -901,12 +981,26 @@ impl Driver for Connected {
         Ok(total)
     }
 
-    /// For a test report: whose it is, and how it's connected.
+    /// For a test report: whose it is and how it's connected, and its memory read a piece at a
+    /// time (`pieces`), with the way its model keeps its DPI marked where hrtz knows the model.
     fn report(&mut self, board: &Board) -> Result<serde_json::Value> {
         let s = board.read();
         Ok(match &self.atk {
-            Some(a) => serde_json::json!({ "maker": "ATK", "cid": s.cid, "mid": s.mid, "receiver": a.receiver }),
-            None => serde_json::Value::Null,
+            Some(a) => {
+                let maker = Maker::Atk { receiver: a.receiver };
+                let expected = a.model.and_then(|m| m.sensor.dpi_method());
+                serde_json::json!({
+                    "maker": "ATK",
+                    "cid": s.cid,
+                    "mid": s.mid,
+                    "receiver": a.receiver,
+                    "picture": pieces::read(&self.image, maker, expected),
+                })
+            }
+            None => {
+                let expected = models::known(s.mid).then(|| models::dpi_method(s.mid));
+                serde_json::json!({ "picture": pieces::read(&self.image, Maker::Zaopin, expected) })
+            }
         })
     }
 
@@ -919,7 +1013,7 @@ impl Driver for Connected {
     }
 }
 
-fn rand_bytes() -> [u8; 4] {
+pub(super) fn rand_bytes() -> [u8; 4] {
     let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
     let mut x = t.as_nanos() as u64 ^ 0x9E37_79B9_7F4A_7C15;
     x ^= x << 13;

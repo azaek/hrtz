@@ -9,8 +9,8 @@ import { ProfilesPage } from "@/pages/Profiles";
 import { SensorPage } from "@/pages/Sensor";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { OPEN_WHATS_NEW } from "@/WhatsNew";
-import { pickMouse, startFlow, type Step } from "@/store";
-import { env, fake, plugInto, pushDevice, startFakeBackend } from "../fake/backend";
+import { pickMouse, setInspecting, startFlow, type Step } from "@/store";
+import { env, fake, inspectLab, plugInto, pushDevice, startFakeBackend, wakeWaiting } from "../fake/backend";
 import { Frame, PanelButton, PanelTitle } from "../Frame";
 import "../../base.css";
 import "../../states.css";
@@ -22,6 +22,13 @@ import "../../shadcn.css";
 // For screenshots: ?test= opens a Lab test, ?play= plays a scenario once it's up (conn, conn2,
 // tracking, liftoff, pair), ?scroll= scrolls the page, and ?far, ?spin, ?drift, ?behind, ?port=hub set
 // the world first (?clean: a radio that carries every report).
+//
+// ?inspect opens Inspect a mouse with one of each kind of mouse plugged in beside this PC's, to
+// walk every path of its check without a mouse: "2.4G Wireless Receiver" (another maker's mouse
+// hrtz leaves alone but can read), "Zaopin 1K Receiver" (its mouse hasn't answered; woken, it's a
+// Z11) and "USB Gaming Mouse" (known only through Windows). The panel sets what each does, and
+// the GitHub button really opens the form, filled in, in a new tab. ?unknown makes this PC's own
+// mouse a model hrtz doesn't know, for the check of a mouse it runs without knowing.
 
 startFakeBackend();
 
@@ -42,6 +49,8 @@ if (params.get("test")) localStorage.setItem("hrtz.labOpen", params.get("test")!
 for (const key of ["far", "spin", "drift", "behind"] as const) if (params.has(key)) env[key] = true;
 if (params.has("clean")) env.merged = false;
 if (params.get("port") === "hub") plugInto(4, true);
+if (params.has("inspect")) inspectLab.on = true;
+if (params.has("unknown")) inspectLab.unknown = true;
 
 type Lab = Record<string, (...a: unknown[]) => unknown>;
 const lab = () => (window as unknown as { lab: Lab }).lab;
@@ -119,18 +128,23 @@ SCENARIOS.badge = async () => {
   document.querySelector<HTMLElement>('[aria-label^="hrtz hasn"]')?.click();
   await wait(700);
 };
-// Help test from start to finish, on Settings (with ?mouse=superlight&untested): circles, then each
-// button it can see pressed in turn.
-SCENARIOS.participate = async () => {
-  click("Start");
-  await wait(500);
+/** Plays a mouse's check along, once it's started: circles, then each button it can see pressed in
+ *  turn. */
+const playAlong = async () => {
   lab().circlesAlong();
   await wait(14000);
   const press = (b: number) => ({ buttons: [{ button: b, down: true, tUs: 0, dx: 0, dy: 0 }, { button: b, down: false, tUs: 0, dx: 0, dy: 0 }] });
-  for (const b of [0, 1, 2, 3]) {
+  for (const b of [0, 1, 2, 3, 4]) {
     lab().play([press(b)]);
     await wait(800);
   }
+};
+// A mouse's check from start to finish, in Inspect a mouse with the mouse picked (with ?inspect,
+// and ?mouse=superlight&untested for a model not tested yet).
+SCENARIOS.participate = async () => {
+  click("Start the check");
+  await wait(500);
+  await playAlong();
   await wait(3000);
 };
 // Removes the mouse shown, which isn't connected (with ?select=<its key>).
@@ -168,6 +182,7 @@ window.addEventListener("load", async () => {
   // ?step= for one of its steps.
   const flow = params.get("flow");
   if (flow === "first" || flow === "add") startFlow(flow, (params.get("step") as Step | null) ?? undefined);
+  if (params.has("inspect")) setInspecting(true);
 });
 
 const WORLD: Record<keyof typeof env, string> = {
@@ -187,6 +202,40 @@ function Panel() {
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={asleep} onChange={(e) => (setAsleep(e.target.checked), pushDevice({ online: !e.target.checked }))} /> Mouse asleep
       </label>
+      {inspectLab.on && (
+        <>
+          <PanelTitle>Inspect a mouse</PanelTitle>
+          <PanelButton onClick={() => void playAlong()}>Play along with this PC's mouse's check</PanelButton>
+          <p className="m-0">Start its check first. The stand-in has no full screen to show; Esc stops it.</p>
+          <PanelButton onClick={() => lab().circlesAlong()}>Quick circles while a mouse is measured</PanelButton>
+          <p className="m-0">The other maker's mouse is measured after it's read, and again when a change is tried. Its toggles below count from its next check.</p>
+          {(
+            [
+              ["foreignAsleep", "2.4G Wireless Receiver: its mouse is asleep"],
+              ["foreignStops", "2.4G Wireless Receiver: its mouse falls asleep while read"],
+              ["foreignOneWay", "…its DPI stages read one way only"],
+              ["foreignListed", "…its maker's own list names it (nothing more to ask)"],
+              ["foreignElsewhere", "…its settings are kept where hrtz doesn't look"],
+              ["foreignForgets", "…it doesn't keep a change tried on it"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={inspectLab[key]}
+                onChange={(e) => {
+                  inspectLab[key] = e.target.checked;
+                  redraw((n) => n + 1);
+                }}
+              />
+              {label}
+            </label>
+          ))}
+          <PanelButton onClick={() => (wakeWaiting(), redraw((n) => n + 1))}>
+            {inspectLab.woken ? "Zaopin 1K Receiver: woken, a Z11" : "Zaopin 1K Receiver: wake its mouse (a Z11)"}
+          </PanelButton>
+        </>
+      )}
       <PanelTitle>The world around the mouse</PanelTitle>
       {(Object.keys(WORLD) as (keyof typeof env)[]).map((key) => (
         <label key={key} className="flex items-center gap-2">

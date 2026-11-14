@@ -27,12 +27,21 @@ struct Rig {
 impl Rig {
     fn new(m: SimMouse) -> Self {
         let mouse = Arc::new(Mutex::new(m));
+        Self::with(mouse.clone(), SimFinder::new(mouse))
+    }
+
+    /// `mouse` in port `id`: plugged into it again, it's the same connection.
+    fn at(mouse: Arc<Mutex<SimMouse>>, id: &str) -> Self {
+        Self::with(mouse.clone(), SimFinder::at(mouse, id))
+    }
+
+    fn with(mouse: Arc<Mutex<SimMouse>>, finder: SimFinder) -> Self {
         let seen: Seen = Arc::default();
         let sink = seen.clone();
         let notify: Notify = Arc::new(move |s, e| sink.lock().push((s.clone(), e)));
         let state = Arc::new(RwLock::new(DeviceState::default()));
         let log = Arc::new(Mutex::new(BatteryLog::load(None)));
-        let w = Worker::new(Box::new(SimFinder(mouse.clone())), state, notify, None, log);
+        let w = Worker::new(Box::new(finder), state, notify, None, log);
         Self { w, mouse, seen }
     }
 
@@ -119,6 +128,390 @@ fn another_makers_mouse_is_left_alone() {
     assert_eq!((s.cid, s.mid, s.device_type), (2, 1, 5));
     assert_eq!(r.mouse.lock().commands_since(0), [cmd::HANDSHAKE], "nothing asked after the handshake");
     assert!(r.events_since(0).is_empty());
+    assert!(s.speaks, "it answered as CompX's mice do: Inspect a mouse can read it, when asked");
+}
+
+/// Inspect a mouse's reading, with how far it said the memory was read.
+fn read_only(r: &mut Rig) -> (anyhow::Result<serde_json::Value>, Vec<(usize, usize)>) {
+    let mut told = Vec::new();
+    let read = r.w.read_only(&mut |done, total| told.push((done, total)));
+    (read, told)
+}
+
+fn memory_of(read: &serde_json::Value) -> Vec<u8> {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.decode(read["memory"].as_str().unwrap()).unwrap()
+}
+
+#[test]
+fn a_mouse_left_alone_is_read_when_its_owner_asks_and_nothing_is_written() {
+    let mut r = Rig::connected(SimMouse::foreign());
+    let (req, _) = r.mark();
+    let (read, told) = read_only(&mut r);
+    let read = read.unwrap();
+    assert_eq!(read["asleep"], false);
+    assert_eq!(read["wired"], false);
+    assert_eq!(read["answeredAs"], serde_json::json!({ "cid": 3, "mid": 21, "deviceType": 0 }));
+    assert_eq!(read["firmware"], "1.05");
+    assert_eq!(read["profile"], 0);
+    assert_eq!(read["battery"], serde_json::json!({ "level": 58, "charging": false }));
+    assert_eq!(read["knownAs"], serde_json::Value::Null);
+    assert_eq!((read["memorySize"].as_u64(), read["memoryWanted"].as_u64()), (Some(6912), Some(6912)));
+    assert_eq!(memory_of(&read), sample_image());
+    assert_eq!(read["stopped"], serde_json::Value::Null);
+    assert_eq!((told.first(), told.last()), (Some(&(0, p::FLASH_SIZE)), Some(&(p::FLASH_SIZE, p::FLASH_SIZE))));
+
+    let m = r.mouse.lock();
+    // Only questions: the handshake, whether its mouse is linked, its firmware, profile,
+    // long-range mode and battery, then its memory. It gave its memory, so it isn't told an app
+    // is listening; and it isn't asked who it is as an ATK is.
+    let commands = m.commands_since(req);
+    assert_eq!(
+        commands[..6],
+        [cmd::HANDSHAKE, cmd::ONLINE, cmd::VERSION, cmd::GET_PROFILE, cmd::GET_LONG_RANGE, cmd::BATTERY]
+    );
+    assert!(commands[6..].iter().all(|c| *c == cmd::READ_FLASH), "{commands:02X?}");
+    assert_eq!(m.image(), &sample_image()[..], "nothing changed");
+    drop(m);
+    // Still left alone after: hrtz doesn't run it.
+    let s = r.state();
+    assert!(s.foreign && !s.connected && s.key.is_none());
+    assert!(r.events_since(0).is_empty());
+}
+
+#[test]
+fn a_receiver_whose_mouse_sleeps_says_so_and_its_memory_isnt_asked_for() {
+    let mut r = Rig::connected(SimMouse { online: false, ..SimMouse::foreign() });
+    let (req, _) = r.mark();
+    let (read, told) = read_only(&mut r);
+    let read = read.unwrap();
+    assert_eq!(read["asleep"], true);
+    // The receiver still says whose mouse it holds.
+    assert_eq!(read["answeredAs"]["mid"], 21);
+    assert!(told.is_empty());
+    assert_eq!(r.mouse.lock().commands_since(req), [cmd::HANDSHAKE, cmd::ONLINE]);
+    // Woken, it's read.
+    r.mouse.lock().online = true;
+    assert_eq!(read_only(&mut r).0.unwrap()["memorySize"], 6912);
+}
+
+#[test]
+fn a_mouse_that_falls_asleep_while_read_gives_what_it_answered() {
+    let mut r = Rig::connected(SimMouse { sleeps_after_reads: Some(30), ..SimMouse::foreign() });
+    let (read, _) = read_only(&mut r);
+    let read = read.unwrap();
+    assert_eq!(read["asleep"], false);
+    assert_eq!(read["memorySize"], 30 * p::MAX_CHUNK);
+    assert_eq!(memory_of(&read), sample_image()[..30 * p::MAX_CHUNK]);
+    assert!(read["stopped"].is_string());
+    assert_eq!(read["fellAsleep"], true);
+}
+
+#[test]
+fn only_a_mouse_left_alone_that_answered_is_read_this_way() {
+    // One hrtz runs has its own check.
+    let mut r = Rig::connected(SimMouse::default());
+    let (req, _) = r.mark();
+    assert!(read_only(&mut r).0.is_err());
+    assert!(r.mouse.lock().commands_since(req).is_empty(), "and nothing is sent");
+    // Unplugged, there's nothing to read.
+    let mut r = Rig::connected(SimMouse::foreign());
+    r.mouse.lock().unplugged = true;
+    assert!(read_only(&mut r).0.is_err());
+}
+
+fn settings_of<'a>(read: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
+    read["picture"]["settings"].as_array().unwrap().iter().find(|s| s["id"] == id).unwrap()
+}
+
+#[test]
+fn the_reading_keeps_every_question_and_its_answer() {
+    let mut r = Rig::connected(SimMouse::foreign());
+    let read = read_only(&mut r).0.unwrap();
+    let asked: Vec<&str> = read["asked"].as_array().unwrap().iter().map(|a| a["what"].as_str().unwrap()).collect();
+    assert_eq!(asked, ["handshake", "online", "version", "profile", "longRange", "battery"]);
+    // As sent and as received.
+    let version = &read["asked"][2];
+    assert!(version["sent"].as_str().unwrap().starts_with("08 12 "), "{version}");
+    assert!(version["got"].as_str().unwrap().starts_with("08 12 00 00 00 02 01 05"), "{version}");
+    assert_eq!(read["longRange"], false);
+    assert_eq!(read["listening"], serde_json::Value::Null);
+}
+
+#[test]
+fn the_reading_says_what_its_memory_holds_a_piece_at_a_time() {
+    let mut r = Rig::connected(SimMouse::foreign());
+    let read = read_only(&mut r).0.unwrap();
+    assert_eq!((read["picture"]["kept"].as_u64(), read["picture"]["of"].as_u64()), (Some(12), Some(12)));
+    let ways: Vec<&str> =
+        settings_of(&read, "stages")["ways"].as_array().unwrap().iter().map(|w| w["text"].as_str().unwrap()).collect();
+    assert_eq!(ways[0], "400 / 800 / 1,600 / 3,200 DPI");
+    assert!(ways.len() > 1, "and each other way they could be read: {ways:?}");
+    assert_eq!(settings_of(&read, "polling")["ways"][0]["value"], 4000);
+    // Asleep, there's no memory to read a piece of.
+    r.mouse.lock().online = false;
+    assert!(read_only(&mut r).0.unwrap().get("picture").is_none());
+}
+
+#[test]
+fn memory_is_asked_for_past_a_zaopins_and_a_mouse_with_none_there_is_still_whole() {
+    use crate::mice::compx::atk_dpi::{Method, encode_stage};
+    let mut r = Rig::connected(SimMouse::foreign());
+    let (req, _) = r.mark();
+    let read = read_only(&mut r).0.unwrap();
+    assert_eq!(read["memorySize"], 6912);
+    assert_eq!(read["stopped"], serde_json::Value::Null);
+    // Asked once where a PAW3955 keeps its stages (twice over, as any question), and no further.
+    let past: Vec<_> = r.mouse.lock().reads_since(req).into_iter().filter(|(a, _)| *a >= p::FLASH_SIZE).collect();
+    assert_eq!(past, [(0x1B00, 10), (0x1B00, 10)]);
+    // One that keeps its stages there gives them, and they're read as a PAW3955's.
+    let mut m = SimMouse::foreign();
+    for image in &mut m.profiles {
+        image.resize(0x1B30, 0xFF);
+        for (i, dpi) in [450u32, 900, 1800, 3600].into_iter().enumerate() {
+            let stage = encode_stage(Method::Paw3955, dpi).unwrap();
+            image[0x1B00 + 6 * i..0x1B00 + 6 * i + 6].copy_from_slice(&stage);
+        }
+    }
+    let mut r = Rig::connected(m);
+    let read = read_only(&mut r).0.unwrap();
+    assert_eq!((read["memorySize"].as_u64(), read["memoryWanted"].as_u64()), (Some(0x1B30), Some(6912)));
+    let ways = settings_of(&read, "stages")["ways"].as_array().unwrap();
+    assert!(ways.iter().any(|w| w["piece"] == "paw3955" && w["text"] == "450 / 900 / 1,800 / 3,600 DPI"), "{ways:?}");
+}
+
+#[test]
+fn a_mouse_that_gives_no_memory_is_told_an_app_is_listening_then_that_its_gone() {
+    let mut r = Rig::connected(SimMouse { needs_listening: true, ..SimMouse::foreign() });
+    let (req, _) = r.mark();
+    let read = read_only(&mut r).0.unwrap();
+    assert_eq!(read["memorySize"], 6912);
+    assert_eq!(read["listening"], true);
+    {
+        let m = r.mouse.lock();
+        let told: Vec<u8> = m.requests[req..].iter().filter(|q| q[1] == cmd::PC_DRIVER_STATUS).map(|q| q[6]).collect();
+        assert_eq!(told, [1, 0], "that it's listening, then that it has gone");
+        assert!(!m.listening);
+        assert_eq!(m.image(), &sample_image()[..], "nothing changed");
+    }
+    // One that gives its memory when asked is never told.
+    let mut r = Rig::connected(SimMouse::foreign());
+    let (req, _) = r.mark();
+    assert_eq!(read_only(&mut r).0.unwrap()["listening"], serde_json::Value::Null);
+    assert!(!r.mouse.lock().commands_since(req).contains(&cmd::PC_DRIVER_STATUS));
+}
+
+#[test]
+fn a_tried_change_sets_another_polling_rate_and_puts_the_old_one_back() {
+    // 4,000 Hz, as the sample image has it.
+    let mut r = Rig::connected(SimMouse::foreign());
+    let (req, _) = r.mark();
+    let tried = r.w.trial(false).unwrap();
+    assert_eq!(tried, serde_json::json!({ "what": "Polling rate", "from": 4000, "to": 500, "kept": true }));
+    {
+        let m = r.mouse.lock();
+        assert_eq!(m.image()[..2], [2, 0x53]);
+        // One write: the row it's in, with the rest as it was. It's not told an app is listening.
+        assert_eq!(m.writes_since(req), [0x00]);
+        assert_eq!(m.image()[2..], sample_image()[2..]);
+        assert!(!m.commands_since(req).contains(&cmd::PC_DRIVER_STATUS));
+    }
+    // A second isn't started over the first.
+    assert!(r.w.trial(false).is_err());
+    assert_eq!(r.w.trial(true).unwrap(), serde_json::json!({ "restored": true }));
+    assert_eq!(r.mouse.lock().image(), &sample_image()[..]);
+    // And nothing is left to put back.
+    assert!(r.w.trial(true).is_err());
+}
+
+#[test]
+fn a_change_isnt_tried_where_the_rate_isnt_read_or_the_mouse_sleeps() {
+    // A polling rate kept as a code hrtz doesn't know: nothing is written.
+    let mut m = SimMouse::foreign();
+    m.put_pair(0x00, 0x77);
+    let mut r = Rig::connected(m);
+    let (req, _) = r.mark();
+    let e = r.w.trial(false).unwrap_err().to_string();
+    assert!(e.contains("nothing was changed"), "{e}");
+    assert!(r.mouse.lock().writes_since(req).is_empty());
+    assert!(r.w.trial(true).is_err(), "and nothing is held to put back");
+    // Asleep: not written to.
+    let mut r = Rig::connected(SimMouse { online: false, ..SimMouse::foreign() });
+    let (req, _) = r.mark();
+    assert!(r.w.trial(false).is_err());
+    assert!(r.mouse.lock().writes_since(req).is_empty());
+    // One hrtz runs has its own check for that.
+    let mut r = Rig::connected(SimMouse::default());
+    let (req, _) = r.mark();
+    assert!(r.w.trial(false).is_err());
+    assert!(r.mouse.lock().commands_since(req).is_empty());
+}
+
+#[test]
+fn a_change_left_tried_is_put_back_when_hrtz_closes() {
+    let mut r = Rig::connected(SimMouse::foreign());
+    r.w.trial(false).unwrap();
+    assert_ne!(r.mouse.lock().image()[0], sample_image()[0]);
+    r.w.goodbye();
+    assert_eq!(r.mouse.lock().image(), &sample_image()[..]);
+}
+
+#[test]
+fn a_mouse_that_doesnt_keep_a_tried_change_says_so() {
+    let mut r = Rig::connected(SimMouse { forget_writes: true, ..SimMouse::foreign() });
+    assert_eq!(r.w.trial(false).unwrap()["kept"], false);
+    // What's held is what's there: it's back at once.
+    assert_eq!(r.w.trial(true).unwrap()["restored"], true);
+}
+
+#[test]
+fn a_testers_report_becomes_their_mouse_here() {
+    let mut r = Rig::connected(SimMouse::foreign());
+    let read = read_only(&mut r).0.unwrap();
+    // As Inspect a mouse saves it: a part for each connection checked.
+    let report = serde_json::json!({ "format": "hrtz-mouse-report/2", "connections": [
+        { "ids": "3554:F5D5", "how": "windows" },
+        { "ids": "3554:F5D5", "how": "read", "read": read },
+    ]});
+    let theirs = SimMouse::from_report(&report.to_string()).expect("a mouse with memory");
+    assert_eq!((theirs.cid, theirs.mid, theirs.device_type, theirs.firmware), (3, 21, 0, [0x01, 0x05]));
+    assert_eq!(theirs.image(), &sample_image()[..]);
+    // Met as theirs was: left alone, and read the same.
+    let mut r = Rig::connected(theirs);
+    assert!(r.state().foreign);
+    assert_eq!(memory_of(&read_only(&mut r).0.unwrap()), sample_image());
+    // One hrtz ran: its memory is in its test report's reading.
+    let mut r = Rig::connected(SimMouse::z11());
+    let device = r.w.report().unwrap();
+    let report = serde_json::json!({ "connections": [{
+        "ids": "3554:F511",
+        "how": "check",
+        "mouse": { "cid": 7, "mid": 9, "deviceType": 2, "firmware": "3.13" },
+        "device": device,
+    }]});
+    let theirs = SimMouse::from_report(&report.to_string()).unwrap();
+    assert_eq!((theirs.mid, theirs.usb, theirs.firmware), (9, (0x3554, 0xF511), [0x03, 0x13]));
+    assert_eq!(Rig::connected(theirs).settings().stages.unwrap()[0].dpi, 1350);
+    // Nothing to make a mouse of.
+    assert!(SimMouse::from_report("{}").is_none());
+    assert!(SimMouse::from_report(r#"{"connections":[{"how":"windows"}]}"#).is_none());
+}
+
+#[test]
+fn a_change_left_on_a_mouse_unplugged_is_put_back_once_its_plugged_in_again() {
+    use crate::mice::compx::probe::Trials;
+    let mouse = Arc::new(Mutex::new(SimMouse::foreign()));
+    let mut r = Rig::at(mouse.clone(), "test:replugged");
+    r.w.housekeeping();
+    r.w.trial(false).unwrap();
+    // Unplugged: its connection's thread goes, but not what's held for it.
+    drop(r);
+    assert_ne!(mouse.lock().image()[0], sample_image()[0]);
+    // In the same port again, well after: found, and put back.
+    Trials::of("test:replugged").age(std::time::Duration::from_secs(60));
+    let mut r = Rig::at(mouse.clone(), "test:replugged");
+    r.w.housekeeping();
+    assert_eq!(mouse.lock().image(), &sample_image()[..]);
+    assert!(r.w.trial(true).is_err(), "nothing more is held");
+}
+
+#[test]
+fn a_change_its_window_never_put_back_is_put_back_once_overdue_and_the_mouse_is_awake() {
+    use crate::mice::compx::probe::Trials;
+    let age = |secs| Trials::of("test:overdue").age(std::time::Duration::from_secs(secs));
+    let mouse = Arc::new(Mutex::new(SimMouse::foreign()));
+    let mut r = Rig::at(mouse.clone(), "test:overdue");
+    r.w.housekeeping();
+    r.w.trial(false).unwrap();
+    // Not yet: its window may still be measuring.
+    r.w.housekeeping();
+    assert_ne!(mouse.lock().image()[0], sample_image()[0]);
+    // Overdue, but asleep: it keeps the change, and isn't written to.
+    age(60);
+    mouse.lock().online = false;
+    let (req, _) = r.mark();
+    r.w.housekeeping();
+    assert!(mouse.lock().writes_since(req).is_empty());
+    // Asked again only a few seconds on.
+    mouse.lock().online = true;
+    r.w.housekeeping();
+    assert!(mouse.lock().writes_since(req).is_empty());
+    age(10);
+    r.w.housekeeping();
+    assert_eq!(mouse.lock().image(), &sample_image()[..]);
+}
+
+#[test]
+fn a_rate_set_since_by_its_owner_isnt_put_back_over() {
+    let mut r = Rig::connected(SimMouse::foreign());
+    r.w.trial(false).unwrap();
+    // Its owner sets 1,000 Hz in its own app meanwhile.
+    r.mouse.lock().put_pair(0x00, 0x01);
+    let (req, _) = r.mark();
+    assert_eq!(r.w.trial(true).unwrap(), serde_json::json!({ "restored": false, "setSince": true }));
+    let m = r.mouse.lock();
+    assert!(m.writes_since(req).is_empty());
+    assert_eq!(m.image()[0], 0x01);
+    drop(m);
+    assert!(r.w.trial(true).is_err(), "and it's let go");
+}
+
+#[test]
+fn a_put_back_the_mouse_doesnt_keep_is_tried_a_few_times_then_let_be() {
+    let mut r = Rig::connected(SimMouse::foreign());
+    r.w.trial(false).unwrap();
+    r.mouse.lock().forget_writes = true;
+    for _ in 0..3 {
+        assert_eq!(r.w.trial(true).unwrap()["restored"], false);
+    }
+    assert!(r.w.trial(true).is_err(), "let be after three");
+}
+
+#[test]
+fn a_mouse_that_wants_to_hear_an_app_is_listening_has_its_change_tried_too() {
+    let mut r = Rig::connected(SimMouse { needs_listening: true, ..SimMouse::foreign() });
+    let (req, _) = r.mark();
+    assert_eq!(r.w.trial(false).unwrap()["kept"], true);
+    assert_eq!(r.w.trial(true).unwrap()["restored"], true);
+    let m = r.mouse.lock();
+    assert_eq!(m.image(), &sample_image()[..]);
+    let told: Vec<u8> = m.requests[req..].iter().filter(|q| q[1] == cmd::PC_DRIVER_STATUS).map(|q| q[6]).collect();
+    assert_eq!(told, [1, 0, 1, 0], "told it's listening, then that it has gone, around each");
+    assert!(!m.listening);
+}
+
+/// Inspect a mouse's reading of the simulated mouse of another maker, and the test report's
+/// reading of a simulated Z11, as the front end gets them: to try the report on, without a mouse.
+#[test]
+#[ignore = "writes a file named by HRTZ_OUT"]
+fn dump_reading() {
+    let Ok(out) = std::env::var("HRTZ_OUT") else { return };
+    let read = read_only(&mut Rig::connected(SimMouse::foreign())).0.unwrap();
+    let report = Rig::connected(SimMouse::z11()).w.report().unwrap();
+    let both = serde_json::json!({ "read": read, "report": report });
+    std::fs::write(out, serde_json::to_string_pretty(&both).unwrap()).unwrap();
+}
+
+/// A tester's report, loaded as `pnpm dev:sim report:<file>` loads it: whose mouse comes of it.
+#[test]
+#[ignore = "reads the report named by HRTZ_REPORT"]
+fn a_report_file_makes_a_mouse() {
+    let Ok(path) = std::env::var("HRTZ_REPORT") else { return };
+    let theirs = SimMouse::from_report(&std::fs::read_to_string(&path).unwrap()).expect("a mouse with memory");
+    println!(
+        "{path}: {:04X}:{:04X}, CID {} MID {}, connection type {}, firmware {:x}.{:02x}, {} bytes of memory",
+        theirs.usb.0,
+        theirs.usb.1,
+        theirs.cid,
+        theirs.mid,
+        theirs.device_type,
+        theirs.firmware[0],
+        theirs.firmware[1],
+        theirs.image().len()
+    );
+    let r = Rig::connected(theirs);
+    let s = r.state();
+    println!("hrtz: {}", if s.foreign { "leaves it alone".to_string() } else { format!("runs it as {:?}", s.model) });
 }
 
 #[test]
@@ -478,7 +871,7 @@ fn goodbye_says_no_app_is_listening() {
 fn the_engine_finds_the_mouse_and_runs_calls_on_its_thread() {
     let mouse = Arc::new(Mutex::new(SimMouse::default()));
     let notify: Notify = Arc::new(|_, _| {});
-    let engine = Engine::start(Box::new(SimFinder(mouse.clone())), notify, None);
+    let engine = Engine::start(Box::new(SimFinder::new(mouse.clone())), notify, None);
     let start = Instant::now();
     while engine.snapshot().settings.is_none() {
         assert!(start.elapsed() < Duration::from_secs(5), "never connected");
@@ -519,7 +912,7 @@ fn the_first_zaopin_gets_a_copy_of_the_battery_files_from_before_several_mice() 
     let notify: Notify = Arc::new(|_, _| {});
     let state = Arc::new(RwLock::new(DeviceState::default()));
     let log = Arc::new(Mutex::new(BatteryLog::load(None)));
-    let mut w = Worker::new(Box::new(SimFinder(mouse)), state, notify, Some(dir.clone()), log.clone());
+    let mut w = Worker::new(Box::new(SimFinder::new(mouse)), state, notify, Some(dir.clone()), log.clone());
     w.housekeeping();
     let (estimate, own_log) = crate::mice::engine::battery_files(&dir, "compx/7-4");
     assert!(estimate.exists() && own_log.exists(), "copied under the mouse's key");
@@ -600,10 +993,53 @@ mod atk_mice {
         let mut r = Rig::connected(SimMouse { online: false, ..SimMouse::u2_plus() });
         let s = r.state();
         assert!(!s.connected && !s.foreign && s.key.is_none());
+        assert!(s.waiting, "Inspect a mouse says to wake it");
         assert_eq!(r.mouse.lock().commands_since(0), [cmd::ONLINE], "who it is isn't asked while it sleeps");
+        // Not one left alone: its own check comes once it's met.
+        assert!(read_only(&mut r).0.is_err());
         r.mouse.lock().online = true;
         r.w.housekeeping();
-        assert_eq!(r.state().key.as_deref(), Some("compx/2-78"));
+        let s = r.state();
+        assert_eq!(s.key.as_deref(), Some("compx/2-78"));
+        assert!(!s.waiting);
+    }
+
+    #[test]
+    fn an_atk_left_alone_is_read_as_atks_app_asks() {
+        let mut r = Rig::connected(SimMouse { cid: 1, mid: 86, ..SimMouse::u2_plus() });
+        assert!(r.state().speaks);
+        let (req, _) = r.mark();
+        let read = read_only(&mut r).0.unwrap();
+        assert_eq!(read["model"], serde_json::json!({ "cid": 1, "mid": 86 }));
+        assert_eq!(read["knownAs"], serde_json::Value::Null);
+        assert_eq!(read["firmware"], "1.23");
+        assert_eq!(read["battery"]["level"], 100);
+        assert_eq!(memory_of(&read), atk_sample_image());
+        let m = r.mouse.lock();
+        let commands = m.commands_since(req);
+        // Who it is by ATK's own question (0x10), after the handshake and whether it's linked.
+        assert_eq!(
+            commands[..6],
+            [cmd::HANDSHAKE, cmd::ONLINE, atk::CID_MID, cmd::VERSION, cmd::GET_PROFILE, cmd::BATTERY]
+        );
+        assert!(commands[6..].iter().all(|c| *c == cmd::READ_FLASH), "{commands:02X?}");
+        drop(m);
+        // Asleep, its receiver says only that.
+        r.mouse.lock().online = false;
+        let (req, _) = r.mark();
+        let read = read_only(&mut r).0.unwrap();
+        assert_eq!(read["asleep"], true);
+        assert!(!r.mouse.lock().commands_since(req).contains(&cmd::READ_FLASH));
+    }
+
+    #[test]
+    fn a_model_atks_app_names_is_named_in_its_reading() {
+        // An R1 PRO on a product ID ATK's app doesn't list under CompX's vendor ID: left alone,
+        // but its report says which mouse answered.
+        let mut r = Rig::connected(SimMouse { usb: (p::VENDOR_ID, 0xF5D5), ..SimMouse::r1_pro() });
+        assert!(r.state().foreign);
+        let read = read_only(&mut r).0.unwrap();
+        assert_eq!(read["knownAs"], "VXE R1 PRO (PAW3395)");
     }
 
     #[test]
@@ -1024,6 +1460,32 @@ mod atk_mice {
         let mut r = Rig::connected(SimMouse::u2_plus());
         let report = r.w.report().unwrap();
         assert_eq!(report["memorySize"], p::FLASH_SIZE);
-        assert_eq!(report["family"], serde_json::json!({ "maker": "ATK", "cid": 2, "mid": 78, "receiver": true }));
+        let family = &report["family"];
+        assert_eq!(
+            (&family["maker"], &family["cid"], &family["mid"], &family["receiver"]),
+            (&serde_json::json!("ATK"), &serde_json::json!(2), &serde_json::json!(78), &serde_json::json!(true))
+        );
+        // Its memory a piece at a time, with its sensor's way of keeping its DPI marked.
+        let stages = family["picture"]["settings"].as_array().unwrap().iter().find(|s| s["id"] == "stages").unwrap();
+        assert_eq!(stages["ways"][0]["piece"], "step50");
+        assert_eq!(stages["ways"][0]["expected"], true);
+    }
+
+    #[test]
+    fn an_atk_left_alone_has_its_change_tried_as_atks_app_writes() {
+        let mut r = Rig::connected(SimMouse { cid: 1, mid: 86, ..SimMouse::u2_plus() });
+        let (req, _) = r.mark();
+        let tried = r.w.trial(false).unwrap();
+        assert_eq!(
+            (tried["from"].as_u64(), tried["to"].as_u64(), tried["kept"].as_bool()),
+            (Some(1000), Some(500), Some(true))
+        );
+        // The row the rate is in, whole (ten bytes), with no answer waited for: this one gives none.
+        let m = r.mouse.lock();
+        let write = m.requests[req..].iter().find(|q| q[1] == cmd::WRITE_FLASH).unwrap();
+        assert_eq!((p::packet_addr(write), write[5]), (0, 10));
+        drop(m);
+        assert_eq!(r.w.trial(true).unwrap()["restored"], true);
+        assert_eq!(r.mouse.lock().image(), &atk_sample_image()[..]);
     }
 }

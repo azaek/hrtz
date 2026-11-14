@@ -103,6 +103,24 @@ pub trait Finder: Send {
     fn find(&mut self, board: &Board) -> Result<Box<dyn Driver>>;
     /// How many are plugged in now: pairing wants exactly one.
     fn count(&mut self) -> usize;
+    /// The last look found a connection whose mouse didn't answer: it's waited for, and Inspect a
+    /// mouse says to wake it.
+    fn asleep(&self) -> bool {
+        false
+    }
+    /// Inspect a mouse's reading of a mouse hrtz left alone, when its owner asks for it: who it
+    /// is and its memory, asked as its maker's own app asks, with nothing written. `progress` is
+    /// told how far the memory is read.
+    fn read_only(&mut self, _progress: &mut dyn FnMut(usize, usize)) -> Result<serde_json::Value> {
+        unsupported()
+    }
+    /// One change tried on a mouse hrtz left alone, when its owner asks: made, then (`restore`) put
+    /// back, with Inspect a mouse measuring in between.
+    fn trial(&mut self, _restore: bool) -> Result<serde_json::Value> {
+        unsupported()
+    }
+    /// hrtz is closing, or a tried change was never put back: put it back.
+    fn leave(&mut self) {}
 }
 
 /// What the battery says, before the engine's smoothing.
