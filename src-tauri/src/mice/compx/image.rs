@@ -62,6 +62,8 @@ impl From<Fields> for Settings {
             dpi_light: Some(f.dpi_light),
             lod: Some(f.lod),
             sensor_mode: Some(f.sensor_mode),
+            // A setting of ATK's mice.
+            sensor_angle: None,
             debounce_ms: Some(f.debounce_ms),
             motion_sync: Some(f.motion_sync),
             angle_snapping: Some(f.angle_snapping),

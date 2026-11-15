@@ -50,6 +50,15 @@ pub enum SensorMode {
     Corded,
 }
 
+/// The sensor's direction, turned to suit how the mouse is held: by how many degrees (below 0 is
+/// to the left on ATK's dial, above 0 to the right), and whether the turn is applied. The mouse
+/// keeps both, so a turn switched off keeps its degrees.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SensorAngle {
+    pub on: bool,
+    pub degrees: i8,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct DpiStage {
     pub dpi: u32,
@@ -188,6 +197,8 @@ pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensor_mode: Option<SensorMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensor_angle: Option<SensorAngle>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub debounce_ms: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub motion_sync: Option<bool>,
@@ -230,6 +241,9 @@ pub struct Capabilities {
     pub lod: Option<Vec<Lod>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensor_mode: Option<SensorModeCaps>,
+    /// The sensor's direction can be turned this many degrees either way (`Settings::sensor_angle`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensor_angle_deg: Option<u8>,
     /// Debounce, in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub debounce_ms: Option<Range>,
@@ -340,6 +354,10 @@ pub struct SensorModeCaps {
     pub corded_from_hz: Option<u32>,
     /// On its cable, the mouse always runs Corded.
     pub corded_when_wired: bool,
+    /// Corded is a mode to choose, the sensor at its limit (an ATK's third level), not one the
+    /// mouse enters by itself.
+    #[serde(default)]
+    pub corded_by_choice: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]

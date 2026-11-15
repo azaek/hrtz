@@ -1,4 +1,4 @@
-import { lodName, type Capabilities, type Settings } from "@/api";
+import { lodName, sensorAngleName, sensorModeName, type Capabilities, type SensorMode, type Settings } from "@/api";
 import { dpiRange, stepNear } from "@/dpi";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -88,7 +88,14 @@ export function changesFor(s: Settings, caps: Capabilities): Change[] {
   }
   if (caps.sensorMode && s.sensorMode) {
     const sensorMode = other(caps.sensorMode.modes, s.sensorMode);
-    if (sensorMode) add("sensorMode", "Sensor mode", s.sensorMode, sensorMode, { sensorMode }, (x) => x.sensorMode);
+    const name = (m: SensorMode) => sensorModeName(m, caps.sensorMode?.cordedByChoice);
+    if (sensorMode) add("sensorMode", "Sensor mode", name(s.sensorMode), name(sensorMode), { sensorMode }, (x) => x.sensorMode);
+  }
+  if (caps.sensorAngleDeg !== undefined && s.sensorAngle) {
+    // One degree on, or one back at the end. Whether it's applied stays as it is.
+    const { on, degrees } = s.sensorAngle;
+    const sensorAngle = { on, degrees: degrees < caps.sensorAngleDeg ? degrees + 1 : degrees - 1 };
+    add("sensorAngle", "Sensor angle", sensorAngleName(s.sensorAngle), sensorAngleName(sensorAngle), { sensorAngle }, (x) => x.sensorAngle);
   }
   if (caps.debounceMs && s.debounceMs !== undefined) {
     const { min, max } = caps.debounceMs;

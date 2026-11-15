@@ -6,17 +6,21 @@
 //! ATK's mice on CompX's vendor channel (ATK, VXE and MAD, in ATK's own app). They use a Zaopin's
 //! packets, commands and memory addresses, and say who they are with their own command (0x10).
 //! What's offered is what ATK's own app (ATK HUB 3.2.32) offers and keeps as a Zaopin does, with the
-//! values it offers, its buttons and the four onboard profiles; the rest (the sensor mode, macros)
-//! is kept differently or isn't known yet, so it's left as the mouse holds it. The models are in
-//! `atk_catalog`, every named one in ATK's app; what's offered on each sensor is `Sensor`'s. Another
-//! ATK, or one hrtz can't name, is left alone.
+//! values it offers, its buttons and the four onboard profiles; the sensor mode and the sensor
+//! angle as ATK's app keeps them, from the firmware it offers each on; the rest (macros) isn't
+//! known yet, so it's left as the mouse holds it. The models are in `atk_catalog`, every named one
+//! in ATK's app; what's offered on each sensor is `Sensor`'s. Another ATK, or one hrtz can't name,
+//! is left alone.
 
 use super::atk_catalog::{MODELS, ON_COMPX_VID, RECEIVERS};
 use super::atk_dpi as dpi;
 pub use super::atk_dpi::Method;
 use super::image::POLLING;
 use super::protocol as p;
-use crate::mice::model::{Capabilities, DpiCaps, DpiStage, Lod, PollingCaps, Range, Settings, Supported};
+use crate::mice::model::{
+    Capabilities, DpiCaps, DpiStage, Lod, PollingCaps, Range, SensorAngle, SensorMode, SensorModeCaps, Settings,
+    Supported,
+};
 
 /// ATK's USB vendor ID, on its receivers and on its mice's cables.
 pub const VENDOR_ID: u16 = 0x373B;
@@ -137,6 +141,13 @@ pub struct Model {
     /// It has a button underneath, the DPI button out of the box ("BottomButton" in ATK's app),
     /// set like the five on top.
     pub bottom_button: bool,
+    /// The firmware from which ATK's app offers the sensor's top mode, in hundredths (1.25 is
+    /// 125): 0 where every firmware has it, none where none does. ATK's own mice (CID 1) have it on
+    /// any; the others by ATK's list of upgrades ("cordedMode" in its mouse-upgrade.json).
+    pub corded_from: Option<u16>,
+    /// Likewise the sensor angle: ATK's own on any firmware, the others from the version that
+    /// list gives the angle or the top mode; none where ATK's app says the model has none.
+    pub angle_from: Option<u16>,
     /// Tried on the real mouse.
     pub tested: bool,
 }
@@ -227,6 +238,81 @@ const SLEEP: usize = 0xAD;
 /// as held). An owner's R1 PRO held the same 180 at 0xAD and at 0xB7 (2026-11-15).
 const SENSOR_SLEEP: usize = 0xB5;
 const LOD: usize = 0x0A;
+/// The sensor mode, in the row of the sensor's own sleep: 0 ATK's "basic" (low power), 1 its
+/// "competitive" (high performance), 2 its "competitive MAX" (the sensor at its limit, "corded" in
+/// ATK's code; a Zaopin's is 10 here), and 3 the same held to 13,000 frames a second, on the mice
+/// that say they have that choice.
+const SENSOR_MODE: usize = 0xB9;
+/// The sensor angle: its degrees as a signed byte, then whether it's applied (1), each with its
+/// check byte. ATK's app sets the four bytes together.
+const ANGLE: usize = 0xBD;
+/// ATK's app turns the sensor up to 30 degrees either way.
+pub const ANGLE_MAX_DEG: u8 = 30;
+
+/// The sensor mode `image` holds; none where its check byte is off or it's a code hrtz doesn't
+/// know. The top mode held to 13,000 frames a second reads as the top mode.
+pub fn sensor_mode(image: &[u8]) -> Option<SensorMode> {
+    match p::group_valid(&image[SENSOR_MODE..SENSOR_MODE + 2]).then(|| image[SENSOR_MODE])? {
+        0 => Some(SensorMode::Lp),
+        1 => Some(SensorMode::Hp),
+        2 | 3 => Some(SensorMode::Corded),
+        _ => None,
+    }
+}
+
+/// `mode` as the sensor mode, into `target`. The row it's in is written whole, the sensor's sleep
+/// beside it as held, as ATK's app writes it.
+pub fn put_sensor_mode(target: &mut [u8], mode: SensorMode) {
+    let code = match mode {
+        SensorMode::Lp => 0,
+        SensorMode::Hp => 1,
+        SensorMode::Corded => 2,
+    };
+    target[SENSOR_MODE] = code;
+    target[SENSOR_MODE + 1] = p::checksum(&[code]);
+}
+
+/// The sensor angle `image` holds; none where a check byte is off, or the degrees are past what
+/// ATK's app sets.
+pub fn angle(image: &[u8]) -> Option<SensorAngle> {
+    let valid = p::group_valid(&image[ANGLE..ANGLE + 2]) && p::group_valid(&image[ANGLE + 2..ANGLE + 4]);
+    let degrees = image[ANGLE] as i8;
+    (valid && degrees.unsigned_abs() <= ANGLE_MAX_DEG).then_some(SensorAngle { on: image[ANGLE + 2] == 1, degrees })
+}
+
+/// `angle` as the sensor angle, into `target`. One past `max` degrees either way is refused.
+pub fn put_angle(target: &mut [u8], angle: SensorAngle, max: u8) -> Result<(), String> {
+    if angle.degrees.unsigned_abs() > max {
+        return Err(format!("The sensor angle goes from -{max} to {max} degrees."));
+    }
+    for (at, value) in [(ANGLE, angle.degrees as u8), (ANGLE + 2, angle.on as u8)] {
+        target[at] = value;
+        target[at + 1] = p::checksum(&[value]);
+    }
+    Ok(())
+}
+
+/// A firmware version as hrtz shows it ("1.25"), in hundredths; none where it isn't two numbers.
+fn hundredths(firmware: &str) -> Option<u16> {
+    let (major, minor) = firmware.split_once('.')?;
+    (minor.len() == 2).then_some(())?;
+    Some(major.parse::<u16>().ok()?.checked_mul(100)? + minor.parse::<u16>().ok()?)
+}
+
+/// What `m`'s firmware adds to what's offered, as ATK's app decides it: the sensor's top mode and
+/// the sensor angle, each from the firmware that has it. A mouse that hasn't said its firmware gets
+/// neither.
+pub fn with_firmware(m: &Model, caps: &mut Capabilities, firmware: Option<&str>) {
+    let version = firmware.and_then(hundredths);
+    let has = |from: Option<u16>| matches!((from, version), (Some(from), Some(v)) if v >= from);
+    if let Some(mode) = caps.sensor_mode.as_mut() {
+        mode.modes = vec![SensorMode::Lp, SensorMode::Hp];
+        if has(m.corded_from) {
+            mode.modes.push(SensorMode::Corded);
+        }
+    }
+    caps.sensor_angle_deg = has(m.angle_from).then_some(ANGLE_MAX_DEG);
+}
 
 /// The models mouse-protocol gives the R1's sleep choices: its R1 family (R1, R1 PRO MAX, R1 SE+)
 /// and the two sharing the R1's settings (X1 Pro Max, A9 Plus NK). Any ATK met under CompX's
@@ -258,7 +344,9 @@ pub fn put_sleep(target: &mut [u8], seconds: u32) {
 /// does. The polling rate (to what the connection allows); the DPI stages (packed as a Zaopin's),
 /// and on a model with a DPI light, their colours and the light; the lift-off distance its sensor
 /// offers; debounce, motion sync, straight-line correction (a Zaopin's angle snapping) and ripple
-/// control; the onboard profiles. The battery is the mouse's own reading.
+/// control; the sensor's low-power and high-performance modes; the onboard profiles. The battery
+/// is the mouse's own reading. Its top sensor mode and the sensor angle wait for its firmware
+/// (`with_firmware`).
 pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
     let (min, max) = m.sensor.dpi();
     let debounce: Vec<u8> = DEBOUNCE_MS.iter().copied().filter(|ms| m.zero_debounce || *ms > 0).collect();
@@ -279,6 +367,12 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
             rates: POLLING.iter().map(|p| p.0).filter(|hz| *hz <= link::max_polling_hz(kind)).collect(),
         }),
         lod: m.sensor.lod(),
+        sensor_mode: Some(SensorModeCaps {
+            modes: vec![SensorMode::Lp, SensorMode::Hp],
+            corded_from_hz: None,
+            corded_when_wired: false,
+            corded_by_choice: true,
+        }),
         debounce_ms: Some(Range { min: debounce[0] as u32, max: 20 }),
         debounce_choices_ms: Some(debounce),
         motion_sync: true,
@@ -327,7 +421,8 @@ pub fn keys_as_atks_app(target: &mut [u8], m: &Model) {
 /// time (a PAW3955's one at a time, from 0x1B00); on a model with a DPI light, the colours two at
 /// a time and the light; the row from debounce to ripple control, which holds ATK's sleep time
 /// too (0xAD: set where it's offered, elsewhere written back as held); the sensor's own sleep
-/// from 0xB5, which ATK's app sets with the sleep time; and each button, with its key-combination
+/// from 0xB5, which ATK's app sets with the sleep time, and which holds the sensor mode; the
+/// sensor angle's four bytes, on a model that has it; and each button, with its key-combination
 /// slot in two packets of ten. Nothing of the DPI where it isn't offered.
 pub fn fields(m: &Model) -> Vec<(usize, usize)> {
     let stages = MAX_STAGES as usize;
@@ -346,6 +441,9 @@ pub fn fields(m: &Model) -> Vec<(usize, usize)> {
     }
     f.push((0xA9, 10));
     f.push((SENSOR_SLEEP, 6));
+    if m.angle_from.is_some() {
+        f.push((ANGLE, 4));
+    }
     // Each button alone, and its key-combination slot in ATK's two packets of ten.
     for (i, _) in buttons(m) {
         f.push((BUTTONS + 4 * i as usize, 4));
@@ -392,9 +490,10 @@ pub fn memory_len(m: &Model) -> usize {
     }
 }
 
-/// Only what an ATK offers, of `s`: the rest is left as the mouse holds it. A model without a DPI
-/// light shows none; one whose DPI method isn't settled shows no stages; one whose lift-off isn't
-/// offered, none.
+/// Only what an ATK offers and keeps as a Zaopin does, of `s`: the rest is left as the mouse holds
+/// it. A model without a DPI light shows none; one whose DPI method isn't settled shows no stages;
+/// one whose lift-off isn't offered, none. Its sensor mode and angle, kept ATK's way, are the
+/// driver's to read and set.
 pub fn offered(s: &Settings, m: &Model) -> Settings {
     let dpi = m.sensor.dpi_method().is_some();
     Settings {
@@ -478,8 +577,14 @@ mod tests {
         assert_eq!(caps.debounce_choices_ms, Some(vec![0, 1, 2, 4, 8, 15, 20]));
         assert!(caps.motion_sync && caps.angle_snapping && caps.ripple_control);
         assert_eq!(caps.profiles, Some(4));
+        // Its sensor's two modes on any firmware, chosen as ATK's app chooses them. The top one
+        // and the sensor angle wait for its firmware.
+        let mode = caps.sensor_mode.clone().unwrap();
+        assert_eq!(mode.modes, vec![SensorMode::Lp, SensorMode::Hp]);
+        assert!(mode.corded_by_choice && !mode.corded_when_wired && mode.corded_from_hz.is_none());
+        assert!(caps.sensor_angle_deg.is_none());
         // Kept differently, or not known yet.
-        assert!(caps.sensor_mode.is_none() && caps.sleep_times_s.is_none() && caps.peak_timeouts_s.is_none());
+        assert!(caps.sleep_times_s.is_none() && caps.peak_timeouts_s.is_none());
         // Its buttons, as ATK's app lists them: the five on top and the one underneath.
         let names: Vec<String> = caps.buttons.unwrap().into_iter().map(|(_, n)| n).collect();
         assert_eq!(names, ["Left", "Right", "Wheel click", "Back", "Forward", "DPI"]);
@@ -490,6 +595,75 @@ mod tests {
         let wired = capabilities(u2, link::WIRED_1K);
         assert!(wired.wired && wired.polling.unwrap().rates.last() == Some(&1000));
         assert_eq!(capabilities(u2, link::DONGLE_1K).polling.unwrap().rates.last(), Some(&1000));
+    }
+
+    #[test]
+    fn the_firmware_settles_the_top_mode_and_the_sensor_angle() {
+        // Whether the top mode is offered, and how far the sensor turns.
+        let offered = |cid, mid, firmware: Option<&str>| {
+            let m = model(cid, mid).unwrap();
+            let mut caps = capabilities(m, link::DONGLE_1K);
+            with_firmware(m, &mut caps, firmware);
+            // Asked again (a profile switch loads again), it's the same.
+            let once = caps.clone();
+            with_firmware(m, &mut caps, firmware);
+            assert_eq!(caps, once);
+            (caps.sensor_mode.unwrap().modes.contains(&SensorMode::Corded), caps.sensor_angle_deg)
+        };
+        // The R1 PRO with a PAW3950 Ultra: both from firmware 1.00 (an owner's had 1.25).
+        assert_eq!(offered(2, 125, Some("1.25")), (true, Some(30)));
+        assert_eq!(offered(2, 125, Some("1.00")), (true, Some(30)));
+        assert_eq!(offered(2, 125, Some("0.99")), (false, None));
+        // A mouse that hasn't said its firmware, or says one hrtz can't read, gets neither.
+        assert_eq!(offered(2, 125, None), (false, None));
+        assert_eq!(offered(2, 125, Some("1.2a")), (false, None));
+        // The U2 Plus NK: the angle from 1.30, and no top mode on any.
+        assert_eq!(offered(2, 78, Some("1.23")), (false, None));
+        assert_eq!(offered(2, 78, Some("1.30")), (false, Some(30)));
+        // The U2 Pro Max from 1.77, the F1 PRO from 3.00.
+        assert_eq!(offered(2, 100, Some("1.76")), (false, None));
+        assert_eq!(offered(2, 100, Some("1.77")), (true, Some(30)));
+        assert_eq!(offered(2, 36, Some("2.99")), (false, None));
+        assert_eq!(offered(2, 36, Some("3.00")), (true, Some(30)));
+        // ATK's own (CID 1): both on any firmware.
+        assert_eq!(offered(1, 2, Some("0.01")), (true, Some(30)));
+        // One ATK's list of upgrades doesn't name (the R1 PRO with a PAW3395): neither, on any.
+        assert_eq!(offered(2, 7, Some("9.99")), (false, None));
+        // How many have each: ATK's own 62 and the 38 its list names; the angle on two more.
+        assert_eq!(MODELS.iter().filter(|m| m.corded_from.is_some()).count(), 100);
+        assert_eq!(MODELS.iter().filter(|m| m.angle_from.is_some()).count(), 102);
+        assert!(MODELS.iter().all(|m| m.corded_from.is_none() || m.angle_from.is_some()));
+    }
+
+    #[test]
+    fn the_sensor_mode_and_angle_as_atks_app_keeps_them() {
+        let mut f = vec![0xFF; 0x100];
+        assert_eq!((sensor_mode(&f), angle(&f)), (None, None), "blank memory holds neither");
+        for (code, mode) in [(0, SensorMode::Lp), (1, SensorMode::Hp), (2, SensorMode::Corded), (3, SensorMode::Corded)]
+        {
+            f[0xB9..0xBB].copy_from_slice(&[code, p::checksum(&[code])]);
+            assert_eq!(sensor_mode(&f), Some(mode));
+        }
+        f[0xB9..0xBB].copy_from_slice(&[10, p::checksum(&[10])]);
+        assert_eq!(sensor_mode(&f), None, "a Zaopin's Corded isn't one of an ATK's");
+        put_sensor_mode(&mut f, SensorMode::Corded);
+        assert_eq!(f[0xB9..0xBB], [2, 0x53]);
+        // An owner's R1 PRO held FF 56 01 54 from 0xBD: one degree to the left, applied.
+        f[0xBD..0xC1].copy_from_slice(&[0xFF, 0x56, 0x01, 0x54]);
+        assert_eq!(angle(&f), Some(SensorAngle { on: true, degrees: -1 }));
+        put_angle(&mut f, SensorAngle { on: false, degrees: 30 }, 30).unwrap();
+        assert_eq!(f[0xBD..0xC1], [30, 0x55 - 30, 0, 0x55]);
+        assert_eq!(angle(&f), Some(SensorAngle { on: false, degrees: 30 }));
+        put_angle(&mut f, SensorAngle { on: true, degrees: -30 }, 30).unwrap();
+        assert_eq!(f[0xBD..0xC1], [226, p::checksum(&[226]), 1, 0x54]);
+        let held = f.clone();
+        assert!(put_angle(&mut f, SensorAngle { on: true, degrees: 31 }, 30).is_err());
+        assert_eq!(f, held, "a refused angle writes nothing");
+        // Degrees past what ATK's app sets, or a check byte that's off, read as nothing to show.
+        f[0xBD..0xBF].copy_from_slice(&[0x80, p::checksum(&[0x80])]);
+        assert_eq!(angle(&f), None);
+        f[0xBD..0xBF].copy_from_slice(&[5, 0]);
+        assert_eq!(angle(&f), None);
     }
 
     #[test]
@@ -524,6 +698,11 @@ mod tests {
         // Then each button, and its key-combination slot in two packets.
         assert_eq!(f[3..6], [(0x60, 4), (0x100, 10), (0x10A, 10)]);
         assert_eq!(f.len(), 3 + 3 * 6);
+        // The sensor angle's four bytes only on a model that has it, whatever its firmware.
+        assert!(!f.contains(&(0xBD, 4)));
+        assert!(
+            fields(model(2, 125).unwrap()).contains(&(0xBD, 4)) && fields(model(2, 78).unwrap()).contains(&(0xBD, 4))
+        );
         // A PAW3950 Ultra's lift-off runs 0.7 to 1.7 mm a tenth at a time, as ATK's app has it.
         let u2u = capabilities(model(2, 124).unwrap(), link::NEARLINK);
         assert_eq!(u2u.lod, Some((7..=17).map(Lod).collect()));

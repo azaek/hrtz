@@ -965,7 +965,9 @@ mod atk_mice {
     use crate::mice::compx::driver::Maker;
     use crate::mice::compx::sim::atk_sample_image;
     use crate::mice::compx::{atk_catalog, atk_dpi};
-    use crate::mice::model::{ButtonAction, DpiAction, DpiLight, LightEffect, Lod, MouseButton, ScrollDirection};
+    use crate::mice::model::{
+        ButtonAction, DpiAction, DpiLight, LightEffect, Lod, MouseButton, ScrollDirection, SensorAngle, SensorMode,
+    };
 
     fn sim_image(m: &SimMouse) -> Vec<u8> {
         m.image().to_vec()
@@ -986,7 +988,12 @@ mod atk_mice {
         assert_eq!(caps.dpi.unwrap().max_stages, atk::MAX_STAGES);
         assert_eq!(caps.profiles, Some(atk::PROFILES));
 
-        // What ATK's app offers is shown; sleep, the sensor mode and the buttons aren't.
+        // On firmware 1.23: the sensor's two modes; no top mode on this model, and its sensor
+        // angle only from 1.30.
+        assert_eq!(caps.sensor_mode.unwrap().modes, vec![SensorMode::Lp, SensorMode::Hp]);
+        assert!(caps.sensor_angle_deg.is_none());
+
+        // What ATK's app offers is shown; sleep isn't.
         let st = s.settings.unwrap();
         assert_eq!(st.polling_hz, Some(1000));
         assert_eq!((st.dpi_stage_count, st.dpi_stage, st.dpi()), (Some(4), Some(1), Some(800)));
@@ -994,7 +1001,8 @@ mod atk_mice {
         assert_eq!(st.dpi_light, Some(DpiLight { effect: LightEffect::Steady, brightness: 5, speed: 3 }));
         assert_eq!((st.lod, st.debounce_ms), (Some(Lod::MID), Some(2)));
         assert_eq!((st.motion_sync, st.angle_snapping, st.ripple_control), (Some(false), Some(false), Some(false)));
-        assert!(st.sleep_s.is_none() && st.sensor_mode.is_none() && st.peak_timeout_s.is_none());
+        assert!(st.sleep_s.is_none() && st.peak_timeout_s.is_none());
+        assert_eq!((st.sensor_mode, st.sensor_angle), (Some(SensorMode::Lp), None));
         // Its buttons as they come: the five on top, and the DPI button underneath.
         let buttons = st.buttons.unwrap();
         assert_eq!(buttons[0], ButtonAction::Mouse { button: MouseButton::Left });
@@ -1167,7 +1175,7 @@ mod atk_mice {
         let m = r.mouse.lock();
         assert_eq!(m.image()[0xAD..0xAF], [30, checksum(&[30])]);
         assert_eq!(m.image()[0xB5..0xB9], [1, checksum(&[1]), 30, checksum(&[30])]);
-        assert_eq!(m.image()[0xB9..0xBB], [2, checksum(&[2])], "its sensor mode written back as held");
+        assert_eq!(m.image()[0xB9..0xBB], [0, checksum(&[0])], "its sensor mode written back as held");
     }
 
     #[test]
@@ -1371,15 +1379,114 @@ mod atk_mice {
         let mut r = Rig::connected(SimMouse::u2_plus());
         let before = r.mouse.lock().image().to_vec();
         let mut next = image::decode(&before);
-        // What a Zaopin has and an ATK isn't offered, changed: sleep, the sensor mode, peak
-        // performance. Only the polling rate, offered, is written.
+        // What a Zaopin has and this ATK isn't offered, changed: sleep, peak performance, and a
+        // sensor angle on a firmware before it. Only the polling rate, offered, is written.
         next.polling_hz = Some(250);
         next.sleep_s = Some(60);
-        next.sensor_mode = Some(crate::mice::model::SensorMode::Hp);
         next.peak_timeout_enabled = Some(true);
+        next.sensor_angle = Some(SensorAngle { on: true, degrees: 5 });
         let (req, _) = r.mark();
         r.w.apply_settings(&next).unwrap();
         assert_eq!(r.mouse.lock().writes_since(req), vec![0x00]);
+    }
+
+    #[test]
+    fn the_sensor_mode_is_set_in_its_row_as_atks_app_sets_it() {
+        let mut r = Rig::connected(his_r1_pro());
+        // Firmware 1.23, past the 1.00 ATK's app wants on this model: all three modes.
+        let caps = r.state().capabilities.unwrap();
+        assert_eq!(caps.sensor_mode.unwrap().modes, vec![SensorMode::Lp, SensorMode::Hp, SensorMode::Corded]);
+        let was = r.settings();
+        assert_eq!(was.sensor_mode, Some(SensorMode::Lp));
+        let before = sim_image(&r.mouse.lock());
+        let mut next = was.clone();
+        next.sensor_mode = Some(SensorMode::Corded);
+        let (req, _) = r.mark();
+        assert_eq!(r.w.apply_settings(&next).unwrap().sensor_mode, Some(SensorMode::Corded));
+        {
+            let m = r.mouse.lock();
+            // The row of the sensor's own sleep, whole: its switch and time as held, the mode 2.
+            assert_eq!(m.writes_since(req), vec![0xB5]);
+            assert_eq!(m.image()[0xB5..0xBB], [0x01, 0x54, 0xB4, 0xA1, 0x02, 0x53]);
+        }
+        next.sensor_mode = Some(SensorMode::Hp);
+        r.w.apply_settings(&next).unwrap();
+        assert_eq!(r.mouse.lock().image()[0xB9..0xBB], [0x01, 0x54]);
+        // Back, and its memory is as it was.
+        assert_eq!(r.w.apply_settings(&was).unwrap().sensor_mode, Some(SensorMode::Lp));
+        assert_eq!(sim_image(&r.mouse.lock()), before);
+    }
+
+    #[test]
+    fn the_top_mode_held_to_13k_reads_as_the_top_mode_and_stays() {
+        // Code 3 at 0xB9: ATK's top mode at 13,000 frames a second, on a mouse with that choice.
+        let mut his = his_r1_pro();
+        his.image_mut()[0xB9..0xBB].copy_from_slice(&[0x03, 0x52]);
+        let mut r = Rig::connected(his);
+        let was = r.settings();
+        assert_eq!(was.sensor_mode, Some(SensorMode::Corded));
+        // Another setting changed: the mode's row isn't written, so 3 stays.
+        let mut next = was.clone();
+        next.debounce_ms = Some(8);
+        let (req, _) = r.mark();
+        r.w.apply_settings(&next).unwrap();
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0xA9]);
+        assert_eq!(m.image()[0xB9..0xBB], [0x03, 0x52]);
+    }
+
+    #[test]
+    fn the_sensor_angle_is_four_bytes_set_together() {
+        let mut r = Rig::connected(his_r1_pro());
+        assert_eq!(r.state().capabilities.unwrap().sensor_angle_deg, Some(30));
+        let was = r.settings();
+        // As his held it: one degree to the left, applied.
+        assert_eq!(was.sensor_angle, Some(SensorAngle { on: true, degrees: -1 }));
+        let before = sim_image(&r.mouse.lock());
+        let mut next = was.clone();
+        next.sensor_angle = Some(SensorAngle { on: true, degrees: 12 });
+        let (req, _) = r.mark();
+        assert_eq!(r.w.apply_settings(&next).unwrap().sensor_angle, next.sensor_angle);
+        {
+            let m = r.mouse.lock();
+            assert_eq!(m.writes_since(req), vec![0xBD]);
+            assert_eq!(m.image()[0xBD..0xC1], [12, 0x55 - 12, 1, 0x54]);
+        }
+        // Switched off, its degrees stay.
+        next.sensor_angle = Some(SensorAngle { on: false, degrees: 12 });
+        assert_eq!(r.w.apply_settings(&next).unwrap().sensor_angle, next.sensor_angle);
+        assert_eq!(r.mouse.lock().image()[0xBD..0xC1], [12, 0x55 - 12, 0, 0x55]);
+        // Past 30 degrees is refused, and nothing is written.
+        next.sensor_angle = Some(SensorAngle { on: true, degrees: 31 });
+        let (req, _) = r.mark();
+        let e = r.w.apply_settings(&next).unwrap_err().to_string();
+        assert!(e.contains("-30 to 30"), "{e}");
+        assert!(r.mouse.lock().writes_since(req).is_empty());
+        // Back, and its memory is as it was.
+        assert_eq!(r.w.apply_settings(&was).unwrap().sensor_angle, was.sensor_angle);
+        assert_eq!(sim_image(&r.mouse.lock()), before);
+    }
+
+    #[test]
+    fn an_older_firmware_isnt_offered_what_it_lacks() {
+        // The same R1 PRO on a firmware before the 1.00 ATK's app wants.
+        let mut r = Rig::connected(SimMouse { firmware: [0x00, 0x98], ..his_r1_pro() });
+        assert_eq!(r.state().firmware.as_deref(), Some("0.98"));
+        let caps = r.state().capabilities.unwrap();
+        assert_eq!(caps.sensor_mode.unwrap().modes, vec![SensorMode::Lp, SensorMode::Hp]);
+        assert!(caps.sensor_angle_deg.is_none());
+        let was = r.settings();
+        assert_eq!((was.sensor_mode, was.sensor_angle), (Some(SensorMode::Lp), None));
+        // Asked for anyway: the top mode is refused, and the angle is left as the mouse holds it.
+        let mut next = was.clone();
+        next.sensor_mode = Some(SensorMode::Corded);
+        let (req, _) = r.mark();
+        let e = r.w.apply_settings(&next).unwrap_err().to_string();
+        assert!(e.contains("sensor mode"), "{e}");
+        let mut next = was.clone();
+        next.sensor_angle = Some(SensorAngle { on: true, degrees: 5 });
+        r.w.apply_settings(&next).unwrap();
+        assert!(r.mouse.lock().writes_since(req).is_empty());
     }
 
     #[test]

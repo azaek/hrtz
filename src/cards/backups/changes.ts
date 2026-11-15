@@ -1,4 +1,4 @@
-import { lodName, type Settings } from "@/api";
+import { lodName, sensorAngleName, type Settings } from "@/api";
 import { LED_PALETTE } from "@/cards/dpi-stages/palette";
 import { fmtDpi } from "@/dpi";
 import { formatDuration } from "@/format";
@@ -33,6 +33,7 @@ export function changes(now: Settings, then: Settings, buttonNames: [number, str
   cmp("DPI light speed", show(now.dpiLight?.speed, String), show(then.dpiLight?.speed, String));
   cmp("Lift-off distance", show(now.lod, lodName), show(then.lod, lodName));
   cmp("Sensor mode", show(now.sensorMode, (v) => MODE[v]), show(then.sensorMode, (v) => MODE[v]));
+  cmp("Sensor angle", show(now.sensorAngle, sensorAngleName), show(then.sensorAngle, sensorAngleName));
   cmp("Motion sync", show(now.motionSync, onOff), show(then.motionSync, onOff));
   cmp("Angle snapping", show(now.angleSnapping, onOff), show(then.angleSnapping, onOff));
   cmp("Ripple control", show(now.rippleControl, onOff), show(then.rippleControl, onOff));
