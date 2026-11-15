@@ -98,7 +98,7 @@ impl Default for SimMouse {
 }
 
 impl SimMouse {
-    /// snowyuonA's ATK U2 Plus (PAW3395) on its NearLink receiver, awake, on profile 1, with a
+    /// An owner's ATK U2 Plus (PAW3395) on its NearLink receiver, awake, on profile 1, with a
     /// made-up image laid out as mouse-protocol's A9 Plus captures show (four stages, 1,000 Hz, the
     /// rest blank) in all four profiles.
     pub fn u2_plus() -> Self {

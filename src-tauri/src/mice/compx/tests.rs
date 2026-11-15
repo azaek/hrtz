@@ -124,7 +124,7 @@ fn another_makers_mouse_is_left_alone() {
     let s = r.state();
     assert!(!s.connected && s.key.is_none() && s.model.is_none() && s.settings.is_none());
     assert!(s.foreign, "kept apart from a mouse that hasn't answered yet");
-    // What it answered stays, for Inspect a mouse's report (0.4.1 lost it: snowyuonA's read 0, 0).
+    // What it answered stays, for Inspect a mouse's report (0.4.1 lost it: an owner's read 0, 0).
     assert_eq!((s.cid, s.mid, s.device_type), (2, 1, 5));
     assert_eq!(r.mouse.lock().commands_since(0), [cmd::HANDSHAKE], "nothing asked after the handshake");
     assert!(r.events_since(0).is_empty());
@@ -1121,7 +1121,7 @@ mod atk_mice {
 
     #[test]
     fn a_vxe_r1_pro_on_its_1k_receiver_is_met_as_an_atk() {
-        // snowyuonA's: "VXE NordicMouse 1K Dongle", 3554:F58A (2026-11-14).
+        // An owner's: "VXE NordicMouse 1K Dongle", 3554:F58A (2026-11-14).
         let r = Rig::connected(SimMouse { usb: (p::VENDOR_ID, 0xF58A), device_type: 0, ..SimMouse::r1_pro() });
         let s = r.state();
         assert!(s.connected && !s.foreign);
@@ -1131,7 +1131,7 @@ mod atk_mice {
         assert!(r.settings().dpi().is_some());
     }
 
-    /// snowyuonA's R1 PRO, as his check on 0.5.1 found it (2026-11-15): the PAW3950 Ultra one,
+    /// An owner's R1 PRO, as his check on 0.5.1 found it (2026-11-15): the PAW3950 Ultra one,
     /// CID 2 and MID 125, on that 1K receiver.
     fn his_r1_pro() -> SimMouse {
         let his = SimMouse { usb: (p::VENDOR_ID, 0xF58A), mid: 125, device_type: 0, ..SimMouse::r1_pro() };

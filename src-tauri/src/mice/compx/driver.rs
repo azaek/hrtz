@@ -359,7 +359,7 @@ fn connect_atk(
     m.image.resize(atk::memory_len(model), 0xFF);
     let mut caps = atk::capabilities(model, kind);
     // Under CompX's vendor ID, every ATK sleeps as an R1 does (mouse-protocol's shared R1
-    // transport): snowyuonA's VXE R1 PRO on 3554:F58A.
+    // transport): an owner's VXE R1 PRO on 3554:F58A.
     if atk::on_compx_product(product_id) {
         caps.sleep_times_s = Some(atk::R1_SLEEP_S.to_vec());
     }
@@ -1110,7 +1110,7 @@ mod descriptor_tests {
 
     #[test]
     fn the_settings_channel_is_told_by_its_report_id() {
-        // snowyuonA's U2 Plus receiver: collection 4 (19-byte reports) and collection 5.
+        // An owner's U2 Plus receiver: collection 4 (19-byte reports) and collection 5.
         let col4 = hex(
             "06 02 FF 09 02 A1 01 85 13 09 02 15 00 26 FF 00 75 08 95 13 81 00 09 02 15 00 26 FF 00 75 08 95 13 91 00 C0",
         );

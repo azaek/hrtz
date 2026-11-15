@@ -444,7 +444,7 @@ mod tests {
         // On ATK's own vendor ID, mouse-protocol offers an R1 PRO (PAW3950 Ultra) other times.
         assert_eq!(caps(2, 125), None);
         assert_eq!(caps(2, 78), None, "U2 Plus");
-        // Under CompX's, the driver offers them on any (snowyuonA's receiver).
+        // Under CompX's, the driver offers them on any (an owner's receiver).
         assert!(on_compx_product(0xF58A) && !on_compx_product(0x10C9));
     }
 
