@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.3 — 2026-11-15
 
 ### New
 - Buttons on ATK, VXE and MAD mice: set each to a mouse button, a DPI change, a wheel scroll or tilt, a key combination, a media key, rapid fire, the polling rate switch, or nothing, in each of the four profiles. Not tried on a real mouse yet: your mouse's check now asks for each button.
