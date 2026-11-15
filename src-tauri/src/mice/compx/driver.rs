@@ -64,6 +64,14 @@ impl LeftAlone {
         Self(format!("not a Zaopin mouse (CID {cid}, MID {mid}), so it's left alone"))
     }
 
+    /// An ATK mouse ATK's own app runs another way: met by its USB ID alone, nothing sent to it.
+    fn atk_run_another_way(product_id: u16) -> Self {
+        Self(format!(
+            "an ATK mouse that ATK's app runs another way ({:04X}:{product_id:04X}), so it's left alone",
+            atk::VENDOR_ID
+        ))
+    }
+
     /// An ATK model hrtz doesn't run yet.
     fn other_atk(cid: u8, mid: u8) -> Self {
         Self(format!("an ATK mouse hrtz doesn't support yet (CID {cid}, MID {mid}), so it's left alone"))
@@ -263,6 +271,12 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         said: Said::new(),
     };
     if let Maker::Atk { receiver } = opened.maker {
+        // Only on a USB ID ATK's app lists for these mice: another is one it runs another way,
+        // whose CID and MID may be one of these models'. Nothing is sent to it.
+        if !atk::listed(opened.product_id) {
+            board.set(|s| *s = DeviceState { foreign: true, ..DeviceState::default() });
+            return Err(LeftAlone::atk_run_another_way(opened.product_id).into());
+        }
         #[cfg(windows)]
         let port = opened.port;
         #[cfg(not(windows))]

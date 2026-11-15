@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Fixed
+- ATK's own app runs some of its newer mice a different way (the ATK F1 V3 ULTIMATE+ among them), and some of those share a model number with a mouse hrtz runs. hrtz now only takes an ATK mouse on a USB ID ATK's app lists for the mice hrtz runs, so it can't take one of those for another model. It leaves them alone and sends them nothing; Inspect a mouse still reports them.
+
 ## 0.5.3 — 2026-11-15
 
 ### New

@@ -1095,6 +1095,23 @@ mod atk_mice {
     }
 
     #[test]
+    fn a_mouse_atks_app_runs_another_way_is_left_alone_and_sent_nothing() {
+        // The F1 V3 ULTIMATE+ on its cable (373B:1345): ATK's app runs it another way, and lists
+        // it with the A9 Mini's CID and MID. Were it asked, it could answer as one.
+        let his = SimMouse {
+            maker: Maker::Atk { receiver: false },
+            usb: (atk::VENDOR_ID, 0x1345),
+            cid: 1,
+            mid: 28,
+            ..SimMouse::u2_plus()
+        };
+        let r = Rig::connected(his);
+        let s = r.state();
+        assert!(s.foreign && !s.connected && s.key.is_none());
+        assert!(r.mouse.lock().requests.is_empty(), "nothing sent");
+    }
+
+    #[test]
     fn another_atk_is_left_alone() {
         // One of ATK's unreleased "Mouse" entries, on the same receiver: not one hrtz runs.
         let r = Rig::connected(SimMouse { cid: 1, mid: 86, ..SimMouse::u2_plus() });

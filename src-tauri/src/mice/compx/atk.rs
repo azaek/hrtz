@@ -12,7 +12,7 @@
 //! in ATK's app; what's offered on each sensor is `Sensor`'s. Another ATK, or one hrtz can't name,
 //! is left alone.
 
-use super::atk_catalog::{MODELS, ON_COMPX_VID, RECEIVERS};
+use super::atk_catalog::{MODELS, ON_ATK_VID, ON_COMPX_VID, RECEIVERS};
 use super::atk_dpi as dpi;
 pub use super::atk_dpi::Method;
 use super::image::POLLING;
@@ -187,6 +187,14 @@ pub fn is_receiver(vendor_id: u16, product_id: u16, product: &str) -> bool {
         || product_id == NEARLINK_RECEIVER
         || p.contains("dongle")
         || p.contains("receiver")
+}
+
+/// Whether a connection under ATK's own vendor ID is one ATK's app runs as these mice: a mouse on
+/// a product ID it lists for them, or one of its receivers. ATK's app runs others another way (its
+/// "BITMOUSE" mice), and their CID and MID can be one of these models' (in ATK HUB 3.2.33, the F1
+/// V3 ULTIMATE+ on 373B:1345 is listed with the A9 Mini's, 1 and 28), so one isn't met at all.
+pub fn listed(product_id: u16) -> bool {
+    ON_ATK_VID.contains(&product_id) || RECEIVERS.contains(&(VENDOR_ID, product_id))
 }
 
 /// Whether a mouse under CompX's own vendor ID (Zaopin's too) that answers as `cid`/`mid` is an
@@ -579,6 +587,15 @@ mod tests {
         assert!(is_receiver(0x373B, 0x101B, "anything"), "listed by ATK's app");
         assert!(is_receiver(0x373B, 0x1234, "Nearlink Mouse Dongle"));
         assert!(!is_receiver(0x373B, 0x110D, "ATK U2 Plus Nearlink"));
+    }
+
+    #[test]
+    fn under_atks_vid_only_the_ids_atks_app_lists_for_these_mice() {
+        assert!(listed(0x1272), "the R1 PRO with a PAW3950 Ultra, on its cable");
+        assert!(listed(NEARLINK_RECEIVER) && listed(R1_SE_RECEIVER), "receivers");
+        // ATK's other kind of mice: the F1 V3 ULTIMATE+ (listed with the A9 Mini's CID and MID),
+        // the U2 Plus NK on 373B:12E3, an R1 S NK on 373B:1310.
+        assert!(!listed(0x1345) && !listed(0x12E3) && !listed(0x1310));
     }
 
     #[test]
