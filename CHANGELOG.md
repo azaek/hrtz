@@ -17,6 +17,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - The VXE R1 PRO with a PAW3950 Ultra sensor is now tested, the first of ATK's mice to be. Its owner's check passed on its 1K receiver and its cable: its DPI stages, their colours and the DPI light, polling rate, debounce, motion sync, angle snapping, ripple control, sleep timer, the DPI button and the onboard profiles.
 
 ### Fixed
+- The ATK PHANTOM EXTREME, listed until now as the X EXTREME, is read as ATK's newest app reads it: its sensor is a PAW3955, which keeps its DPI stages elsewhere. The ATK X1 MAG no longer shows a DPI light, which it doesn't have.
 - The sleep timer on ATK's and VXE's mice is now set in both places ATK's own app sets it. hrtz set one, which may not have changed when the mouse really sleeps.
 
 ## 0.5.2 — 2026-11-15

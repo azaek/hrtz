@@ -84,6 +84,7 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | ATK Ghost EXTREME | Not tested yet |
 | ATK Ghost Ultimate + | Not tested yet |
 | ATK Ghost Ultimate | Not tested yet |
+| ATK PHANTOM EXTREME | Not tested yet |
 | ATK PHANTOM ULTIMATE | Not tested yet |
 | ATK U2 MINI | Not tested yet |
 | ATK U2 Mini 2.0 + | Not tested yet |
@@ -100,7 +101,6 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | ATK U2 Ultra Max 2.0 | Not tested yet |
 | ATK U2 Ultra | Not tested yet |
 | ATK U2 | Not tested yet |
-| ATK X EXTREME | Not tested yet |
 | ATK X1 Air + | Not tested yet |
 | ATK X1 EXTREME 2.0 + | Not tested yet |
 | ATK X1 EXTREME 2.0 | Not tested yet |
@@ -169,7 +169,9 @@ Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED r
 "Tested" means tried on the real mouse; the others use the same protocol as a tested one and should
 work. More mice come one at a time, each tried with its owners before it's called tested.
 
-ATK's mice are the newest: every ATK, VXE and MAD model in ATK's own app, by receiver or cable.
+ATK's mice are the newest: the 160 ATK, VXE and MAD models in ATK's own app that speak the same
+protocol as Zaopin's, by receiver or cable. ATK's app runs some newer models another way (the A9
+3.0 NK, the ZERO + and the VXE V3 Plus among them); hrtz doesn't run those yet.
 hrtz offers what ATK's app offers on them: the polling rate, debounce, motion sync, angle snapping,
 ripple control, the sensor mode, the buttons and the onboard profiles; on most, the DPI stages and
 the DPI light; and the lift-off distance each sensor has (1 or 2 mm, 0.7 mm too on a PAW3950, and

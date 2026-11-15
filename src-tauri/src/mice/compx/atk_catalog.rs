@@ -1,4 +1,5 @@
-// Facts from ATK's own app, ATK HUB 3.2.32 (its CompX product list), read 2026-11-13: each
+// Facts from ATK's own app, ATK HUB 3.2.32 (its CompX product list), read 2026-11-13, with the
+// three entries 3.2.33 changed (2026-11-15): each
 // mouse's maker and model IDs (CID, MID), its name, sensor, whether it has a DPI light and whether
 // 0 ms debounce is offered, the firmware from which it has the sensor's top mode and the sensor
 // angle, and the USB IDs of ATK's mice and receivers. Generated; regenerate rather than edit
@@ -352,8 +353,8 @@ pub const MODELS: [Model; 160] = [
         cid: 1,
         mid: 30,
         brand: "ATK",
-        name: "X EXTREME",
-        sensor: Sensor::Paw3950Ultra,
+        name: "PHANTOM EXTREME",
+        sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
         bottom_button: false,
@@ -2057,7 +2058,7 @@ pub const MODELS: [Model; 160] = [
         brand: "ATK",
         name: "X1 MAG",
         sensor: Sensor::Paw3955,
-        light: true,
+        light: false,
         zero_debounce: true,
         bottom_button: true,
         corded_from: Some(100),
