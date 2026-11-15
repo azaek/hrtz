@@ -380,7 +380,7 @@ impl Worker {
         self.board.set(|s| {
             *s = DeviceState { key, foreign, ..DeviceState::default() };
             // A device left alone keeps what it answered, for Inspect a mouse's report: without
-            // it, snowyuonA's VXE receiver read as 0, 0 (2026-11-14).
+            // it, an owner's VXE receiver read as 0, 0 (2026-11-14).
             if foreign {
                 (s.cid, s.mid, s.device_type) = ids;
                 s.speaks = speaks;

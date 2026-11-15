@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Lod, MeterSample, Settings } from "@/api";
-import { api, currentDpi } from "@/api";
+import { api, currentDpi, lodName } from "@/api";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
 import { cmOf, mm, mmOf } from "./tracking";
@@ -11,7 +11,6 @@ import { cmOf, mm, mmOf } from "./tracking";
 // you go again. The first that holds is the one. Your own setting goes back afterwards, until you
 // pick one.
 
-export const LOD_NAME: Record<Lod, string> = { "0.7mm": "0.7 mm", "1mm": "1 mm", "2mm": "2 mm" };
 /** Returns counted at each setting. */
 export const RETURNS = 10;
 /** A slide is at least this long (cm). */
@@ -59,9 +58,9 @@ export type Verdict = {
 export function recommend(tried: LodResult[], dpi: number): Verdict | null {
   if (!tried.length) return null;
   const pick = tried.find(held) ?? tried.reduce((a, b) => (stallsPerMinute(b) < stallsPerMinute(a) ? b : a));
-  const name = LOD_NAME[pick.lod];
+  const name = lodName(pick.lod);
   const moved = `lifting moved the cursor ${mm(leakPerLift(pick, dpi))} each time`;
-  const lost = (r: LodResult) => `${LOD_NAME[r.lod]} lost track ${one(stallsPerMinute(r))} times a minute on slow slides`;
+  const lost = (r: LodResult) => `${lodName(r.lod)} lost track ${one(stallsPerMinute(r))} times a minute on slow slides`;
   if (!held(pick)) {
     const others = tried.filter((r) => r !== pick).map((r) => ` ${lost(r)}.`);
     return {
@@ -87,7 +86,7 @@ export function recommend(tried: LodResult[], dpi: number): Verdict | null {
     held: true,
     title: `${name} suits your pad`,
     why: `${below.map(lost).join(", and ")}. At ${name} the sensor tracked every slide, and ${moved}.`,
-    note: `${below.map((r) => LOD_NAME[r.lod]).join(" and ")} lost track`,
+    note: `${below.map((r) => lodName(r.lod)).join(" and ")} lost track`,
   };
 }
 

@@ -1,7 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type Lod = "0.7mm" | "1mm" | "2mm";
+/** A lift-off distance, as the mouse lists it: "0.7mm", "1mm", "1.3mm". */
+export type Lod = `${number}mm`;
+/** It, to read: "0.7 mm". */
+export const lodName = (lod: Lod) => lod.replace("mm", " mm");
 export type SensorMode = "lp" | "hp" | "corded";
 export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 

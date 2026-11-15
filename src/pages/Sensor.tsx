@@ -14,7 +14,7 @@ import {
 } from "@fluentui/react-icons";
 import { Choice, Group, SettingCard } from "../components";
 import { commit, useStore } from "../store";
-import { topRate, type Lod, type Settings } from "../api";
+import { lodName, topRate, type Lod, type Settings } from "../api";
 import { formatDuration } from "../format";
 import { DpiStagesCard } from "../cards/dpi-stages/DpiStagesCard";
 import { isZaopin } from "../models";
@@ -22,7 +22,6 @@ import { SignalRgbCard, useSetBySignalRgb } from "../cards/signalrgb/SignalRgbCa
 import { hzText } from "../rates";
 import { NumberStepper } from "../kit";
 
-const LOD_LABEL: Record<Lod, string> = { "0.7mm": "0.7 mm", "1mm": "1 mm", "2mm": "2 mm" };
 /** Names for a light that offers three steps of brightness or speed (an ATK's), lowest first. */
 const THREE_BRIGHTNESS = ["Low", "Medium", "High"];
 const THREE_SPEEDS = ["Slow", "Medium", "Fast"];
@@ -70,7 +69,18 @@ export function SensorPage() {
   );
   const liftOff = caps.lod && s.lod && (
     <SettingCard icon={<Ruler20Regular />} title="Lift-off distance" description="How high the mouse can lift before the sensor stops tracking.">
-      <Choice label="Lift-off distance" value={s.lod} options={caps.lod.map((value) => ({ value, label: LOD_LABEL[value] }))} onChange={(lod) => update({ lod })} />
+      {caps.lod.length > 3 ? (
+        // A sensor with a scale of them (a PAW3950 Ultra's eleven): too many to lay side by side.
+        <Dropdown aria-label="Lift-off distance" value={lodName(s.lod)} selectedOptions={[s.lod]} onOptionSelect={(_, d) => d.optionValue && update({ lod: d.optionValue as Lod })} style={{ minWidth: 120 }}>
+          {caps.lod.map((lod) => (
+            <Option key={lod} value={lod}>
+              {lodName(lod)}
+            </Option>
+          ))}
+        </Dropdown>
+      ) : (
+        <Choice label="Lift-off distance" value={s.lod} options={caps.lod.map((value) => ({ value, label: lodName(value) }))} onChange={(lod) => update({ lod })} />
+      )}
     </SettingCard>
   );
   const sensorMode = mode && s.sensorMode && (

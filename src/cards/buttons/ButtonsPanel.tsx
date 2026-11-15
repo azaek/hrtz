@@ -28,8 +28,8 @@ export function ButtonsPanel({
   caps: Capabilities;
   art: ModelArt | undefined;
   online: boolean;
-  /** The mouse's family: what its buttons can do. */
-  family: "compx" | "hidpp";
+  /** Whose buttons these are: what they can do (`CATALOGS`). */
+  family: keyof typeof CATALOGS;
 }) {
   const catalog = CATALOGS[family];
   // Shown only for a mouse with buttons, so these are there.

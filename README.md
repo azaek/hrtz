@@ -18,9 +18,10 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
+| VXE R1 PRO (PAW3950 Ultra) | Tested |
 
 <details>
-<summary>ATK, VXE and MAD mice (137)</summary>
+<summary>ATK, VXE and MAD mice not tested yet (136)</summary>
 
 | Mouse | Status |
 |---|---|
@@ -144,7 +145,6 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | VXE R1 (PAW3950 Ultra) | Not tested yet |
 | VXE R1 NK | Not tested yet |
 | VXE R1 PRO (PAW3395) | Not tested yet |
-| VXE R1 PRO (PAW3950 Ultra) | Not tested yet |
 | VXE R1 PRO MAX (PAW3395) | Not tested yet |
 | VXE R1 PRO MAX (PAW3950 Ultra) | Not tested yet |
 | VXE R1 S NK | Not tested yet |
@@ -171,11 +171,11 @@ work. More mice come one at a time, each tried with its owners before it's calle
 
 ATK's mice are the newest: every ATK, VXE and MAD model in ATK's own app, by receiver or cable.
 hrtz offers what ATK's app offers on them: the polling rate, debounce, motion sync, angle snapping,
-ripple control and the onboard profiles; on most, the DPI stages and the DPI light; and lift-off
-where it's 1 or 2 mm (0.7 mm on a PAW3950). Where hrtz isn't sure how a sensor keeps something, it
-leaves it out: the DPI on PAW3311, PAW3315 and CORE26K models, and the 0.7 to 1.7 mm lift-off of
-the PAW3950 Ultra and PAW3955, until owners' checks confirm them. Sleep, the sensor mode and the
-buttons follow the same way.
+ripple control, the buttons and the onboard profiles; on most, the DPI stages and the DPI light;
+and the lift-off distance each sensor has (1 or 2 mm, 0.7 mm too on a PAW3950, and 0.7 to 1.7 mm on
+a PAW3950 Ultra or PAW3955). Where hrtz isn't sure how a sensor keeps something, it leaves it out:
+the DPI on PAW3311, PAW3315 and CORE26K models, until owners' checks confirm it. The sensor mode
+follows the same way, and macros aren't in hrtz yet.
 
 ## Help test it
 
