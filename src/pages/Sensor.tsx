@@ -1,4 +1,4 @@
-import { Body1, Dropdown, Option, Switch } from "@fluentui/react-components";
+import { Body1, Dropdown, Link, Option, Switch } from "@fluentui/react-components";
 import {
   ArrowRotateClockwise20Regular,
   ArrowSync20Regular,
@@ -18,6 +18,7 @@ import { commit, useStore } from "../store";
 import { lodName, sensorModeName, topRate, type Lod, type SensorMode, type Settings } from "../api";
 import { formatDuration } from "../format";
 import { DpiStagesCard } from "../cards/dpi-stages/DpiStagesCard";
+import { openTest } from "../cards/lab/tests";
 import { isZaopin } from "../models";
 import { SignalRgbCard, useSetBySignalRgb } from "../cards/signalrgb/SignalRgbCard";
 import { hzText } from "../rates";
@@ -132,6 +133,10 @@ export function SensorPage() {
   const angle = s.sensorAngle;
   const sensorAngle = caps.sensorAngleDeg !== undefined && angle && (
     <SettingCard icon={<ArrowRotateClockwise20Regular />} title="Sensor angle" description="Turns the sensor's direction to match how you hold the mouse.">
+      {/* The Lab measures the angle a grip needs. */}
+      <Link as="button" onClick={() => openTest("angle")}>
+        Find yours
+      </Link>
       {angle.on && (
         <NumberStepper
           label="Sensor angle"

@@ -1,8 +1,18 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { Switch } from "@fluentui/react-components";
-import { ArrowBidirectionalUpDown20Regular, ArrowStepOver20Regular, CursorClick20Regular, DataLine20Regular, Map20Regular, Ruler20Regular, TopSpeed20Regular } from "@fluentui/react-icons";
+import {
+  ArrowBidirectionalUpDown20Regular,
+  ArrowRotateClockwise20Regular,
+  ArrowStepOver20Regular,
+  CursorClick20Regular,
+  DataLine20Regular,
+  Map20Regular,
+  Ruler20Regular,
+  TopSpeed20Regular,
+} from "@fluentui/react-icons";
 import { type Capabilities, api, currentDpi, type PadCalibration } from "@/api";
-import { savePrefs, useStore } from "@/store";
+import { goTo, savePrefs, useStore } from "@/store";
+import { AngleCheck } from "./AngleCheck";
 import { ClickCheck } from "./ClickCheck";
 import { ConnectionCheck } from "./ConnectionCheck";
 import { DpiCheck } from "./DpiCheck";
@@ -15,7 +25,7 @@ import { TrackingCheck } from "./TrackingCheck";
 // The Lab page's tests, in list order, and the last result of each, remembered on this PC so the
 // list can say how things stood when last checked.
 
-export type TestId = "connection" | "dpi" | "tracking" | "liftoff" | "clicks" | "wheel" | "pad";
+export type TestId = "connection" | "dpi" | "tracking" | "liftoff" | "angle" | "clicks" | "wheel" | "pad";
 
 export type Test = {
   id: TestId;
@@ -68,6 +78,14 @@ export const TESTS: Test[] = [
     needs: (c) => !!c.lod?.length,
   },
   {
+    id: "angle",
+    name: "Sensor angle",
+    title: "Sensor angle for your grip",
+    icon: <ArrowRotateClockwise20Regular />,
+    description: "Measures how far your grip tilts your swipes, and the sensor angle that levels them.",
+    hint: "Runs full screen. Changes nothing on the mouse until you set it.",
+  },
+  {
     id: "clicks",
     name: "Double clicks",
     title: "Double clicks",
@@ -92,6 +110,15 @@ export const TESTS: Test[] = [
     hint: "With the switch on, it records in the background while you play.",
   },
 ];
+
+/** Where the test open last is kept, to open the Lab page at it next time. */
+export const OPEN_KEY = "hrtz.labOpen";
+
+/** Open the Lab page at a test, from another page. */
+export function openTest(id: TestId) {
+  localStorage.setItem(OPEN_KEY, id);
+  goTo("lab");
+}
 
 /** The tests this mouse can run (all of them with no mouse, waiting for one). */
 export const testsFor = (caps: Capabilities | null | undefined) => TESTS.filter((t) => !caps || !t.needs || t.needs(caps));
@@ -182,6 +209,8 @@ export function TestBody({ id, onResult }: { id: TestId; onResult: (r: TestResul
       return <TrackingCheck onResult={onResult} />;
     case "liftoff":
       return <LiftOffCheck onResult={onResult} />;
+    case "angle":
+      return <AngleCheck onResult={onResult} />;
     case "clicks":
       return <ClickCheck onResult={onResult} />;
     case "wheel":

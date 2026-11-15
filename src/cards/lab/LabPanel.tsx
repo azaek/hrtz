@@ -3,14 +3,12 @@ import { Body1, Caption1 } from "@fluentui/react-components";
 import { CardNote, Pane, PaneFooter, PaneHeader } from "@/kit";
 import { useStore } from "@/store";
 import { useClickWeek, weekResult } from "./clicks";
-import { ClickSwitch, PadSwitch, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
+import { ClickSwitch, OPEN_KEY, PadSwitch, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
 import { WindowsCheck } from "./WindowsCheck";
 
 const muted = { color: "var(--colorNeutralForeground3)" };
 const warn = { color: "var(--colorPaletteMarigoldForeground1)" };
 const truncate = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
-/** The test that was open last, opened again next time. */
-const OPEN_KEY = "hrtz.labOpen";
 
 /**
  * The Lab page: master and detail, like Buttons and Profiles. The tests on the left, each with
