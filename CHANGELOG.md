@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.2 — 2026-11-15
 
 ### Improved
 - One check now says everything a model keeps. The mouse check used to change one DPI stage; it now changes each setting hrtz offers on your mouse, one at a time, and puts each back before the next: the DPI stages, their colours and light, the polling rate, debounce, motion sync and the rest, then a switch to another profile and back. While the polling rate is changed, it counts your mouse's reports again, to see that the rate really changed.
