@@ -1054,6 +1054,9 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
     case "set_profile":
       pushDevice({ profile: args.index as number });
       return null;
+    case "mouse_trace":
+      // Nothing is sent here, so nothing was said, and there's no memory to hold the end against.
+      return null;
     case "mouse_report":
       // As the app reads it: the whole memory (with a progress bar), then the family's facts.
       await progress(4096);

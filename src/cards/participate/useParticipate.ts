@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { api, message, type ButtonAction, type CaptureScreen, type DeviceState, type MeterSample, type Settings } from "@/api";
 import { useCapture, useHold } from "@/cards/lab/parts";
-import { dpiRange, stepNear } from "@/dpi";
 import { actionLabel } from "@/hid";
 import { useRawInput } from "@/rawInput";
 import { useStore } from "@/store";
+import { changesFor, noted, tryChanges, type WriteCheck } from "./changes";
+
+export type { WriteCheck };
 
 /** Movement counted toward the polling check, and how long each button is waited for. */
 const MOVE_MS = 8000;
 const BUTTON_MS = 10000;
+/** Movement counted while the check has another polling rate set, and how long it's waited for. */
+const RATE_MS = 3000;
+const RATE_WAIT_MS = 20000;
 /** Raw input's button numbers. */
 const RAW = { left: 0, right: 1, middle: 2, back: 3, forward: 4 } as const;
 
-export type Stage = "idle" | "reading" | "moving" | "buttons" | "writing" | "done";
+export type Stage = "idle" | "reading" | "moving" | "buttons" | "writing" | "rate" | "done";
 
 /** A button, and whether pressing it was seen: by raw input for a mouse button, by the mouse's
  *  stage or profile changing for one that switches them. `null`: nothing hrtz can see (a key), or
@@ -29,7 +34,23 @@ export interface Checks {
   read: { ok: boolean; bytes?: number; error?: string };
   polling: { set: number | null; measured: number | null; stutters: number } | null;
   buttons: ButtonCheck[];
-  write: { what: string; from: string; to: string; kept: boolean; restored: boolean; error?: string } | null;
+  /** The first change tried, as reports had it before every setting was tried. */
+  write: WriteCheck | null;
+  /** Every change tried: each setting hrtz offers on the mouse, then its profile switch. */
+  writes?: WriteCheck[];
+  /** Its memory once every change was put back, held against how it read at the start: where
+   *  they differ ("0x004C"), none if it's as it was. Missing where it couldn't be compared. */
+  left?: string[];
+}
+
+/** Where two readings of a mouse's memory (base64) differ, as addresses; the first few. */
+export function differs(before: string, after: string): string[] {
+  const [a, b] = [atob(before), atob(after)];
+  const at: string[] = [];
+  for (let i = 0; i < Math.min(a.length, b.length) && at.length < 16; i++) {
+    if (a[i] !== b[i]) at.push(`0x${i.toString(16).toUpperCase().padStart(4, "0")}`);
+  }
+  return at;
 }
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
@@ -45,10 +66,12 @@ function seenOn(a: ButtonAction | undefined): number | "state" | null {
 
 /**
  * The check in Inspect a mouse: on game mode's screen, the mouse's memory read for the report,
- * eight seconds of quick circles (polling), each button it can see pressed in turn, then one DPI
- * stage (or the polling rate) changed, checked and put back. Esc stops it, and what it changed
- * goes back. With `write: false` (a model hrtz doesn't know yet) nothing is written: it ends after
- * the buttons.
+ * eight seconds of quick circles (polling), each button it can see pressed in turn, then every
+ * setting hrtz offers on the mouse changed, checked and put back, one at a time (`changesFor`),
+ * with its reports counted while another polling rate is set, and its profile switched and
+ * switched back. One check then says all a model keeps, so its owner isn't asked again for the
+ * rest. Esc stops it, and what it changed goes back. With `write: false` (a model hrtz doesn't
+ * know yet) nothing is written: it ends after the buttons.
  */
 export function useParticipate() {
   const device = useStore((x) => x.device);
@@ -69,18 +92,53 @@ export function useParticipate() {
     ms: 0,
     stutters: 0,
     rate: null as number | null,
-    queue: [] as { name: string; does: string; by: number | "state" }[],
+    queue: [] as { name: string; does: string; by: number | "state"; detail?: string }[],
     at: 0,
     since: 0,
     state: "",
+    /** Its memory as the check's first reading found it, to hold the end against. */
+    memory: null as string | null,
+    /** Esc, or another window in front: the changes stop where they are. */
+    stopped: false,
+    /** The change being tried, and where it is among them. */
+    doing: "",
+    n: 0,
+    of: 0,
+    /** Movement counted at the rate the check set. */
+    count: { hz: [] as number[], ms: 0, to: 0, done: null as ((hz: number | null) => void) | null, timer: 0 },
   });
   const [, tick] = useState(0);
   const redraw = () => tick((n) => n + 1);
 
-  useHold(stage === "moving");
-  useRawInput(stage === "moving" || stage === "buttons", (s: MeterSample) => {
+  /** The count at the rate set ends: with what was counted, or nothing if the mouse wasn't moved. */
+  const counted = () => {
+    const c = run.current.count;
+    const done = c.done;
+    c.done = null;
+    clearTimeout(c.timer);
+    done?.(median(c.hz));
+  };
+  /** Counts the mouse's reports while `hz` is set: quick circles once more. */
+  const countRate = (hz: number) =>
+    new Promise<number | null>((resolve) => {
+      const r = run.current;
+      r.rate = null;
+      r.count = { hz: [], ms: 0, to: hz, done: resolve, timer: window.setTimeout(counted, RATE_WAIT_MS) };
+      setStage("rate");
+    });
+
+  useHold(stage === "moving" || stage === "rate");
+  useRawInput(stage === "moving" || stage === "buttons" || stage === "rate", (s: MeterSample) => {
     const r = run.current;
-    if (stage === "moving") {
+    if (stage === "rate") {
+      r.rate = s.held && s.hz ? s.hz : null;
+      if (s.held && s.hz) {
+        r.count.hz.push(s.hz);
+        r.count.ms += 100;
+      }
+      if (r.count.ms >= RATE_MS) counted();
+      redraw();
+    } else if (stage === "moving") {
       r.rate = s.held && s.hz ? s.hz : null;
       if (s.held && s.hz) {
         r.hz.push(s.hz);
@@ -147,46 +205,67 @@ export function useParticipate() {
     if (r.profile !== null && now && now.profile !== r.profile) await api.setProfile(r.profile).catch(() => null);
   };
 
-  /** One DPI stage up a step (or down, at the top), checked, then put back; the polling rate for a
-   *  mouse without DPI stages. */
+  /** Every setting hrtz offers on the mouse, each changed to another value, checked and put back
+   *  before the next (`changesFor`); its reports counted while another polling rate is set; then
+   *  its profile switched and switched back. One that fails doesn't stop the rest: the report says
+   *  which held and, for one that didn't, what was said between hrtz and the mouse. */
   const writeCheck = async () => {
     const r = run.current;
     const s = r.original;
     const caps = device?.capabilities;
-    let write: Checks["write"] = null;
+    const said = async () => (await api.mouseTrace().catch(() => null))?.said ?? null;
+    const plan = s && caps ? changesFor(s, caps) : [];
+    const profiles = r.profile !== null && (caps?.profiles ?? 0) > 1 ? (caps?.profiles ?? 0) : 0;
+    r.of = plan.length + (profiles ? 1 : 0);
+    const doing = (n: number, what: string) => {
+      Object.assign(r, { n, doing: what });
+      redraw();
+    };
+    let writes: WriteCheck[] | null = [];
     try {
       // The DPI button may have moved the stage meanwhile: back to where it started first.
       if (s) await api.applySettings(s);
-      if (s?.stages && caps?.dpi) {
-        const i = s.dpiStage ?? 0;
-        const from = s.stages[i].dpi;
-        const r = dpiRange(caps.dpi);
-        const up = from + stepNear(r, from, 1);
-        const to = up <= r.max ? up : from - stepNear(r, from, -1);
-        const after = await api.applySettings({ ...s, stages: s.stages.map((x, j) => (j === i ? { ...x, dpi: to } : x)) });
-        const back = await api.applySettings(s);
-        write = {
-          what: `Stage ${i + 1} DPI`,
-          from: fmt(from),
-          to: fmt(to),
-          kept: after.stages?.[i]?.dpi === to,
-          restored: back.stages?.[i]?.dpi === from,
-        };
-      } else if (s?.pollingHz && caps?.polling) {
-        const from = s.pollingHz;
-        const to = caps.polling.rates.find((hz) => hz !== from);
-        if (to) {
-          const after = await api.applySettings({ ...s, pollingHz: to });
-          const back = await api.applySettings(s);
-          write = { what: "Polling rate", from: `${fmt(from)} Hz`, to: `${fmt(to)} Hz`, kept: after.pollingHz === to, restored: back.pollingHz === from };
-        }
-      }
     } catch (e) {
-      write = { what: "A setting", from: "", to: "", kept: false, restored: false, error: message(e) };
-      await putBack();
+      // Refused whole, so every change would be: said once.
+      writes.push(await noted({ what: "A setting", from: "", to: "", kept: false, restored: false, error: message(e) }, said));
     }
+    if (s && !writes.length) {
+      writes = await tryChanges(plan, s, {
+        apply: api.applySettings,
+        count: async (hz) => {
+          const counted = await countRate(hz);
+          if (!r.stopped) setStage("writing");
+          return counted;
+        },
+        said,
+        stopped: () => r.stopped,
+        doing,
+      });
+      // Stopped: what it changed goes back from there (`putBack`).
+      if (!writes) return;
+      if (profiles && r.profile !== null && !r.stopped) {
+        const [from, to] = [r.profile, (r.profile + 1) % profiles];
+        doing(plan.length, "Profile");
+        const w: WriteCheck = { what: "Profile", from: `Profile ${from + 1}`, to: `Profile ${to + 1}`, kept: false, restored: false };
+        const now = async () => (await api.states()).find((d) => d.key === r.key)?.profile;
+        try {
+          await api.setProfile(to);
+          w.kept = (await now()) === to;
+          await api.setProfile(from);
+          w.restored = (await now()) === from;
+        } catch (e) {
+          w.error = message(e);
+        }
+        writes.push(await noted(w, said));
+      }
+    }
+    if (r.stopped) return;
     await putBack();
-    setChecks((c) => c && { ...c, write });
+    // Everything back: its memory, as hrtz holds it after each checked write, against the start's.
+    const now = r.memory ? await api.mouseTrace().catch(() => null) : null;
+    const left = now?.memory && r.memory ? differs(r.memory, now.memory) : undefined;
+    const tried = writes;
+    setChecks((c) => c && { ...c, write: tried[0] ?? null, writes: tried, ...(left && { left }) });
     setStage("done");
     cap.close();
   };
@@ -205,12 +284,18 @@ export function useParticipate() {
       const by = seenOn(a);
       return (simulated && by === "state") || oneStage(a) ? null : by;
     };
-    const buttons: ButtonCheck[] = physical.map(([i, name]) => ({
-      name,
-      does: actionLabel(actions[i] ?? { kind: "disabled" }),
-      seen: seenBy(actions[i]) === null ? null : false,
-      ...(oneStage(actions[i]) && { why: "only one DPI stage is on, so a press changes nothing" }),
-    }));
+    // Where hrtz sets no buttons yet (an ATK) but follows the DPI button, that one is asked for:
+    // seen by the stage changing.
+    const dpi: ButtonAction = { kind: "dpi", action: "cycle" };
+    const dpiOnly = !physical.length && !!device.capabilities?.dpiButton && !!device.capabilities.dpi && (device.settings?.dpiStageCount ?? 1) > 1 && !simulated;
+    const buttons: ButtonCheck[] = dpiOnly
+      ? [{ name: "DPI", does: actionLabel(dpi), seen: false }]
+      : physical.map(([i, name]) => ({
+          name,
+          does: actionLabel(actions[i] ?? { kind: "disabled" }),
+          seen: seenBy(actions[i]) === null ? null : false,
+          ...(oneStage(actions[i]) && { why: "only one DPI stage is on, so a press changes nothing" }),
+        }));
     Object.assign(run.current, {
       key: device.key ?? null,
       write,
@@ -221,11 +306,18 @@ export function useParticipate() {
       ms: 0,
       stutters: 0,
       rate: null,
-      queue: physical.flatMap(([i, name]) => {
-        const by = seenBy(actions[i]);
-        return by === null ? [] : [{ name, does: actionLabel(actions[i]), by }];
-      }),
+      queue: dpiOnly
+        ? [{ name: "DPI", does: actionLabel(dpi), by: "state" as const, detail: "The DPI button: it may be under the mouse. Once is enough." }]
+        : physical.flatMap(([i, name]) => {
+            const by = seenBy(actions[i]);
+            return by === null ? [] : [{ name, does: actionLabel(actions[i]), by }];
+          }),
       at: 0,
+      memory: null,
+      stopped: false,
+      doing: "",
+      n: 0,
+      of: 0,
     });
     setChecks({ read: { ok: false }, polling: null, buttons, write: null });
     setDump(null);
@@ -233,7 +325,8 @@ export function useParticipate() {
     setStage("reading");
     cap.start(screenOf("reading", r, 0));
     try {
-      const d = (await api.mouseReport()) as { memorySize?: number };
+      const d = (await api.mouseReport()) as { memorySize?: number; memory?: string };
+      run.current.memory = d?.memory ?? null;
       setDump(d);
       setChecks((c) => c && { ...c, read: { ok: true, bytes: d?.memorySize } });
     } catch (e) {
@@ -251,6 +344,8 @@ export function useParticipate() {
   // Esc, or another window in front: stopped, and what it changed goes back.
   useEffect(() => {
     if (!cap.closed || cap.closed === "done" || stage === "idle" || stage === "done") return;
+    run.current.stopped = true;
+    counted();
     setStage("idle");
     setStopped(true);
     void putBack();
@@ -260,7 +355,11 @@ export function useParticipate() {
 }
 
 /** Game mode's screen at each stage. */
-function screenOf(stage: Stage, r: { rate: number | null; ms: number; queue: { name: string; does: string }[]; at: number; since: number }, read: number): CaptureScreen {
+function screenOf(
+  stage: Stage,
+  r: { rate: number | null; ms: number; queue: { name: string; does: string; detail?: string }[]; at: number; since: number; doing: string; n: number; of: number; count: { ms: number; to: number } },
+  read: number,
+): CaptureScreen {
   const blank = { figure: "", figureLabel: "", progressLabel: "" };
   switch (stage) {
     case "reading":
@@ -280,12 +379,27 @@ function screenOf(stage: Stage, r: { rate: number | null; ms: number; queue: { n
       return {
         ...blank,
         title: b ? `Press ${b.name}` : "",
-        detail: b ? `It's set to ${b.does}. Once is enough.` : "",
+        detail: b ? (b.detail ?? `It's set to ${b.does}. Once is enough.`) : "",
         progress: left / BUTTON_MS,
         progressLabel: `Button ${r.at + 1} of ${r.queue.length} · moves on in ${Math.ceil(left / 1000)} s`,
       };
     }
+    case "rate":
+      return {
+        title: "Move the mouse in quick circles again",
+        detail: `Its polling rate is set to ${fmt(r.count.to)} Hz for a moment, to count that it changed.`,
+        figure: r.rate ? fmt(r.rate) : "–",
+        figureLabel: r.rate ? "reports a second" : "Start moving",
+        progress: r.count.ms / RATE_MS,
+        progressLabel: `${(r.count.ms / 1000).toFixed(1)} of ${RATE_MS / 1000} s counted`,
+      };
     default:
-      return { ...blank, title: "Checking a change", detail: "hrtz changes one setting, checks the mouse kept it, and puts it back.", progress: 0.5 };
+      return {
+        ...blank,
+        title: "Checking each setting",
+        detail: r.doing ? `${r.doing}: changed, checked and put back.` : "hrtz changes each setting, checks the mouse kept it, and puts it back.",
+        progress: r.of ? r.n / r.of : 0,
+        progressLabel: r.of ? `${Math.min(r.n + 1, r.of)} of ${r.of}` : "",
+      };
   }
 }

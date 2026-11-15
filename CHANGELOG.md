@@ -4,6 +4,20 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Improved
+- One check now says everything a model keeps. The mouse check used to change one DPI stage; it now changes each setting hrtz offers on your mouse, one at a time, and puts each back before the next: the DPI stages, their colours and light, the polling rate, debounce, motion sync and the rest, then a switch to another profile and back. While the polling rate is changed, it counts your mouse's reports again, to see that the rate really changed.
+- The check ends by comparing your mouse's memory with how it read at the start, and the report says whether it's as it was.
+- If your mouse doesn't keep a change, the report now holds what hrtz sent and what the mouse answered, so we can work it out without asking you to run it again.
+- On an ATK, VXE or MAD mouse, the check asks you to press the DPI button, to see that hrtz follows it.
+
+### Fixed
+- On an ATK, VXE or MAD mouse, changing a setting could fail with "unsupported peak performance timeout", and the mouse check's change failed the same way. hrtz was holding these mice to a Zaopin setting they don't have. Found by the first check of a real VXE R1 PRO; nothing was written to the mouse.
+- A change to an ATK, VXE or MAD mouse is read back a few times before hrtz says the mouse didn't keep it, in case the mouse takes a moment.
+- The mouse check says what it does on your mouse: it no longer says it asks for each button on a mouse whose buttons hrtz doesn't set yet.
+- A report's polling line shows whole reports a second (it read "990.051").
+
 ## 0.5.1 — 2026-11-14
 
 ### Improved

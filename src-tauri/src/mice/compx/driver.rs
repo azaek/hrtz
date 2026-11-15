@@ -2,6 +2,7 @@
 //! image read in regions, and the status packets the mouse sends by itself. An ATK mouse runs here
 //! too, on what it shares with a Zaopin (`atk`).
 
+use std::collections::VecDeque;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -259,6 +260,7 @@ pub(crate) fn connect(opened: Opened, board: &Board) -> Result<Box<dyn Driver>> 
         pending_status: Vec::new(),
         lost: false,
         atk: None,
+        said: Said::new(),
     };
     if let Maker::Atk { receiver } = opened.maker {
         #[cfg(windows)]
@@ -411,12 +413,49 @@ pub(super) struct Connected {
     lost: bool,
     /// Set for an ATK.
     atk: Option<Atk>,
+    /// The last packets each way (`Driver::trace`).
+    said: Said,
+}
+
+/// How long after an ATK's write each read-back comes.
+const READ_BACK_AFTER: [Duration; 3] = [Duration::ZERO, Duration::from_millis(60), Duration::from_millis(200)];
+
+/// How many packets `Said` keeps: a change, its read-back and its tries again, with room.
+const SAID: usize = 80;
+
+/// The last packets sent and received, with when: what a test report shows of a change the mouse
+/// didn't keep, so it can be worked out without going back to its owner.
+struct Said {
+    from: Instant,
+    packets: VecDeque<(u64, bool, Packet)>,
+}
+
+impl Said {
+    fn new() -> Self {
+        Self { from: Instant::now(), packets: VecDeque::with_capacity(SAID) }
+    }
+
+    fn note(&mut self, sent: bool, pkt: &Packet) {
+        if self.packets.len() == SAID {
+            self.packets.pop_front();
+        }
+        self.packets.push_back((self.from.elapsed().as_millis() as u64, sent, *pkt));
+    }
+
+    /// Each as "ms > bytes" (sent) or "ms < bytes" (received), oldest first.
+    fn lines(&self) -> Vec<String> {
+        let hex = |pkt: &Packet| pkt.iter().map(|b| format!("{b:02X}")).collect::<String>();
+        self.packets
+            .iter()
+            .map(|(ms, sent, pkt)| format!("{ms} {} {}", if *sent { '>' } else { '<' }, hex(pkt)))
+            .collect()
+    }
 }
 
 impl Connected {
     /// A connection with no mouse met on it, for Inspect a mouse's reading (`probe`).
     pub(super) fn bare(link: Box<dyn Link>, gap: Duration) -> Self {
-        Self { link, gap, image: Vec::new(), pending_status: Vec::new(), lost: false, atk: None }
+        Self { link, gap, image: Vec::new(), pending_status: Vec::new(), lost: false, atk: None, said: Said::new() }
     }
 
     fn refresh_settings(&mut self, board: &Board) {
@@ -565,6 +604,7 @@ impl Connected {
             self.lost = true;
             bail!("Lost the receiver: {e}");
         }
+        self.said.note(true, pkt);
         thread::sleep(self.gap);
         Ok(())
     }
@@ -591,7 +631,11 @@ impl Connected {
             }
             _ => return Ok(None),
         }
-        Ok(p::packet_valid(&pkt).then_some(pkt))
+        if !p::packet_valid(&pkt) {
+            return Ok(None);
+        }
+        self.said.note(false, &pkt);
+        Ok(Some(pkt))
     }
 
     pub(super) fn read_flash(&mut self, addr: usize, len: usize) -> Result<Vec<u8>> {
@@ -641,13 +685,20 @@ impl Connected {
         Ok(())
     }
 
-    /// An ATK's write: sent unanswered, then read back.
+    /// An ATK's write: sent unanswered, then read back. Nothing says how long a mouse behind a
+    /// receiver takes to keep it, so what's read back gets a few tries, and the write one more,
+    /// before it counts as not kept.
     fn write_checked(&mut self, pkt: &Packet, a: usize, chunk: &[u8]) -> Result<()> {
-        self.send_unanswered(pkt)?;
-        if self.read_flash(a, chunk.len())? != chunk {
-            bail!("The mouse didn't keep a write at 0x{a:04X}.");
+        for _ in 0..2 {
+            self.send_unanswered(pkt)?;
+            for wait in READ_BACK_AFTER {
+                thread::sleep(wait);
+                if self.read_flash(a, chunk.len())? == chunk {
+                    return Ok(());
+                }
+            }
         }
-        Ok(())
+        bail!("The mouse didn't keep a write at 0x{a:04X}.")
     }
 
     // ---- status the mouse sends by itself -------------------------------------------------
@@ -855,9 +906,16 @@ impl Driver for Connected {
         if self.atk.is_some() {
             // As its writes: sent unanswered, then asked, once it has had time to switch.
             self.send_unanswered(&pkt)?;
-            thread::sleep(Duration::from_millis(150));
-            let r = self.transact_simple(cmd::GET_PROFILE)?;
-            if r[5] == 0 || r[6] != index {
+            let mut switched = false;
+            for _ in 0..3 {
+                thread::sleep(Duration::from_millis(150));
+                let r = self.transact_simple(cmd::GET_PROFILE)?;
+                switched = r[5] != 0 && r[6] == index;
+                if switched {
+                    break;
+                }
+            }
+            if !switched {
                 bail!("The mouse didn't switch to profile {}.", index + 1);
             }
         } else {
@@ -1002,6 +1060,12 @@ impl Driver for Connected {
                 serde_json::json!({ "picture": pieces::read(&self.image, Maker::Zaopin, expected) })
             }
         })
+    }
+
+    fn trace(&mut self) -> serde_json::Value {
+        use base64::Engine as _;
+        let memory = base64::engine::general_purpose::STANDARD.encode(&self.image);
+        serde_json::json!({ "said": self.said.lines(), "memory": memory })
     }
 
     /// Tell the mouse no configuration app is listening any more. An ATK wasn't told it was.

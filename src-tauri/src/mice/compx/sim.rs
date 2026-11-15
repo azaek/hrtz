@@ -58,6 +58,11 @@ pub struct SimMouse {
     pub needs_listening: bool,
     /// Told an app is listening.
     pub listening: bool,
+    /// An ATK that takes a moment to keep a write: it shows only from this many reads of its
+    /// memory after it, as one behind a receiver might.
+    pub slow_writes: u8,
+    /// Writes not yet kept: where, what, and how many reads until they are.
+    pub late: Vec<(usize, Vec<u8>, u8)>,
 }
 
 impl Default for SimMouse {
@@ -86,6 +91,8 @@ impl Default for SimMouse {
             sleeps_after_reads: None,
             needs_listening: false,
             listening: false,
+            slow_writes: 0,
+            late: Vec::new(),
         }
     }
 }
@@ -173,7 +180,11 @@ impl SimMouse {
             .and_then(|(v, p)| Some((u16::from_str_radix(v, 16).ok()?, u16::from_str_radix(p, 16).ok()?)))
             .unwrap_or((p::VENDOR_ID, 0xFFFF));
         let wired = read["wired"].as_bool().unwrap_or(atk::link::wired(kind));
-        let atk = usb.0 == atk::VENDOR_ID;
+        // On ATK's vendor ID, or under CompX's where it answered as an ATK does (0x10): one hrtz
+        // read says who it is by that (`model`), one it ran says whose it is (`family.maker`).
+        let atk = usb.0 == atk::VENDOR_ID
+            || read["model"]["cid"].is_u64()
+            || c["device"]["family"]["maker"].as_str() == Some("ATK");
         // "1.05", as the reading writes it: hex, major and minor.
         let firmware = read["firmware"]
             .as_str()
@@ -378,14 +389,24 @@ impl SimMouse {
                 reply(&[r[6]])
             }
             cmd::READ_FLASH => {
+                // A write it was slow to keep lands once its reads have gone by.
+                for (at, data, reads) in std::mem::take(&mut self.late) {
+                    if reads > 1 {
+                        self.late.push((at, data, reads - 1));
+                    } else {
+                        self.image_mut()[at..at + data.len()].copy_from_slice(&data);
+                    }
+                }
                 let (addr, len) = (p::packet_addr(r) as usize, r[5] as usize);
                 let Some(data) = self.image().get(addr..addr + len).map(<[u8]>::to_vec) else { return };
                 p::packet(cmd::READ_FLASH, addr as u16, &data, None)
             }
             cmd::WRITE_FLASH => {
                 let (addr, len) = (p::packet_addr(r) as usize, r[5] as usize);
-                if !self.forget_writes {
-                    let data = r[6..6 + len].to_vec();
+                let data = r[6..6 + len].to_vec();
+                if self.slow_writes > 0 {
+                    self.late.push((addr, data, self.slow_writes + 1));
+                } else if !self.forget_writes {
                     self.image_mut()[addr..addr + len].copy_from_slice(&data);
                 }
                 if !self.echo_writes {
@@ -436,6 +457,10 @@ pub(crate) fn atk_sample_image() -> Vec<u8> {
         pair(&mut f, 0x4C + 2 * i, v);
     }
     f[0xA9..0xB3].copy_from_slice(&[0x02, 0x53, 0x00, 0x55, 0x0C, 0x49, 0x00, 0x55, 0x00, 0x55]);
+    // From 0xB3 as an owner's R1 PRO held it (2026-11-15). An ATK keeps its own things here: 180
+    // where a Zaopin keeps its peak timeout (0xB7), which isn't one of a Zaopin's.
+    f[0xB3..0xC1]
+        .copy_from_slice(&[0x00, 0x55, 0x01, 0x54, 0xB4, 0xA1, 0x02, 0x53, 0x0A, 0x4B, 0xFF, 0x56, 0x01, 0x54]);
     f
 }
 

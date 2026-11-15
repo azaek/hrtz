@@ -562,6 +562,13 @@ async fn mouse_report(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>) -> CmdRes
     on_device(&ctx, mouse.as_deref(), |w| w.report()).await
 }
 
+/// The last packets between hrtz and mouse `mouse`, and its memory as hrtz holds it
+/// (`Worker::trace`): for a test report, where a change didn't hold and once all are put back.
+#[tauri::command]
+async fn mouse_trace(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>) -> CmdResult<serde_json::Value> {
+    on_device(&ctx, mouse.as_deref(), |w| w.trace()).await
+}
+
 /// Write a test report where the tester picked.
 #[tauri::command]
 fn save_report(path: String, text: String) -> CmdResult<()> {
@@ -1836,6 +1843,7 @@ pub fn run() {
             forget_mouse,
             restore_mouse,
             mouse_report,
+            mouse_trace,
             save_report,
             set_mouse_prefs,
             set_prefs,
