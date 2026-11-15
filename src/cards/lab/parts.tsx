@@ -71,20 +71,20 @@ export function RateTable({ runs, chosen }: { runs: ConnRun[]; chosen: number })
   );
 }
 
-/** The motion a step asks for, drawn: quick circles, a swipe between two stops, a slide lifted
- *  and carried back, a straight lift, or holding still. */
-export function Motion({ kind }: { kind: "circles" | "swipe" | "return" | "lift" | "still" }) {
+/** The motion a step asks for, drawn: quick circles, a swipe between two stops, a free sweep side
+ *  to side, a slide lifted and carried back, a straight lift, or holding still. */
+export function Motion({ kind }: { kind: "circles" | "swipe" | "sweep" | "return" | "lift" | "still" }) {
   const path =
     kind === "return"
       ? "M20,42 L90,42 Q100,42 96,26 Q55,6 24,26 Q16,42 20,42"
       : kind === "lift"
         ? "M60,42 L60,20 L60,42"
-        : kind === "swipe"
+        : kind === "swipe" || kind === "sweep"
           ? "M20,42 L100,42 L20,42"
           : kind === "circles"
             ? "M60,26 a14,12 0 1,1 0.1,0"
             : "M60,42 L60,42";
-  const dur = { return: "2.4s", swipe: "1.2s", circles: "0.9s", lift: "1.6s", still: "1s" }[kind];
+  const dur = { return: "2.4s", swipe: "1.2s", sweep: "1.4s", circles: "0.9s", lift: "1.6s", still: "1s" }[kind];
   return (
     <svg viewBox="0 0 120 56" className="h-14 w-[120px] shrink-0" aria-hidden>
       <line x1={6} x2={114} y1={50} y2={50} stroke="var(--colorNeutralStroke1)" strokeWidth={1} />

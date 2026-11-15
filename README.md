@@ -227,8 +227,8 @@ Each mouse gets what it has; hrtz shows only the settings yours does.
 - **In-game HUD:** battery, polling rate, DPI and profile at the edge of the screen, in a window of
   its own. Nothing is injected into games.
 - **Lab:** checks for the connection (the polling rate that runs best on your PC), tracking, lift-off,
-  DPI accuracy, double clicks and the scroll wheel, a map of where the mouse travels on the pad, and a
-  look at Windows' pointer settings. The timing checks run on a screen of their own, the way a game
+  DPI accuracy, the sensor angle your grip needs, double clicks and the scroll wheel, a map of where
+  the mouse travels on the pad, and a look at Windows' pointer settings. The timing checks run on a screen of their own, the way a game
   reads the mouse.
 - **Backups:** full copies of the mouse's settings, restores that show what changes and can be undone,
   export and import, and factory settings.
