@@ -352,10 +352,10 @@ impl SimMouse {
     // modified for hrtz, 2026-11-10. Copyright (C) the OpenMouse contributors. AGPL-3.0-or-later.
 
     /// What an ATK answers, as mouse-protocol's captures show: who it is (0x10), its battery with a
-    /// length of 2 though four bytes follow, its firmware, and its memory; and its profile, read
-    /// and switched as ATK's app does (0x0E, 0x0F). Nothing else, so a test fails should hrtz count
-    /// on more. Like its writes, a switch is answered only with `echo_writes`, and not made with
-    /// `forget_writes`.
+    /// length of 2 though four bytes follow, its firmware, and its memory; and its profile and long
+    /// range, read and set as ATK's app does (0x0E, 0x0F; 0x17, 0x16). Nothing else, so a test
+    /// fails should hrtz count on more. Like its writes, a switch is answered only with
+    /// `echo_writes`, and not made with `forget_writes`.
     fn answer_atk(&mut self, r: &Packet) {
         let reply = |data: &[u8]| p::packet(r[1], 0, data, None);
         let receiver = matches!(self.maker, Maker::Atk { receiver: true });
@@ -382,6 +382,16 @@ impl SimMouse {
             cmd::SET_PROFILE => {
                 if !self.forget_writes {
                     self.active = r[6].min(self.profiles.len() as u8 - 1);
+                }
+                if !self.echo_writes {
+                    return;
+                }
+                reply(&[r[6]])
+            }
+            cmd::GET_LONG_RANGE => reply(&[self.long_range as u8]),
+            cmd::SET_LONG_RANGE => {
+                if !self.forget_writes {
+                    self.long_range = r[6] != 0;
                 }
                 if !self.echo_writes {
                     return;

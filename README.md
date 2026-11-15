@@ -84,6 +84,7 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | ATK Ghost EXTREME | Not tested yet |
 | ATK Ghost Ultimate + | Not tested yet |
 | ATK Ghost Ultimate | Not tested yet |
+| ATK PHANTOM EXTREME | Not tested yet |
 | ATK PHANTOM ULTIMATE | Not tested yet |
 | ATK U2 MINI | Not tested yet |
 | ATK U2 Mini 2.0 + | Not tested yet |
@@ -100,7 +101,6 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | ATK U2 Ultra Max 2.0 | Not tested yet |
 | ATK U2 Ultra | Not tested yet |
 | ATK U2 | Not tested yet |
-| ATK X EXTREME | Not tested yet |
 | ATK X1 Air + | Not tested yet |
 | ATK X1 EXTREME 2.0 + | Not tested yet |
 | ATK X1 EXTREME 2.0 | Not tested yet |
@@ -169,14 +169,19 @@ Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED r
 "Tested" means tried on the real mouse; the others use the same protocol as a tested one and should
 work. More mice come one at a time, each tried with its owners before it's called tested.
 
-ATK's mice are the newest: every ATK, VXE and MAD model in ATK's own app, by receiver or cable.
+ATK's mice are the newest: 160 ATK, VXE and MAD models, such as the VXE R1 PRO (tested), the ATK
+U2 Plus NK and the MAD R, by receiver or cable. Each is in the list above. Some of ATK's newer
+mice, such as the ATK A9 3.0 NK, the ATK ZERO + and the VXE V3 Plus, talk to ATK's app a different
+way, and hrtz doesn't run those yet: if yours isn't in the list, it's likely one of them.
+
 hrtz offers what ATK's app offers on them: the polling rate, debounce, motion sync, angle snapping,
-ripple control, the sensor mode, the buttons and the onboard profiles; on most, the DPI stages and
-the DPI light; and the lift-off distance each sensor has (1 or 2 mm, 0.7 mm too on a PAW3950, and
-0.7 to 1.7 mm on a PAW3950 Ultra or PAW3955). The sensor's top mode and the sensor angle are
-offered on the models and firmware ATK's app offers them on. Where hrtz isn't sure how a sensor
-keeps something, it leaves it out: the DPI on PAW3311, PAW3315 and CORE26K models, until owners'
-checks confirm it. Macros aren't in hrtz yet.
+ripple control, the sensor mode, long range where the model has it, the buttons and the onboard
+profiles; on most, the DPI stages and the DPI light; and the lift-off distance each sensor has (1
+or 2 mm, 0.7 mm too on a PAW3950, and 0.7 to 1.7 mm on a PAW3950 Ultra or PAW3955). The sensor's
+top mode and the sensor angle are offered on the models and firmware ATK's app offers them on, and
+on 53 models the Battery page starts from ATK's own figure for how long a charge lasts. Where hrtz
+isn't sure how a sensor keeps something, it leaves it out: the DPI on PAW3311, PAW3315 and CORE26K
+models, until owners' checks confirm it. Macros aren't in hrtz yet.
 
 ## Help test it
 

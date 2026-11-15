@@ -1391,6 +1391,62 @@ mod atk_mice {
     }
 
     #[test]
+    fn long_range_is_read_at_load_and_set_as_atks_app_sets_it() {
+        let mut r = Rig::connected(his_r1_pro());
+        assert!(r.state().capabilities.unwrap().long_range);
+        assert_eq!(r.state().long_range, Some(false));
+        let (req, _) = r.mark();
+        r.w.set_long_range(true).unwrap();
+        assert_eq!(r.state().long_range, Some(true));
+        assert!(r.mouse.lock().long_range);
+        // The ten bytes ATK's app sends, the mode first; then asked.
+        let sent: Vec<_> = r.mouse.lock().requests[req..].to_vec();
+        let set = sent.iter().find(|x| x[1] == cmd::SET_LONG_RANGE).unwrap();
+        assert_eq!((set[5], set[6]), (10, 1));
+        assert!(sent.iter().any(|x| x[1] == cmd::GET_LONG_RANGE));
+        r.w.set_long_range(false).unwrap();
+        assert_eq!(r.state().long_range, Some(false));
+    }
+
+    #[test]
+    fn long_range_not_kept_says_so() {
+        let mut r = Rig::connected(SimMouse { forget_writes: true, ..his_r1_pro() });
+        let e = r.w.set_long_range(true).unwrap_err().to_string();
+        assert!(e.contains("didn't keep"), "{e}");
+        assert_eq!(r.state().long_range, Some(false));
+    }
+
+    #[test]
+    fn a_model_without_long_range_isnt_asked_about_it() {
+        // The U2 Plus NK with a PAW3950 Ultra: ATK's app says it has none.
+        let his = SimMouse { mid: 124, ..SimMouse::u2_plus() };
+        let mut r = Rig::connected(his);
+        assert_eq!(r.state().model.as_deref(), Some("U2 Plus NK (PAW3950 Ultra)"));
+        assert!(!r.state().capabilities.unwrap().long_range);
+        assert_eq!(r.state().long_range, None);
+        assert!(!r.mouse.lock().requests.iter().any(|x| x[1] == cmd::GET_LONG_RANGE));
+        assert!(r.w.set_long_range(true).is_err());
+        assert!(!r.mouse.lock().requests.iter().any(|x| x[1] == cmd::SET_LONG_RANGE));
+    }
+
+    #[test]
+    fn a_charge_lasts_by_atks_figure_for_the_mode_its_in() {
+        // The Duckbill Ultra (ATK's own, CID 1) on a NearLink receiver: 1K and 8K figures.
+        let duckbill = SimMouse { cid: 1, mid: 2, ..SimMouse::u2_plus() };
+        let mut r = Rig::connected(duckbill);
+        assert_eq!(r.state().model.as_deref(), Some("Duckbill Ultra"));
+        let rated = |r: &Rig| r.state().capabilities.unwrap().rated_hours;
+        assert_eq!(rated(&r), Some(vec![(1000, 160.0), (8000, 34.0)]), "low power, as it's held");
+        // In high performance, high performance's.
+        let mut next = r.settings();
+        next.sensor_mode = Some(SensorMode::Hp);
+        r.w.apply_settings(&next).unwrap();
+        assert_eq!(rated(&r), Some(vec![(1000, 152.0), (8000, 33.0)]));
+        // None on a model ATK gives none for.
+        assert_eq!(Rig::connected(his_r1_pro()).state().capabilities.unwrap().rated_hours, None);
+    }
+
+    #[test]
     fn the_sensor_mode_is_set_in_its_row_as_atks_app_sets_it() {
         let mut r = Rig::connected(his_r1_pro());
         // Firmware 1.23, past the 1.00 ATK's app wants on this model: all three modes.

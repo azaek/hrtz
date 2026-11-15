@@ -1,8 +1,10 @@
-// Facts from ATK's own app, ATK HUB 3.2.32 (its CompX product list), read 2026-11-13: each
+// Facts from ATK's own app, ATK HUB 3.2.32 (its CompX product list), read 2026-11-13, with the
+// three entries 3.2.33 changed (2026-11-15): each
 // mouse's maker and model IDs (CID, MID), its name, sensor, whether it has a DPI light and whether
 // 0 ms debounce is offered, the firmware from which it has the sensor's top mode and the sensor
-// angle, and the USB IDs of ATK's mice and receivers. Generated; regenerate rather than edit
-// (hrtz-notes ATK.md says how).
+// angle, whether it has long range, ATK's battery figures (its server's, 2026-11-15), and the
+// USB IDs of ATK's mice and receivers. Generated; regenerate rather than edit (hrtz-notes
+// ATK.md says how).
 
 //! ATK's mice hrtz runs, by CID and MID, each with its sensor: what hrtz offers on each sensor is
 //! in `atk::Sensor`. A name ATK gives more than one sensor carries its sensor.
@@ -21,6 +23,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[160, 34], [152, 33], [45, 27]]),
         tested: false,
     },
     Model {
@@ -34,6 +38,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [80, 50]]),
         tested: false,
     },
     Model {
@@ -47,6 +53,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[130, 23], [100, 23], [32, 20]]),
         tested: false,
     },
     Model {
@@ -60,6 +68,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [80, 50]]),
         tested: false,
     },
     Model {
@@ -73,6 +83,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [103, 64]]),
         tested: false,
     },
     Model {
@@ -86,6 +98,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[64, 13], [61, 12], [19, 11]]),
         tested: false,
     },
     Model {
@@ -99,6 +113,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[200, 24], [190, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -112,6 +128,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[265, 53], [252, 51], [72, 43]]),
         tested: false,
     },
     Model {
@@ -125,6 +143,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [80, 50]]),
         tested: false,
     },
     Model {
@@ -138,6 +158,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [320, 65], [103, 64]]),
         tested: false,
     },
     Model {
@@ -151,6 +173,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [103, 64]]),
         tested: false,
     },
     Model {
@@ -164,6 +188,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[64, 13], [61, 12], [19, 11]]),
         tested: false,
     },
     Model {
@@ -177,6 +203,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [103, 64]]),
         tested: false,
     },
     Model {
@@ -190,6 +218,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[300, 41], [285, 39], [50, 31]]),
         tested: false,
     },
     Model {
@@ -203,6 +233,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[180, 24], [171, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -216,6 +248,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -229,6 +263,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[300, 41], [285, 39], [50, 31]]),
         tested: false,
     },
     Model {
@@ -242,6 +278,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -255,6 +293,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[180, 24], [171, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -268,6 +308,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -281,6 +323,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[80, 16], [70, 15], [24, 12]]),
         tested: false,
     },
     Model {
@@ -294,6 +338,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[180, 24], [120, 22], [32, 20]]),
         tested: false,
     },
     Model {
@@ -307,6 +353,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -320,6 +368,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -333,6 +383,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[160, 16], [114, 15], [20, 13]]),
         tested: false,
     },
     Model {
@@ -346,19 +398,23 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[160, 16], [114, 15], [20, 13]]),
         tested: false,
     },
     Model {
         cid: 1,
         mid: 30,
         brand: "ATK",
-        name: "X EXTREME",
-        sensor: Sensor::Paw3950Ultra,
+        name: "PHANTOM EXTREME",
+        sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -372,6 +428,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[160, 16], [114, 15], [20, 13]]),
         tested: false,
     },
     Model {
@@ -385,6 +443,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [320, 65], [103, 64]]),
         tested: false,
     },
     Model {
@@ -398,6 +458,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [103, 64]]),
         tested: false,
     },
     Model {
@@ -411,6 +473,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [103, 64]]),
         tested: false,
     },
     Model {
@@ -424,6 +488,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [103, 64]]),
         tested: false,
     },
     Model {
@@ -437,6 +503,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[640, 65], [456, 62], [80, 50]]),
         tested: false,
     },
     Model {
@@ -450,6 +518,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -463,6 +533,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -476,6 +548,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -489,6 +563,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [456, 62], [80, 50]]),
         tested: false,
     },
     Model {
@@ -502,6 +578,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -515,6 +593,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -528,6 +608,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -541,6 +623,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -554,6 +638,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -567,6 +653,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[160, 16], [114, 15], [20, 13]]),
         tested: false,
     },
     Model {
@@ -580,6 +668,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[640, 65], [456, 62], [80, 50]]),
         tested: false,
     },
     Model {
@@ -593,6 +683,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -606,6 +698,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[180, 25], [100, 25], [35, 21]]),
         tested: false,
     },
     Model {
@@ -619,6 +713,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -632,6 +728,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -645,6 +743,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -658,6 +758,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -671,6 +773,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -684,6 +788,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -697,6 +803,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -710,6 +818,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -723,6 +833,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -736,6 +848,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -749,6 +863,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -762,6 +878,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -775,6 +893,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -788,6 +908,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[480, 65], [320, 65], [103, 64]]),
         tested: false,
     },
     Model {
@@ -801,6 +923,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[240, 24], [170, 23], [30, 19]]),
         tested: false,
     },
     Model {
@@ -814,6 +938,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(0),
         angle_from: Some(0),
+        long_range: true,
+        battery_h: Some([[160, 16], [114, 15], [20, 13]]),
         tested: false,
     },
     Model {
@@ -827,6 +953,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -840,6 +968,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -853,6 +983,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -866,6 +998,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -879,6 +1013,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -892,6 +1028,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -905,6 +1043,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -918,6 +1058,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -931,6 +1073,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -944,6 +1088,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -957,6 +1103,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -970,6 +1118,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -983,6 +1133,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -996,6 +1148,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1009,6 +1163,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1022,6 +1178,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1035,6 +1193,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1048,6 +1208,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1061,6 +1223,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1074,6 +1238,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1087,6 +1253,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1100,6 +1268,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1113,6 +1283,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1126,6 +1298,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1139,6 +1313,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1152,6 +1328,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1165,6 +1343,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: Some([[0, 14], [0, 13], [0, 12]]),
         tested: false,
     },
     Model {
@@ -1178,6 +1358,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: Some([[0, 28], [0, 26], [0, 24]]),
         tested: false,
     },
     Model {
@@ -1191,6 +1373,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1204,6 +1388,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1217,6 +1403,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: Some([[0, 28], [0, 26], [0, 24]]),
         tested: false,
     },
     Model {
@@ -1230,6 +1418,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1243,6 +1433,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1256,6 +1448,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1269,6 +1463,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: Some([[0, 12], [0, 11], [0, 10]]),
         tested: false,
     },
     Model {
@@ -1282,6 +1478,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1295,6 +1493,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: Some([[0, 28], [0, 26], [0, 24]]),
         tested: false,
     },
     Model {
@@ -1308,6 +1508,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1321,6 +1523,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1334,6 +1538,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: Some([[0, 28], [0, 26], [0, 24]]),
         tested: false,
     },
     Model {
@@ -1347,6 +1553,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1360,6 +1568,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1373,6 +1583,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1386,6 +1598,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: Some([[0, 44], [0, 42], [0, 40]]),
         tested: false,
     },
     Model {
@@ -1399,6 +1613,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1412,6 +1628,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1425,6 +1643,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1438,6 +1658,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1451,6 +1673,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1464,6 +1688,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1477,6 +1703,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1490,6 +1718,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: Some(130),
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1503,6 +1733,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1516,6 +1748,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: Some(130),
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1529,6 +1763,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1542,6 +1778,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(177),
         angle_from: Some(177),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1555,6 +1793,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1568,6 +1808,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1581,6 +1823,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1594,6 +1838,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1607,6 +1853,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1620,6 +1868,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1633,6 +1883,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1646,6 +1898,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1659,6 +1913,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1672,6 +1928,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1685,6 +1943,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1698,6 +1958,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: Some([[0, 44], [0, 42], [0, 40]]),
         tested: false,
     },
     Model {
@@ -1711,6 +1973,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(177),
         angle_from: Some(177),
+        long_range: true,
+        battery_h: Some([[0, 44], [0, 42], [0, 40]]),
         tested: false,
     },
     Model {
@@ -1724,6 +1988,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1737,6 +2003,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1750,6 +2018,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1763,6 +2033,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1776,6 +2048,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(300),
         angle_from: Some(300),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1789,6 +2063,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: Some([[0, 44], [0, 42], [0, 40]]),
         tested: false,
     },
     Model {
@@ -1802,6 +2078,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(177),
         angle_from: Some(177),
+        long_range: true,
+        battery_h: Some([[0, 44], [0, 42], [0, 40]]),
         tested: false,
     },
     Model {
@@ -1815,6 +2093,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1828,6 +2108,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1841,6 +2123,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1854,6 +2138,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1867,6 +2153,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1880,6 +2168,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1893,6 +2183,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1906,6 +2198,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1919,6 +2213,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1932,6 +2228,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: true,
     },
     Model {
@@ -1945,6 +2243,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1958,6 +2258,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1971,6 +2273,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1984,6 +2288,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -1997,6 +2303,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -2010,6 +2318,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -2023,6 +2333,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: false,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -2036,6 +2348,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: false,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -2049,6 +2363,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -2057,11 +2373,13 @@ pub const MODELS: [Model; 160] = [
         brand: "ATK",
         name: "X1 MAG",
         sensor: Sensor::Paw3955,
-        light: true,
+        light: false,
         zero_debounce: true,
         bottom_button: true,
         corded_from: Some(100),
         angle_from: Some(100),
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -2075,6 +2393,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
     Model {
@@ -2088,6 +2408,8 @@ pub const MODELS: [Model; 160] = [
         bottom_button: true,
         corded_from: None,
         angle_from: None,
+        long_range: true,
+        battery_h: None,
         tested: false,
     },
 ];
