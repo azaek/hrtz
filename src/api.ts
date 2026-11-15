@@ -6,6 +6,18 @@ export type Lod = `${number}mm`;
 /** It, to read: "0.7 mm". */
 export const lodName = (lod: Lod) => lod.replace("mm", " mm");
 export type SensorMode = "lp" | "hp" | "corded";
+/** A sensor mode, to read. The top one is "Maximum" where it's chosen (an ATK's), and "Corded"
+ *  where the mouse enters it by itself (a Zaopin's, on its cable). */
+export const sensorModeName = (mode: SensorMode, byChoice = false) =>
+  mode === "lp" ? "Low power" : mode === "hp" ? "High performance" : byChoice ? "Maximum" : "Corded";
+/** The sensor's direction, turned to suit how the mouse is held: by how many degrees, and whether
+ *  the turn is applied. The mouse keeps both. */
+export interface SensorAngle {
+  on: boolean;
+  degrees: number;
+}
+/** It, to read: "5°", or "5° (off)". */
+export const sensorAngleName = (a: SensorAngle) => `${a.degrees}°${a.on ? "" : " (off)"}`;
 export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 
 export type ButtonAction =
@@ -54,6 +66,7 @@ export interface Settings {
   dpiLight?: DpiLight;
   lod?: Lod;
   sensorMode?: SensorMode;
+  sensorAngle?: SensorAngle;
   debounceMs?: number;
   motionSync?: boolean;
   angleSnapping?: boolean;
@@ -101,7 +114,12 @@ export interface Capabilities {
     cordedFromHz?: number;
     /** On its cable, the mouse always runs Corded. */
     cordedWhenWired: boolean;
+    /** Corded is a mode to choose, the sensor at its limit (an ATK's third level), not one the
+     *  mouse enters by itself. */
+    cordedByChoice?: boolean;
   };
+  /** The sensor's direction can be turned this many degrees either way (`Settings.sensorAngle`). */
+  sensorAngleDeg?: number;
   debounceMs?: { min: number; max: number };
   /** The debounce times the maker's app offers, where it offers only some of the range (an ATK's). */
   debounceChoicesMs?: number[];

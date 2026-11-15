@@ -171,11 +171,12 @@ work. More mice come one at a time, each tried with its owners before it's calle
 
 ATK's mice are the newest: every ATK, VXE and MAD model in ATK's own app, by receiver or cable.
 hrtz offers what ATK's app offers on them: the polling rate, debounce, motion sync, angle snapping,
-ripple control, the buttons and the onboard profiles; on most, the DPI stages and the DPI light;
-and the lift-off distance each sensor has (1 or 2 mm, 0.7 mm too on a PAW3950, and 0.7 to 1.7 mm on
-a PAW3950 Ultra or PAW3955). Where hrtz isn't sure how a sensor keeps something, it leaves it out:
-the DPI on PAW3311, PAW3315 and CORE26K models, until owners' checks confirm it. The sensor mode
-follows the same way, and macros aren't in hrtz yet.
+ripple control, the sensor mode, the buttons and the onboard profiles; on most, the DPI stages and
+the DPI light; and the lift-off distance each sensor has (1 or 2 mm, 0.7 mm too on a PAW3950, and
+0.7 to 1.7 mm on a PAW3950 Ultra or PAW3955). The sensor's top mode and the sensor angle are
+offered on the models and firmware ATK's app offers them on. Where hrtz isn't sure how a sensor
+keeps something, it leaves it out: the DPI on PAW3311, PAW3315 and CORE26K models, until owners'
+checks confirm it. Macros aren't in hrtz yet.
 
 ## Help test it
 

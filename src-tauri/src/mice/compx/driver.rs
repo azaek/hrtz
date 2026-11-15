@@ -470,10 +470,16 @@ impl Connected {
                     }
                     // Its lift-off as its sensor keeps it.
                     decoded.lod = atk::lod(model, &self.image);
-                    // Its sleep time as ATK keeps it, where it's offered.
-                    if board.read().capabilities.as_ref().is_some_and(|c| c.sleep_times_s.is_some()) {
+                    // Its sleep time, sensor mode and sensor angle as ATK keeps them, where each
+                    // is offered.
+                    let (sleep, mode, angle) = board.read().capabilities.as_ref().map_or((false, false, false), |c| {
+                        (c.sleep_times_s.is_some(), c.sensor_mode.is_some(), c.sensor_angle_deg.is_some())
+                    });
+                    if sleep {
                         decoded.sleep_s = atk::sleep_s(&self.image);
                     }
+                    decoded.sensor_mode = mode.then(|| atk::sensor_mode(&self.image)).flatten();
+                    decoded.sensor_angle = angle.then(|| atk::angle(&self.image)).flatten();
                 }
                 decoded
             }
@@ -543,7 +549,8 @@ impl Connected {
 
     /// An ATK's load: its firmware, the profile in use, and its settings, buttons and
     /// key-combination slots, as ATK's app reads them. No long-range mode: it isn't offered. A
-    /// mouse that doesn't say its profile shows none.
+    /// mouse that doesn't say its profile shows none. Its firmware settles the rest of what's
+    /// offered: the sensor's top mode and the sensor angle.
     fn load_atk(&mut self, board: &Board) -> Result<()> {
         let fw = self.transact_simple(cmd::VERSION).ok();
         let profile = self.transact_simple(cmd::GET_PROFILE).ok();
@@ -557,10 +564,14 @@ impl Connected {
         if let Some(a) = self.atk.as_mut() {
             a.looked = Instant::now();
         }
+        let model = self.atk.as_ref().and_then(|a| a.model);
         board.set(|s| {
             s.online = true;
             // Binary-coded decimal: 0x01 0x23 is 1.23, written as a Zaopin's is.
             s.firmware = fw.map(|r| format!("{:x}.{:02x}", r[6], r[7]));
+            if let (Some(m), Some(caps)) = (model, s.capabilities.as_mut()) {
+                atk::with_firmware(m, caps, s.firmware.as_deref());
+            }
             s.profile = profile.filter(|r| r[5] > 0 && r[6] < atk::PROFILES).map(|r| r[6]);
             s.long_range = None;
         });
@@ -894,6 +905,20 @@ impl Driver for Connected {
                     bail!("This mouse doesn't offer a sleep time of {s} s.");
                 }
                 atk::put_sleep(&mut target, s);
+            }
+            // Its sensor mode and angle, where offered, as ATK keeps them.
+            if let (Some(mode), Some(c)) = (new.sensor_mode, caps.sensor_mode.as_ref())
+                && Some(mode) != atk::sensor_mode(&self.image)
+            {
+                if !c.modes.contains(&mode) {
+                    bail!("This mouse doesn't have that sensor mode.");
+                }
+                atk::put_sensor_mode(&mut target, mode);
+            }
+            if let (Some(angle), Some(max)) = (new.sensor_angle, caps.sensor_angle_deg)
+                && Some(angle) != atk::angle(&self.image)
+            {
+                atk::put_angle(&mut target, angle, max).map_err(|e| anyhow!(e))?;
             }
         } else {
             let method = models::dpi_method(board.read().mid);

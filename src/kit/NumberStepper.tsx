@@ -18,7 +18,7 @@ export function NumberStepper(props: {
   min: number;
   max: number;
   step?: number;
-  /** Shown after the value, as in "8 ms". */
+  /** Shown after the value, as in "8 ms", "20%" or "5°". */
   unit?: string;
   label: string;
   onChange: (v: number) => void;
@@ -111,8 +111,8 @@ export function NumberStepper(props: {
     }
   };
 
-  // "8 ms", but "20%".
-  const unit = props.unit ? (props.unit === "%" ? "%" : ` ${props.unit}`) : "";
+  // "8 ms", but "20%" and "5°".
+  const unit = props.unit ? (props.unit === "%" || props.unit === "°" ? props.unit : ` ${props.unit}`) : "";
   const button = (dir: 1 | -1) => (
     <InputGroupButton
       size="icon-sm"

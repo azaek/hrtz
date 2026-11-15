@@ -1,5 +1,6 @@
 import { Body1, Dropdown, Option, Switch } from "@fluentui/react-components";
 import {
+  ArrowRotateClockwise20Regular,
   ArrowSync20Regular,
   BrightnessHigh20Regular,
   Flash20Regular,
@@ -14,7 +15,7 @@ import {
 } from "@fluentui/react-icons";
 import { Choice, Group, SettingCard } from "../components";
 import { commit, useStore } from "../store";
-import { lodName, topRate, type Lod, type Settings } from "../api";
+import { lodName, sensorModeName, topRate, type Lod, type SensorMode, type Settings } from "../api";
 import { formatDuration } from "../format";
 import { DpiStagesCard } from "../cards/dpi-stages/DpiStagesCard";
 import { isZaopin } from "../models";
@@ -83,6 +84,10 @@ export function SensorPage() {
       )}
     </SettingCard>
   );
+  // Where the top mode is chosen (an ATK's), it's one of the choices; a Zaopin enters its own by
+  // itself, so it shows as High performance until it's locked in.
+  const byChoice = !!mode?.cordedByChoice;
+  const modes = (mode?.modes ?? []).filter((m) => byChoice || m !== "corded");
   const sensorMode = mode && s.sensorMode && (
     <SettingCard
       icon={<Rocket20Regular />}
@@ -92,22 +97,52 @@ export function SensorPage() {
           ? "Always Corded while wired."
           : lockedCorded && mode.cordedFromHz !== undefined
             ? `Always Corded at ${hzText(mode.cordedFromHz)} and above.`
-            : "Low power saves battery. High performance tracks faster and uses more."
+            : modes.length > 2
+              ? "Higher modes track faster and use more battery."
+              : "Low power saves battery. High performance tracks faster and uses more."
       }
     >
       {lockedCorded ? (
         <Body1>Corded</Body1>
+      ) : modes.length > 2 ? (
+        // Three names are too wide to lay side by side.
+        <Dropdown
+          aria-label="Sensor mode"
+          value={sensorModeName(s.sensorMode, byChoice)}
+          selectedOptions={[s.sensorMode]}
+          onOptionSelect={(_, d) => d.optionValue && update({ sensorMode: d.optionValue as SensorMode })}
+          style={{ minWidth: 120 }}
+        >
+          {modes.map((m) => (
+            <Option key={m} value={m}>
+              {sensorModeName(m, byChoice)}
+            </Option>
+          ))}
+        </Dropdown>
       ) : (
         <Choice
           label="Sensor mode"
-          value={s.sensorMode === "corded" ? "hp" : s.sensorMode}
-          options={[
-            { value: "lp" as const, label: "Low power" },
-            { value: "hp" as const, label: "High performance" },
-          ].filter((o) => mode.modes.includes(o.value))}
+          value={!byChoice && s.sensorMode === "corded" ? "hp" : s.sensorMode}
+          options={modes.map((value) => ({ value, label: sensorModeName(value, byChoice) }))}
           onChange={(sensorMode) => update({ sensorMode })}
         />
       )}
+    </SettingCard>
+  );
+  const angle = s.sensorAngle;
+  const sensorAngle = caps.sensorAngleDeg !== undefined && angle && (
+    <SettingCard icon={<ArrowRotateClockwise20Regular />} title="Sensor angle" description="Turns the sensor's direction to match how you hold the mouse.">
+      {angle.on && (
+        <NumberStepper
+          label="Sensor angle"
+          unit="°"
+          min={-caps.sensorAngleDeg}
+          max={caps.sensorAngleDeg}
+          value={angle.degrees}
+          onChange={(degrees) => update({ sensorAngle: { on: true, degrees } })}
+        />
+      )}
+      <Switch checked={angle.on} onChange={(_, d) => update({ sensorAngle: { ...angle, on: d.checked } })} aria-label="Sensor angle" />
     </SettingCard>
   );
   const motionSync = caps.motionSync && s.motionSync !== undefined && (
@@ -238,7 +273,7 @@ export function SensorPage() {
       )}
     </SettingCard>
   );
-  const tracking = [dpi, polling, liftOff, sensorMode, motionSync, angleSnapping, ripple].some(Boolean);
+  const tracking = [dpi, polling, liftOff, sensorMode, sensorAngle, motionSync, angleSnapping, ripple].some(Boolean);
   const clicks = [debounce, peak].some(Boolean);
 
   return (
@@ -249,6 +284,7 @@ export function SensorPage() {
           {polling}
           {liftOff}
           {sensorMode}
+          {sensorAngle}
           {motionSync}
           {angleSnapping}
           {ripple}

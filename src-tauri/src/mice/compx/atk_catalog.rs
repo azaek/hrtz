@@ -1,7 +1,8 @@
 // Facts from ATK's own app, ATK HUB 3.2.32 (its CompX product list), read 2026-11-13: each
 // mouse's maker and model IDs (CID, MID), its name, sensor, whether it has a DPI light and whether
-// 0 ms debounce is offered, and the USB IDs of ATK's mice and receivers. Generated; regenerate
-// rather than edit (hrtz-notes ATK.md says how).
+// 0 ms debounce is offered, the firmware from which it has the sensor's top mode and the sensor
+// angle, and the USB IDs of ATK's mice and receivers. Generated; regenerate rather than edit
+// (hrtz-notes ATK.md says how).
 
 //! ATK's mice hrtz runs, by CID and MID, each with its sensor: what hrtz offers on each sensor is
 //! in `atk::Sensor`. A name ATK gives more than one sensor carries its sensor.
@@ -18,6 +19,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -29,6 +32,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -40,6 +45,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -51,6 +58,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -62,6 +71,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: false,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -73,6 +84,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -84,6 +97,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -95,6 +110,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -106,6 +123,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -117,6 +136,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -128,6 +149,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -139,6 +162,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -150,6 +175,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: false,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -161,6 +188,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -172,6 +201,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -183,6 +214,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -194,6 +227,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -205,6 +240,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -216,6 +253,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -227,6 +266,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -238,6 +279,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -249,6 +292,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -260,6 +305,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -271,6 +318,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -282,6 +331,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -293,6 +344,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -304,6 +357,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -315,6 +370,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -326,6 +383,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -337,6 +396,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -348,6 +409,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: false,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -359,6 +422,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: false,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -370,6 +435,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -381,6 +448,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -392,6 +461,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -403,6 +474,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -414,6 +487,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -425,6 +500,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -436,6 +513,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -447,6 +526,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -458,6 +539,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -469,6 +552,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -480,6 +565,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -491,6 +578,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -502,6 +591,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -513,6 +604,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -524,6 +617,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -535,6 +630,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -546,6 +643,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -557,6 +656,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -568,6 +669,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -579,6 +682,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -590,6 +695,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -601,6 +708,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -612,6 +721,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -623,6 +734,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -634,6 +747,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -645,6 +760,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -656,6 +773,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -667,6 +786,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -678,6 +799,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -689,6 +812,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(0),
+        angle_from: Some(0),
         tested: false,
     },
     Model {
@@ -700,6 +825,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -711,6 +838,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -722,6 +851,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -733,6 +864,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -744,6 +877,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -755,6 +890,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -766,6 +903,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -777,6 +916,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -788,6 +929,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -799,6 +942,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -810,6 +955,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -821,6 +968,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -832,6 +981,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -843,6 +994,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -854,6 +1007,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -865,6 +1020,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -876,6 +1033,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -887,6 +1046,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -898,6 +1059,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -909,6 +1072,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -920,6 +1085,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -931,6 +1098,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -942,6 +1111,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -953,6 +1124,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -964,6 +1137,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -975,6 +1150,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -986,6 +1163,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -997,6 +1176,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1008,6 +1189,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1019,6 +1202,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1030,6 +1215,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1041,6 +1228,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1052,6 +1241,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1063,6 +1254,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1074,6 +1267,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1085,6 +1280,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1096,6 +1293,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1107,6 +1306,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1118,6 +1319,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1129,6 +1332,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1140,6 +1345,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1151,6 +1358,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1162,6 +1371,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1173,6 +1384,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1184,6 +1397,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1195,6 +1410,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1206,6 +1423,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1217,6 +1436,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1228,6 +1449,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1239,6 +1462,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1250,6 +1475,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1261,6 +1488,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: Some(130),
         tested: false,
     },
     Model {
@@ -1272,6 +1501,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1283,6 +1514,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: Some(130),
         tested: false,
     },
     Model {
@@ -1294,6 +1527,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1305,6 +1540,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(177),
+        angle_from: Some(177),
         tested: false,
     },
     Model {
@@ -1316,6 +1553,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1327,6 +1566,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1338,6 +1579,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1349,6 +1592,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1360,6 +1605,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1371,6 +1618,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1382,6 +1631,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1393,6 +1644,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1404,6 +1657,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1415,6 +1670,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1426,6 +1683,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1437,6 +1696,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1448,6 +1709,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(177),
+        angle_from: Some(177),
         tested: false,
     },
     Model {
@@ -1459,6 +1722,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1470,6 +1735,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1481,6 +1748,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1492,6 +1761,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1503,6 +1774,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(300),
+        angle_from: Some(300),
         tested: false,
     },
     Model {
@@ -1514,6 +1787,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1525,6 +1800,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(177),
+        angle_from: Some(177),
         tested: false,
     },
     Model {
@@ -1536,6 +1813,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1547,6 +1826,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1558,6 +1839,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1569,6 +1852,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1580,6 +1865,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1591,6 +1878,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1602,6 +1891,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1613,6 +1904,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1624,6 +1917,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1635,6 +1930,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: true,
     },
     Model {
@@ -1646,6 +1943,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1657,6 +1956,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1668,6 +1969,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1679,6 +1982,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1690,6 +1995,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1701,6 +2008,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1712,6 +2021,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: false,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1723,6 +2034,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: false,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1734,6 +2047,8 @@ pub const MODELS: [Model; 160] = [
         light: false,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1745,6 +2060,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: Some(100),
+        angle_from: Some(100),
         tested: false,
     },
     Model {
@@ -1756,6 +2073,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
     Model {
@@ -1767,6 +2086,8 @@ pub const MODELS: [Model; 160] = [
         light: true,
         zero_debounce: true,
         bottom_button: true,
+        corded_from: None,
+        angle_from: None,
         tested: false,
     },
 ];
