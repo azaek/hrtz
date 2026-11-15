@@ -320,7 +320,11 @@ export function verdictOf(p: Part): Verdict {
   if (p.known) {
     return linesOf(p).some((l) => l.ok === false)
       ? { tone: "warn", title: "Some things didn't work", detail: "The report shows which, and that's what we need to fix them." }
-      : { tone: "good", title: "Everything checked works", detail: "hrtz read the mouse, measured it and changed a setting, and all of it held." };
+      : {
+          tone: "good",
+          title: "Everything checked works",
+          detail: `hrtz read the mouse, measured it and changed ${(p.checks?.writes?.length ?? 0) > 1 ? "each setting it offers" : "a setting"}, and all of it held.`,
+        };
   }
   if (!whole(p)) {
     return p.read?.fellAsleep

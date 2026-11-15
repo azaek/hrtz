@@ -212,6 +212,8 @@ static ON_MAIN: AtomicBool = AtomicBool::new(false);
 static HOLD_WANTED: AtomicBool = AtomicBool::new(false);
 /// The pointer hold (FREE, SETTLING, HOLDING), and where it's held.
 static HOLD: AtomicU8 = AtomicU8::new(FREE);
+/// Game mode's screen is up.
+static CAPTURING: AtomicBool = AtomicBool::new(false);
 static HELD_X: AtomicI32 = AtomicI32::new(0);
 static HELD_Y: AtomicI32 = AtomicI32::new(0);
 /// Reports Windows marked as for hrtz in front, since settling began.
@@ -523,12 +525,20 @@ fn let_go() {
 /// marked as for hrtz in front.
 pub fn capture_started() {
     reset_run();
+    CAPTURING.store(true, Ordering::SeqCst);
+    settle();
+}
+
+/// The pointer waits to be held: once a report comes marked as for hrtz in front, the reader holds
+/// it still.
+fn settle() {
     FRONT_REPORTS.store(0, Ordering::SeqCst);
     HOLD.store(SETTLING, Ordering::SeqCst);
 }
 
 /// Game mode's screen closed.
 pub fn capture_ended() {
+    CAPTURING.store(false, Ordering::SeqCst);
     if HOLD.load(Ordering::SeqCst) != FREE {
         let_go();
     }
@@ -550,6 +560,12 @@ pub fn set_hold(on: bool, seq: Option<u64>) {
     HOLD_WANTED.store(on, Ordering::SeqCst);
     if !on && HOLD.load(Ordering::SeqCst) != FREE {
         let_go();
+    }
+    // Asked for again while game mode's screen is still up (the mouse check counts twice, with
+    // its buttons and changes in between): taken again. Only the screen opening took it before,
+    // so a second count there never counted.
+    if on && CAPTURING.load(Ordering::SeqCst) && HOLD.load(Ordering::SeqCst) == FREE {
+        settle();
     }
 }
 
