@@ -96,8 +96,8 @@ pub fn capabilities(mid: u8, device_type: u8) -> Capabilities {
     let (wired, max_polling_hz) = link(device_type);
     let lod = match sensor {
         Some(Sensor::Paw3311) => None,
-        Some(Sensor::Paw3950) => Some(vec![Lod::Low, Lod::Mid, Lod::High]),
-        _ => Some(vec![Lod::Mid, Lod::High]),
+        Some(Sensor::Paw3950) => Some(vec![Lod::LOW, Lod::MID, Lod::HIGH]),
+        _ => Some(vec![Lod::MID, Lod::HIGH]),
     };
     let max_dpi = sensor.map(|s| match s {
         Sensor::Paw3395 => 26000,
@@ -199,7 +199,7 @@ mod tests {
         let caps = capabilities(10, 0);
         assert!(caps.dpi.is_none() && caps.sensor_mode.is_none());
         assert!(!caps.motion_sync && !caps.angle_snapping && !caps.ripple_control);
-        assert_eq!(caps.lod, Some(vec![Lod::Mid, Lod::High]));
+        assert_eq!(caps.lod, Some(vec![Lod::MID, Lod::HIGH]));
         assert!(caps.polling.is_some() && caps.debounce_ms.is_some() && caps.buttons.is_some());
         assert_eq!(model_name(10), "Zaopin mouse");
         // The ones it knows keep theirs.

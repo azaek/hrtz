@@ -43,13 +43,22 @@ export interface Catalog {
   maker: string;
 }
 
-export const CATALOGS: Record<"compx" | "hidpp", Catalog> = {
+export const CATALOGS: Record<"compx" | "atk" | "hidpp", Catalog> = {
   compx: {
     fns: ["mouse", "dpi", "scroll", "keys", "media", "fire", "pollingSwitch", "disabled"],
     dpi: ["cycle", "up", "down", "hold"],
     scroll: ["up", "down", "left", "right"],
     oneKey: false,
     maker: "Zaopin's app",
+  },
+  // ATK's, VXE's and MAD's mice keep their buttons as a Zaopin does, with the same codes. ATK's
+  // app sets no hold-for-DPI, so how one would be kept isn't known: it's left out.
+  atk: {
+    fns: ["mouse", "dpi", "scroll", "keys", "media", "fire", "pollingSwitch", "disabled"],
+    dpi: ["cycle", "up", "down"],
+    scroll: ["up", "down", "left", "right"],
+    oneKey: false,
+    maker: "ATK's app",
   },
   // OpenMouse's records (`hidpp/buttons.rs`): no rapid fire, polling switch or hold-for-DPI, and the
   // wheel tilts but doesn't scroll from a button.

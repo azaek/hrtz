@@ -6,7 +6,7 @@
 //! ATK's mice on CompX's vendor channel (ATK, VXE and MAD, in ATK's own app). They use a Zaopin's
 //! packets, commands and memory addresses, and say who they are with their own command (0x10).
 //! What's offered is what ATK's own app (ATK HUB 3.2.32) offers and keeps as a Zaopin does, with the
-//! values it offers, and the four onboard profiles; the rest (sleep, the sensor mode, the buttons)
+//! values it offers, its buttons and the four onboard profiles; the rest (the sensor mode, macros)
 //! is kept differently or isn't known yet, so it's left as the mouse holds it. The models are in
 //! `atk_catalog`, every named one in ATK's app; what's offered on each sensor is `Sensor`'s. Another
 //! ATK, or one hrtz can't name, is left alone.
@@ -78,18 +78,47 @@ impl Sensor {
         }
     }
 
-    /// Lift-off, where ATK's app offers it as a Zaopin does: 1 or 2 mm (codes 1 and 2), and 0.7 mm
-    /// (3) on a PAW3950. A PAW3950 Ultra's and a PAW3955's run 0.7 to 1.7 mm in eleven steps (codes
-    /// 1 to 11), which hrtz's choices don't hold yet; a PAW3311's and a PAW3315's aren't offered.
-    fn lod(self) -> Option<Vec<Lod>> {
+    /// The lift-off distances ATK's app offers on this sensor, lowest first, each with its code at
+    /// 0x0A: 1 or 2 mm (codes 1 and 2) as a Zaopin; 0.7 mm too (3) on a PAW3950; and on a PAW3950
+    /// Ultra and a PAW3955, 0.7 to 1.7 mm a tenth at a time (codes 1 to 11, a slider there). None
+    /// on a PAW3311 or a PAW3315.
+    fn lod_codes(self) -> Vec<(Lod, u8)> {
         match self {
             Sensor::Paw3395 | Sensor::Paw3395Ultra | Sensor::Paw3395Se | Sensor::Core26k => {
-                Some(vec![Lod::Mid, Lod::High])
+                vec![(Lod::MID, 1), (Lod::HIGH, 2)]
             }
-            Sensor::Paw3950 | Sensor::Paw3950Dm => Some(vec![Lod::Low, Lod::Mid, Lod::High]),
-            Sensor::Paw3950Ultra | Sensor::Paw3955 | Sensor::Paw3311 | Sensor::Paw3315 => None,
+            Sensor::Paw3950 | Sensor::Paw3950Dm => vec![(Lod::LOW, 3), (Lod::MID, 1), (Lod::HIGH, 2)],
+            Sensor::Paw3950Ultra | Sensor::Paw3955 => (0..11).map(|i| (Lod(7 + i), 1 + i)).collect(),
+            Sensor::Paw3311 | Sensor::Paw3315 => Vec::new(),
         }
     }
+
+    /// The lift-off distances offered, lowest first; none where ATK's app offers none.
+    fn lod(self) -> Option<Vec<Lod>> {
+        let codes = self.lod_codes();
+        (!codes.is_empty()).then(|| codes.into_iter().map(|(lod, _)| lod).collect())
+    }
+}
+
+/// The lift-off distance `image` holds, as `m`'s sensor keeps it; none where it isn't offered, its
+/// check byte is off, or its code isn't one of the sensor's.
+pub fn lod(m: &Model, image: &[u8]) -> Option<Lod> {
+    let code = p::group_valid(&image[LOD..LOD + 2]).then(|| image[LOD])?;
+    m.sensor.lod_codes().into_iter().find(|(_, c)| *c == code).map(|(lod, _)| lod)
+}
+
+/// `lod` as the lift-off distance, into `target`, as `m`'s sensor keeps it. One it doesn't offer
+/// is refused.
+pub fn put_lod(m: &Model, target: &mut [u8], lod: Lod) -> Result<(), String> {
+    let (_, code) = m
+        .sensor
+        .lod_codes()
+        .into_iter()
+        .find(|(l, _)| *l == lod)
+        .ok_or_else(|| format!("This mouse doesn't have a lift-off distance of {lod}."))?;
+    target[LOD] = code;
+    target[LOD + 1] = p::checksum(&[code]);
+    Ok(())
 }
 
 /// An ATK model hrtz runs.
@@ -105,6 +134,9 @@ pub struct Model {
     pub light: bool,
     /// 0 ms is among its debounce times.
     pub zero_debounce: bool,
+    /// It has a button underneath, the DPI button out of the box ("BottomButton" in ATK's app),
+    /// set like the five on top.
+    pub bottom_button: bool,
     /// Tried on the real mouse.
     pub tested: bool,
 }
@@ -190,6 +222,11 @@ pub const PROFILES: u8 = 4;
 /// choices, so hrtz offers these only where the two agree (2026-11-14).
 pub const R1_SLEEP_S: [u32; 8] = [30, 60, 120, 180, 300, 1200, 1500, 1800];
 const SLEEP: usize = 0xAD;
+/// Where ATK's app writes the sleep time a second time: the row of the sensor's own sleep, its
+/// switch (0xB5, set to 1), its time (0xB7, in 10 s steps) and the sensor mode (0xB9, written back
+/// as held). An owner's R1 PRO held the same 180 at 0xAD and at 0xB7 (2026-11-15).
+const SENSOR_SLEEP: usize = 0xB5;
+const LOD: usize = 0x0A;
 
 /// The models mouse-protocol gives the R1's sleep choices: its R1 family (R1, R1 PRO MAX, R1 SE+)
 /// and the two sharing the R1's settings (X1 Pro Max, A9 Plus NK). Any ATK met under CompX's
@@ -207,11 +244,14 @@ pub fn sleep_s(image: &[u8]) -> Option<u32> {
     p::group_valid(&image[SLEEP..SLEEP + 2]).then(|| image[SLEEP] as u32 * 10)
 }
 
-/// `seconds` as the sleep time, into `target` (in the row from 0xA9, which is written whole).
+/// `seconds` as the sleep time, into `target`, in both places ATK's app sets it: the row from
+/// 0xA9, and the sensor's own sleep from 0xB5, switched on. Each row is written whole.
 pub fn put_sleep(target: &mut [u8], seconds: u32) {
     let v = (seconds / 10) as u8;
-    target[SLEEP] = v;
-    target[SLEEP + 1] = p::checksum(&[v]);
+    for (at, value) in [(SLEEP, v), (SENSOR_SLEEP, 1), (SENSOR_SLEEP + 2, v)] {
+        target[at] = value;
+        target[at + 1] = p::checksum(&[value]);
+    }
 }
 
 /// What hrtz offers on an ATK, before it's tested: what ATK's app offers and keeps where a Zaopin
@@ -250,7 +290,33 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
         // ATK's app hears of a DPI-button press from the mouse (0x0A), as hrtz does; the driver
         // also reads the stage every second, in case this one doesn't say.
         dpi_button: true,
+        buttons: Some(buttons(m)),
         ..Capabilities::default()
+    }
+}
+
+/// The buttons ATK's app lists on every CompX mouse, by their place in its memory, kept as a
+/// Zaopin's are (four bytes each from 0x60, the same codes; a key combination in the slot from
+/// 0x100): the five on top, and the one underneath where the model has it.
+pub fn buttons(m: &Model) -> Vec<(u8, String)> {
+    let names = ["Left", "Right", "Wheel click", "Back", "Forward", "DPI"];
+    let count = if m.bottom_button { 6 } else { 5 };
+    names.iter().take(count).enumerate().map(|(i, n)| (i as u8, n.to_string())).collect()
+}
+
+const BUTTONS: usize = 0x60;
+const SHORTCUTS: usize = 0x100;
+const SHORTCUT_LEN: usize = 0x20;
+
+/// A button set to a key combination or a media key, as ATK's app writes it: the type alone, with
+/// what it sends in its slot. A Zaopin's app also keeps a media key's code beside the type, which
+/// ATK's doesn't.
+pub fn keys_as_atks_app(target: &mut [u8], m: &Model) {
+    for (i, _) in buttons(m) {
+        let b = BUTTONS + 4 * i as usize;
+        if target[b] == 5 && (target[b + 1], target[b + 2]) != (0, 0) && p::group_valid(&target[b..b + 4]) {
+            target[b + 1..b + 4].copy_from_slice(&[0, 0, p::checksum(&[5, 0, 0])]);
+        }
     }
 }
 
@@ -259,9 +325,10 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
 /// for a moment: the system row (polling rate, stage count, stage in use, and what ATK keeps beside
 /// them, written back as held); the lift-off distance, where offered; the DPI stages two at a
 /// time (a PAW3955's one at a time, from 0x1B00); on a model with a DPI light, the colours two at
-/// a time and the light; and the row from debounce to ripple control, which holds ATK's sleep time
-/// too (0xAD: set where it's offered, elsewhere written back as held). Nothing of the DPI where
-/// it isn't offered.
+/// a time and the light; the row from debounce to ripple control, which holds ATK's sleep time
+/// too (0xAD: set where it's offered, elsewhere written back as held); the sensor's own sleep
+/// from 0xB5, which ATK's app sets with the sleep time; and each button, with its key-combination
+/// slot in two packets of ten. Nothing of the DPI where it isn't offered.
 pub fn fields(m: &Model) -> Vec<(usize, usize)> {
     let stages = MAX_STAGES as usize;
     let mut f = vec![(0x00, 10)];
@@ -278,6 +345,13 @@ pub fn fields(m: &Model) -> Vec<(usize, usize)> {
         f.push((0x4C, 8));
     }
     f.push((0xA9, 10));
+    f.push((SENSOR_SLEEP, 6));
+    // Each button alone, and its key-combination slot in ATK's two packets of ten.
+    for (i, _) in buttons(m) {
+        f.push((BUTTONS + 4 * i as usize, 4));
+        let slot = SHORTCUTS + SHORTCUT_LEN * i as usize;
+        f.extend([(slot, 10), (slot + 10, 10)]);
+    }
     f
 }
 
@@ -334,6 +408,7 @@ pub fn offered(s: &Settings, m: &Model) -> Settings {
         motion_sync: s.motion_sync,
         angle_snapping: s.angle_snapping,
         ripple_control: s.ripple_control,
+        buttons: s.buttons.clone(),
         ..Settings::default()
     }
 }
@@ -399,13 +474,17 @@ mod tests {
         assert!(dpi.colors && dpi.light);
         assert_eq!(dpi.brightness_steps, Some(vec![1, 5, 10]));
         assert_eq!(dpi.speeds, Some(vec![1, 3, 5]));
-        assert_eq!(caps.lod, Some(vec![Lod::Mid, Lod::High]));
+        assert_eq!(caps.lod, Some(vec![Lod::MID, Lod::HIGH]));
         assert_eq!(caps.debounce_choices_ms, Some(vec![0, 1, 2, 4, 8, 15, 20]));
         assert!(caps.motion_sync && caps.angle_snapping && caps.ripple_control);
         assert_eq!(caps.profiles, Some(4));
         // Kept differently, or not known yet.
         assert!(caps.sensor_mode.is_none() && caps.sleep_times_s.is_none() && caps.peak_timeouts_s.is_none());
-        assert!(caps.buttons.is_none());
+        // Its buttons, as ATK's app lists them: the five on top and the one underneath.
+        let names: Vec<String> = caps.buttons.unwrap().into_iter().map(|(_, n)| n).collect();
+        assert_eq!(names, ["Left", "Right", "Wheel click", "Back", "Forward", "DPI"]);
+        // One without the button underneath (the MAD R) lists five.
+        assert_eq!(buttons(model(2, 49).unwrap()).len(), 5);
         assert!(!caps.long_range && !caps.pairing && !caps.factory_reset && !caps.backups);
         // On a cable at 1K, and a 1K receiver.
         let wired = capabilities(u2, link::WIRED_1K);
@@ -419,7 +498,7 @@ mod tests {
         let caps = capabilities(model(2, 36).unwrap(), link::DONGLE_1K);
         let dpi = caps.dpi.unwrap();
         assert_eq!((dpi.min, dpi.max), (50, 30000));
-        assert_eq!(caps.lod, Some(vec![Lod::Low, Lod::Mid, Lod::High]));
+        assert_eq!(caps.lod, Some(vec![Lod::LOW, Lod::MID, Lod::HIGH]));
         // The A9 Plus NK has no DPI light: its colours and light aren't offered or written.
         let a9 = model(2, 83).unwrap();
         let dpi = capabilities(a9, link::DONGLE_1K).dpi.unwrap();
@@ -440,10 +519,15 @@ mod tests {
         assert!(caps.dpi.is_none() && caps.lod.is_none());
         assert!(caps.polling.is_some() && caps.debounce_choices_ms.is_some() && caps.motion_sync);
         assert_eq!(caps.profiles, Some(4));
-        assert_eq!(fields(r1s), vec![(0x00, 10), (0xA9, 10)], "nothing of the DPI or lift-off is written");
-        // A PAW3950 Ultra's lift-off scale isn't one of hrtz's choices yet; its DPI is.
+        let f = fields(r1s);
+        assert_eq!(f[..3], [(0x00, 10), (0xA9, 10), (0xB5, 6)], "nothing of the DPI or lift-off is written");
+        // Then each button, and its key-combination slot in two packets.
+        assert_eq!(f[3..6], [(0x60, 4), (0x100, 10), (0x10A, 10)]);
+        assert_eq!(f.len(), 3 + 3 * 6);
+        // A PAW3950 Ultra's lift-off runs 0.7 to 1.7 mm a tenth at a time, as ATK's app has it.
         let u2u = capabilities(model(2, 124).unwrap(), link::NEARLINK);
-        assert!(u2u.lod.is_none() && u2u.dpi.is_some_and(|d| (d.min, d.max) == (50, 30000)));
+        assert_eq!(u2u.lod, Some((7..=17).map(Lod).collect()));
+        assert!(u2u.dpi.is_some_and(|d| (d.min, d.max) == (50, 30000)));
         // A PAW3955's stages are written one at a time from 0x1B00, and its memory goes that far.
         let p3955 = MODELS.iter().find(|m| m.sensor == Sensor::Paw3955).unwrap();
         assert!(fields(p3955).contains(&(0x1B00, 6)) && !fields(p3955).contains(&(0x0C, 8)));

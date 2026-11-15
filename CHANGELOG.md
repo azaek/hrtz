@@ -6,8 +6,15 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 
 ## Unreleased
 
+### New
+- Buttons on ATK, VXE and MAD mice: set each to a mouse button, a DPI change, a wheel scroll or tilt, a key combination, a media key, rapid fire, the polling rate switch, or nothing, in each of the four profiles. Not tried on a real mouse yet: your mouse's check now asks for each button.
+- Lift-off distance on mice with a PAW3950 Ultra or PAW3955 sensor, from 0.7 to 1.7 mm in steps of 0.1, as ATK's app has it. Not tried on a real mouse yet.
+
 ### Improved
 - The VXE R1 PRO with a PAW3950 Ultra sensor is now tested, the first of ATK's mice to be. Its owner's check passed on its 1K receiver and its cable: its DPI stages, their colours and the DPI light, polling rate, debounce, motion sync, angle snapping, ripple control, sleep timer, the DPI button and the onboard profiles.
+
+### Fixed
+- The sleep timer on ATK's and VXE's mice is now set in both places ATK's own app sets it. hrtz set one, which may not have changed when the mouse really sleeps.
 
 ## 0.5.2 — 2026-11-15
 

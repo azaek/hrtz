@@ -1,4 +1,4 @@
-import type { Capabilities, Settings } from "@/api";
+import { lodName, type Capabilities, type Settings } from "@/api";
 import { dpiRange, stepNear } from "@/dpi";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -84,7 +84,7 @@ export function changesFor(s: Settings, caps: Capabilities): Change[] {
   }
   if (caps.lod?.length && s.lod) {
     const lod = other(caps.lod, s.lod);
-    if (lod) add("lod", "Lift-off distance", s.lod, lod, { lod }, (x) => x.lod);
+    if (lod) add("lod", "Lift-off distance", lodName(s.lod), lodName(lod), { lod }, (x) => x.lod);
   }
   if (caps.sensorMode && s.sensorMode) {
     const sensorMode = other(caps.sensorMode.modes, s.sensorMode);

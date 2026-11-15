@@ -524,6 +524,13 @@ fn a_report_file_makes_a_mouse() {
         let back = r.w.apply_settings(&was).map(dpi_of);
         println!("stage {} at {from} DPI: changed, it holds {kept:?}; put back, it holds {back:?}", i + 1);
     }
+    // Its settings and what hrtz offers on it, as the page gets them (HRTZ_STATE): what the front
+    // end's `changesFor` plans the check's changes from.
+    if let Ok(out) = std::env::var("HRTZ_STATE") {
+        let s = r.state();
+        let state = serde_json::json!({ "settings": s.settings, "capabilities": s.capabilities });
+        std::fs::write(out, serde_json::to_string(&state).unwrap()).unwrap();
+    }
     // Every change the check would try on it (HRTZ_PLAN, from the front end's `changesFor`): each
     // sent as the check sends it, then the settings it started with.
     let Ok(plan) = std::env::var("HRTZ_PLAN") else { return };
@@ -958,7 +965,11 @@ mod atk_mice {
     use crate::mice::compx::driver::Maker;
     use crate::mice::compx::sim::atk_sample_image;
     use crate::mice::compx::{atk_catalog, atk_dpi};
-    use crate::mice::model::{DpiLight, LightEffect, Lod};
+    use crate::mice::model::{ButtonAction, DpiAction, DpiLight, LightEffect, Lod, MouseButton, ScrollDirection};
+
+    fn sim_image(m: &SimMouse) -> Vec<u8> {
+        m.image().to_vec()
+    }
 
     #[test]
     fn a_u2_plus_is_met_by_asking_who_it_is_and_read_as_atks_app_reads_it() {
@@ -981,25 +992,29 @@ mod atk_mice {
         assert_eq!((st.dpi_stage_count, st.dpi_stage, st.dpi()), (Some(4), Some(1), Some(800)));
         assert_eq!(st.stages.as_ref().unwrap()[0].color, "#FF4040");
         assert_eq!(st.dpi_light, Some(DpiLight { effect: LightEffect::Steady, brightness: 5, speed: 3 }));
-        assert_eq!((st.lod, st.debounce_ms), (Some(Lod::Mid), Some(2)));
+        assert_eq!((st.lod, st.debounce_ms), (Some(Lod::MID), Some(2)));
         assert_eq!((st.motion_sync, st.angle_snapping, st.ripple_control), (Some(false), Some(false), Some(false)));
-        assert!(
-            st.sleep_s.is_none() && st.sensor_mode.is_none() && st.peak_timeout_s.is_none() && st.buttons.is_none()
-        );
+        assert!(st.sleep_s.is_none() && st.sensor_mode.is_none() && st.peak_timeout_s.is_none());
+        // Its buttons as they come: the five on top, and the DPI button underneath.
+        let buttons = st.buttons.unwrap();
+        assert_eq!(buttons[0], ButtonAction::Mouse { button: MouseButton::Left });
+        assert_eq!(buttons[4], ButtonAction::Mouse { button: MouseButton::Forward });
+        assert_eq!(buttons[5], ButtonAction::Dpi { action: DpiAction::Cycle });
 
         // Its own battery reading, with no millivolts: its length says two bytes.
         let b = s.battery.unwrap();
         assert_eq!((b.raw_level, b.millivolts), (100, 0));
 
-        // Linked?, how it's connected, who it is, its firmware, its profile, the settings region,
-        // its battery, as ATK's app asks: no "an app is listening", no long range.
+        // Linked?, how it's connected, who it is, its firmware, its profile, its settings, buttons
+        // and key-combination slots, its battery, as ATK's app asks: no "an app is listening", no
+        // long range.
         let m = r.mouse.lock();
         let commands = m.commands_since(0);
         assert_eq!(commands[..4], [cmd::ONLINE, cmd::HANDSHAKE, atk::CID_MID, cmd::ONLINE]);
         let asked =
             [cmd::ONLINE, cmd::HANDSHAKE, atk::CID_MID, cmd::VERSION, cmd::GET_PROFILE, cmd::READ_FLASH, cmd::BATTERY];
         assert!(commands.iter().all(|c| asked.contains(c)), "{commands:02X?}");
-        assert_eq!(m.reads_since(0).iter().map(|x| x.1).sum::<usize>(), p::CONFIG_REGION);
+        assert_eq!(m.reads_since(0).iter().map(|x| x.1).sum::<usize>(), LOADED_REGION);
     }
 
     #[test]
@@ -1147,7 +1162,40 @@ mod atk_mice {
             (now.polling_hz, now.debounce_ms, now.motion_sync, now.sleep_s),
             (Some(500), Some(8), Some(true), Some(300))
         );
-        assert_eq!(r.mouse.lock().image()[0xB7..0xB9], [180, checksum(&[180])], "left as it was");
+        // The sleep time is ATK's own setting there, and goes where ATK's app writes it: 0xAD,
+        // and the sensor's own sleep at 0xB7, switched on at 0xB5.
+        let m = r.mouse.lock();
+        assert_eq!(m.image()[0xAD..0xAF], [30, checksum(&[30])]);
+        assert_eq!(m.image()[0xB5..0xB9], [1, checksum(&[1]), 30, checksum(&[30])]);
+        assert_eq!(m.image()[0xB9..0xBB], [2, checksum(&[2])], "its sensor mode written back as held");
+    }
+
+    #[test]
+    fn a_paw3950_ultras_lift_off_is_one_of_eleven() {
+        // His reads 1.0 mm: code 4 of 0.7 to 1.7 mm, where a Zaopin has three codes.
+        let mut his = his_r1_pro();
+        his.put_pair(0x0A, 4);
+        let mut r = Rig::connected(his);
+        let lods = r.state().capabilities.unwrap().lod.unwrap();
+        assert_eq!((lods.len(), lods[0], lods[10]), (11, Lod::LOW, Lod(17)));
+        assert_eq!(r.settings().lod, Some(Lod::MID));
+        let mut next = r.settings();
+        next.lod = Some(Lod(13));
+        let (req, _) = r.mark();
+        assert_eq!(r.w.apply_settings(&next).unwrap().lod, Some(Lod(13)));
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0x0A], "its own pair, alone");
+        assert_eq!(m.image()[0x0A..0x0C], [7, checksum(&[7])], "1.3 mm is code 7");
+        drop(m);
+        // One it doesn't have is refused; a PAW3395's two stay a Zaopin's codes.
+        next.lod = Some(Lod::HIGH);
+        assert!(r.w.apply_settings(&next).is_err());
+        let mut r = Rig::connected(SimMouse::u2_plus());
+        assert_eq!(r.state().capabilities.unwrap().lod, Some(vec![Lod::MID, Lod::HIGH]));
+        let mut next = r.settings();
+        next.lod = Some(Lod::HIGH);
+        r.w.apply_settings(&next).unwrap();
+        assert_eq!(r.mouse.lock().image()[0x0A], 2);
     }
 
     #[test]
@@ -1324,15 +1372,56 @@ mod atk_mice {
         let before = r.mouse.lock().image().to_vec();
         let mut next = image::decode(&before);
         // What a Zaopin has and an ATK isn't offered, changed: sleep, the sensor mode, peak
-        // performance, a button. Only the polling rate, offered, is written.
+        // performance. Only the polling rate, offered, is written.
         next.polling_hz = Some(250);
         next.sleep_s = Some(60);
         next.sensor_mode = Some(crate::mice::model::SensorMode::Hp);
         next.peak_timeout_enabled = Some(true);
-        next.buttons.as_mut().unwrap()[0] = crate::mice::model::ButtonAction::Disabled;
         let (req, _) = r.mark();
         r.w.apply_settings(&next).unwrap();
         assert_eq!(r.mouse.lock().writes_since(req), vec![0x00]);
+    }
+
+    #[test]
+    fn a_button_is_set_alone_as_atks_app_sets_it() {
+        let mut r = Rig::connected(his_r1_pro());
+        let was = r.settings();
+        // Back becomes a wheel tilt: its four bytes at 0x6C, nothing else.
+        let mut next = was.clone();
+        next.buttons.as_mut().unwrap()[3] = ButtonAction::Scroll { direction: ScrollDirection::Left };
+        let (req, _) = r.mark();
+        assert_eq!(r.w.apply_settings(&next).unwrap().buttons, next.buttons);
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0x6C]);
+        assert_eq!(m.image()[0x6C..0x70], [3, 1, 0, checksum(&[3, 1, 0])]);
+        drop(m);
+        // Forward becomes Ctrl+C: the type alone at 0x70, and what it sends in its slot, in ATK's
+        // first packet of ten (two keys down and up fit it... the second packet takes the rest).
+        let mut next = was.clone();
+        next.buttons.as_mut().unwrap()[4] = ButtonAction::Keys { modifiers: 0x01, keys: vec![0x06] };
+        let (req, _) = r.mark();
+        assert_eq!(r.w.apply_settings(&next).unwrap().buttons, next.buttons);
+        let m = r.mouse.lock();
+        // (Back goes to what it was with it: this starts from the settings as they came.)
+        assert_eq!(m.writes_since(req), vec![0x6C, 0x70, 0x180, 0x18A]);
+        assert_eq!(m.image()[0x70..0x74], [5, 0, 0, checksum(&[5, 0, 0])]);
+        assert_eq!(m.image()[0x180], 4, "four events: two keys down, two up");
+        drop(m);
+        // A media key: ATK's app keeps its code only in the slot, and it reads back as one.
+        let mut next = was.clone();
+        next.buttons.as_mut().unwrap()[4] = ButtonAction::Media { usage: 0x00CD };
+        assert_eq!(r.w.apply_settings(&next).unwrap().buttons, next.buttons);
+        assert_eq!(r.mouse.lock().image()[0x70..0x74], [5, 0, 0, checksum(&[5, 0, 0])]);
+        // Back as it was: its memory too.
+        let before = sim_image(&his_r1_pro());
+        assert_eq!(r.w.apply_settings(&was).unwrap().buttons, was.buttons);
+        assert!(r.mouse.lock().image()[..0x100] == before[..0x100], "the buttons and settings as they were");
+        // A button that holds a DPI isn't one ATK's app sets.
+        let mut next = was.clone();
+        next.buttons.as_mut().unwrap()[3] = ButtonAction::DpiLock { dpi: 800 };
+        assert!(r.w.apply_settings(&next).is_err());
+        // What ATK's app set that hrtz doesn't know (its ninth slot here) is kept as it is.
+        assert_eq!(was.buttons.as_ref().unwrap()[9], ButtonAction::Raw { code: 8, p1: 4, p2: 0 });
     }
 
     #[test]
@@ -1380,17 +1469,17 @@ mod atk_mice {
     fn lift_off_and_a_stage_colour_each_write_their_own_field() {
         let mut r = Rig::connected(SimMouse::u2_plus());
         let mut next = r.settings();
-        next.lod = Some(Lod::High);
+        next.lod = Some(Lod::HIGH);
         next.stages.as_mut().unwrap()[1].color = "#123456".into();
         let (req, _) = r.mark();
         let applied = r.w.apply_settings(&next).unwrap();
-        assert_eq!(applied.lod, Some(Lod::High));
+        assert_eq!(applied.lod, Some(Lod::HIGH));
         assert_eq!(applied.stages.unwrap()[1].color, "#123456");
         // The colours two stages at a time, as ATK's app writes them.
         assert_eq!(r.mouse.lock().writes_since(req), vec![0x0A, 0x2C]);
         // 0.7 mm is a PAW3950's.
         let mut next = r.settings();
-        next.lod = Some(Lod::Low);
+        next.lod = Some(Lod::LOW);
         let (req, _) = r.mark();
         assert!(r.w.apply_settings(&next).unwrap_err().to_string().contains("lift-off"));
         assert!(r.mouse.lock().writes_since(req).is_empty());
@@ -1460,11 +1549,11 @@ mod atk_mice {
         let m = r.mouse.lock();
         assert_eq!(m.active, 1);
         // Unanswered, then asked (after the engine's "is it awake?"); the new profile's settings,
-        // not its slots.
+        // then its key-combination slots.
         let c = m.commands_since(req);
         let at = c.iter().position(|x| *x == cmd::SET_PROFILE).expect("switched");
         assert_eq!(c[at..at + 2], [cmd::SET_PROFILE, cmd::GET_PROFILE], "{c:02X?}");
-        assert_eq!(m.reads_since(req).iter().map(|x| x.1).sum::<usize>(), p::CONFIG_REGION);
+        assert_eq!(m.reads_since(req).iter().map(|x| x.1).sum::<usize>(), LOADED_REGION);
         drop(m);
         assert!(matches!(r.events_since(seen)[..], [DeviceEvent::Profile { index: 1 }]));
         assert!(r.w.set_profile(4).is_err(), "four at most");

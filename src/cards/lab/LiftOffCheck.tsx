@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { Button, Caption1, Link } from "@fluentui/react-components";
-import type { CaptureScreen, Lod } from "@/api";
+import { lodName, type CaptureScreen, type Lod } from "@/api";
 import { StepCard } from "@/kit";
 import { useStore } from "@/store";
-import { LOD_NAME, RETURNS, useLiftOff } from "./liftoff";
+import { RETURNS, useLiftOff } from "./liftoff";
 import { LodTable, Motion, useCapture, useHold } from "./parts";
 import { useReport, type TestProps } from "./result";
 
@@ -15,14 +15,14 @@ const SLIDE = "Slide slowly about 10 cm to the right, then lift the mouse, carry
 /** Game mode's screen for a setting: what to do, and how far along. `before` is the setting that
  *  lost track, when this isn't the first. */
 function screenFor(lod: Lod, ready: boolean, count: number, before: Lod | null): CaptureScreen {
-  const name = LOD_NAME[lod];
+  const name = lodName(lod);
   return {
     title: ready ? "Slide, lift and carry back" : `Setting ${name}…`,
     detail: SLIDE,
     figure: ready ? `${count} of ${RETURNS}` : "–",
     figureLabel: ready ? `returns at ${name}` : "",
     progress: ready ? count / RETURNS : 0,
-    progressLabel: before ? `${LOD_NAME[before]} lost track on your pad, so ${name} now` : `Starting at ${name}, the lowest`,
+    progressLabel: before ? `${lodName(before)} lost track on your pad, so ${name} now` : `Starting at ${name}, the lowest`,
   };
 }
 
@@ -61,8 +61,8 @@ export function LiftOffCheck({ onResult }: TestProps) {
   if (t.lod)
     return (
       <StepCard
-        label={before ? `${LOD_NAME[before]} lost track · trying ${LOD_NAME[t.lod]}` : `Trying ${LOD_NAME[t.lod]}, the lowest`}
-        title={t.ready ? "Slide, lift and carry back" : `Setting ${LOD_NAME[t.lod]}…`}
+        label={before ? `${lodName(before)} lost track · trying ${lodName(t.lod)}` : `Trying ${lodName(t.lod)}, the lowest`}
+        title={t.ready ? "Slide, lift and carry back" : `Setting ${lodName(t.lod)}…`}
         detail={SLIDE}
         art={<Motion kind="return" />}
         status={<span style={soft}>Running full screen. Press Esc to stop.</span>}
@@ -80,7 +80,7 @@ export function LiftOffCheck({ onResult }: TestProps) {
         <div className="flex min-h-8 items-center gap-3">
           {t.current !== t.verdict.lod ? (
             <Button appearance="primary" disabled={!online} onClick={() => t.use(t.verdict!.lod)}>
-              Use {LOD_NAME[t.verdict.lod]}
+              Use {lodName(t.verdict.lod)}
             </Button>
           ) : (
             <Caption1 style={muted}>In use</Caption1>
@@ -96,7 +96,7 @@ export function LiftOffCheck({ onResult }: TestProps) {
     <StepCard
       label="About 20 seconds"
       title="Find the lift-off that suits your pad"
-      detail={`Starts at ${LOD_NAME[t.lods[0]]}. Slide, lift and carry the mouse back ${RETURNS} times. If the sensor loses track, the next setting is tried.`}
+      detail={`Starts at ${lodName(t.lods[0])}. Slide, lift and carry the mouse back ${RETURNS} times. If the sensor loses track, the next setting is tried.`}
       art={<Motion kind="return" />}
       status={stopped ? <span style={muted}>{stopped}</span> : undefined}
       actions={

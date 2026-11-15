@@ -241,9 +241,9 @@ fn decode_fields(f: &[u8], method: Method) -> Fields {
         stages,
         dpi_light: decode_light(f),
         lod: match pair(f, addr::LOD) {
-            Some(3) => Lod::Low,
-            Some(2) => Lod::High,
-            _ => Lod::Mid,
+            Some(3) => Lod::LOW,
+            Some(2) => Lod::HIGH,
+            _ => Lod::MID,
         },
         sensor_mode: match pair(f, addr::SENSOR_MODE) {
             Some(1) => SensorMode::Hp,
@@ -306,6 +306,8 @@ fn decode_keys(f: &[u8], i: usize) -> ButtonAction {
             match (down, kind) {
                 (true, 0) => modifiers |= e[1],
                 (true, 1) => keys.push(e[1]),
+                // A media key whose code is only here: ATK's app keeps none beside the type.
+                (true, 2) => return ButtonAction::Media { usage: u16::from_le_bytes([e[1], e[2]]) },
                 _ => {}
             }
         }
@@ -533,10 +535,12 @@ fn encode_fields(s: &Fields, image: &[u8], method: Method) -> Vec<u8> {
     pair_if(
         s.lod != old.lod,
         addr::LOD,
+        // A Zaopin's three. One it doesn't list was refused (`validate_fields`); an ATK's own
+        // codes are its driver's (`atk::Sensor::lod_code`).
         match s.lod {
-            Lod::Low => 3,
-            Lod::Mid => 1,
-            Lod::High => 2,
+            Lod::LOW => 3,
+            Lod::HIGH => 2,
+            _ => 1,
         },
     );
     pair_if(
@@ -689,7 +693,7 @@ mod tests {
         assert_eq!(s.stages[0].color, "#FF4040");
         assert_eq!(s.stages[6].dpi, 26000);
         assert_eq!(s.stages[7].dpi, 30000);
-        assert_eq!(s.lod, Lod::Mid);
+        assert_eq!(s.lod, Lod::MID);
         assert_eq!(s.sensor_mode, SensorMode::Hp);
         assert_eq!(s.debounce_ms, 6);
         assert!(s.motion_sync && !s.angle_snapping && s.ripple_control);
@@ -866,7 +870,7 @@ mod tests {
         // The Z11 has no lift-off setting.
         let z11 = super::super::models::capabilities(9, 2);
         let mut next = s.clone();
-        next.lod = if next.lod == Lod::High { Lod::Mid } else { Lod::High };
+        next.lod = if next.lod == Lod::HIGH { Lod::MID } else { Lod::HIGH };
         assert!(validate_fields(&next, &s, &z11, Method::Step50).is_err());
         // What it offers is fine.
         assert!(!refused(&|n| n.debounce_ms = 4));

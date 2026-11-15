@@ -4,14 +4,42 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Lod {
-    #[serde(rename = "0.7mm")]
-    Low,
-    #[serde(rename = "1mm")]
-    Mid,
-    #[serde(rename = "2mm")]
-    High,
+/// A lift-off distance, in tenths of a millimetre: a mouse lists the ones it has
+/// (`Capabilities::lod`). To the page it's "0.7mm", "1mm", "1.3mm": what was kept before a mouse
+/// could have more than three.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Lod(pub u8);
+
+impl Lod {
+    pub const LOW: Lod = Lod(7);
+    pub const MID: Lod = Lod(10);
+    pub const HIGH: Lod = Lod(20);
+}
+
+impl std::fmt::Display for Lod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (self.0 / 10, self.0 % 10) {
+            (whole, 0) => write!(f, "{whole}mm"),
+            (whole, tenth) => write!(f, "{whole}.{tenth}mm"),
+        }
+    }
+}
+
+impl Serialize for Lod {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for Lod {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(d)?;
+        let tenths = text.strip_suffix("mm").and_then(|mm| mm.trim().parse::<f32>().ok()).map(|mm| (mm * 10.0).round());
+        match tenths {
+            Some(t) if (1.0..=255.0).contains(&t) => Ok(Lod(t as u8)),
+            _ => Err(serde::de::Error::custom(format!("{text} isn't a lift-off distance"))),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]

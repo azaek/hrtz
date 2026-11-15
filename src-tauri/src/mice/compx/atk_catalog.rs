@@ -17,6 +17,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -27,6 +28,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -37,6 +39,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -47,6 +50,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -57,6 +61,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: false,
         zero_debounce: false,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -67,6 +72,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -77,6 +83,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -87,6 +94,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -97,6 +105,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -107,6 +116,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -117,6 +127,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -127,6 +138,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -137,6 +149,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: false,
         zero_debounce: false,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -147,6 +160,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -157,6 +171,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -167,6 +182,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -177,6 +193,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -187,6 +204,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -197,6 +215,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -207,6 +226,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -217,6 +237,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -227,6 +248,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -237,6 +259,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -247,6 +270,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -257,6 +281,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -267,6 +292,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -277,6 +303,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -287,6 +314,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -297,6 +325,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -307,6 +336,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -317,6 +347,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: false,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -327,6 +358,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: false,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -337,6 +369,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -347,6 +380,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -357,6 +391,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -367,6 +402,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -377,6 +413,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -387,6 +424,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -397,6 +435,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -407,6 +446,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -417,6 +457,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -427,6 +468,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -437,6 +479,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -447,6 +490,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -457,6 +501,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -467,6 +512,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -477,6 +523,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -487,6 +534,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -497,6 +545,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -507,6 +556,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -517,6 +567,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -527,6 +578,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -537,6 +589,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -547,6 +600,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -557,6 +611,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -567,6 +622,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -577,6 +633,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -587,6 +644,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -597,6 +655,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -607,6 +666,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Dm,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -617,6 +677,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -627,6 +688,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -637,6 +699,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -647,6 +710,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -657,6 +721,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -667,6 +732,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -677,6 +743,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -687,6 +754,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -697,6 +765,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -707,6 +776,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -717,6 +787,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -727,6 +798,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -737,6 +809,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -747,6 +820,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -757,6 +831,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -767,6 +842,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -777,6 +853,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -787,6 +864,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -797,6 +875,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -807,6 +886,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -817,6 +897,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -827,6 +908,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -837,6 +919,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -847,6 +930,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -857,6 +941,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -867,6 +952,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -877,6 +963,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -887,6 +974,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -897,6 +985,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -907,6 +996,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -917,6 +1007,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -927,6 +1018,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -937,6 +1029,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -947,6 +1040,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -957,6 +1051,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -967,6 +1062,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -977,6 +1073,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -987,6 +1084,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -997,6 +1095,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1007,6 +1106,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -1017,6 +1117,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -1027,6 +1128,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -1037,6 +1139,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1047,6 +1150,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3311,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1057,6 +1161,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1067,6 +1172,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1077,6 +1183,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1087,6 +1194,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1097,6 +1205,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1107,6 +1216,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3311,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1117,6 +1227,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1127,6 +1238,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1137,6 +1249,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1147,6 +1260,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1157,6 +1271,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1167,6 +1282,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1177,6 +1293,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1187,6 +1304,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1197,6 +1315,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1207,6 +1326,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3311,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1217,6 +1337,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1227,6 +1348,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1237,6 +1359,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3311,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1247,6 +1370,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1257,6 +1381,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1267,6 +1392,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3311,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1277,6 +1403,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1287,6 +1414,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1297,6 +1425,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3311,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1307,6 +1436,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1317,6 +1447,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1327,6 +1458,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1337,6 +1469,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1347,6 +1480,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1357,6 +1491,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1367,6 +1502,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1377,6 +1513,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1387,6 +1524,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1397,6 +1535,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1407,6 +1546,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1417,6 +1557,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1427,6 +1568,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3311,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1437,6 +1579,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1447,6 +1590,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3315,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1457,6 +1601,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1467,6 +1612,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1477,6 +1623,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1487,6 +1634,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: true,
     },
     Model {
@@ -1497,6 +1645,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1507,6 +1656,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1517,6 +1667,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1527,6 +1678,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1537,6 +1689,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3395Se,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1547,6 +1700,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1557,6 +1711,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: false,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1567,6 +1722,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
+        bottom_button: false,
         tested: false,
     },
     Model {
@@ -1577,6 +1733,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: false,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1587,6 +1744,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3955,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1597,6 +1755,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Core26k,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
     Model {
@@ -1607,6 +1766,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Core26k,
         light: true,
         zero_debounce: true,
+        bottom_button: true,
         tested: false,
     },
 ];

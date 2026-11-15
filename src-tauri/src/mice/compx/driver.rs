@@ -468,6 +468,8 @@ impl Connected {
                     if let Some(stages) = decoded.stages.as_mut() {
                         atk::read_stages(model, &self.image, stages);
                     }
+                    // Its lift-off as its sensor keeps it.
+                    decoded.lod = atk::lod(model, &self.image);
                     // Its sleep time as ATK keeps it, where it's offered.
                     if board.read().capabilities.as_ref().is_some_and(|c| c.sleep_times_s.is_some()) {
                         decoded.sleep_s = atk::sleep_s(&self.image);
@@ -539,13 +541,14 @@ impl Connected {
         Ok(Follow { settings: true, ..Default::default() })
     }
 
-    /// An ATK's load: its firmware, the profile in use and the settings region, as ATK's app reads
-    /// them. No long-range mode: it isn't offered. A mouse that doesn't say its profile shows none.
+    /// An ATK's load: its firmware, the profile in use, and its settings, buttons and
+    /// key-combination slots, as ATK's app reads them. No long-range mode: it isn't offered. A
+    /// mouse that doesn't say its profile shows none.
     fn load_atk(&mut self, board: &Board) -> Result<()> {
         let fw = self.transact_simple(cmd::VERSION).ok();
         let profile = self.transact_simple(cmd::GET_PROFILE).ok();
-        let region = self.read_flash(0, p::CONFIG_REGION)?;
-        self.image[..p::CONFIG_REGION].copy_from_slice(&region);
+        let region = self.read_flash(0, LOADED_REGION)?;
+        self.image[..LOADED_REGION].copy_from_slice(&region);
         // A PAW3955's stages, from 0x1B00.
         if self.image.len() > p::FLASH_SIZE {
             let rows = self.read_flash(p::FLASH_SIZE, self.image.len() - p::FLASH_SIZE)?;
@@ -847,7 +850,18 @@ impl Driver for Connected {
             let offered = atk::offered(new, m);
             let was = board.read().settings.as_ref().and_then(|s| s.stages.clone()).unwrap_or_default();
             let held = image::decode(&self.image).stages.unwrap_or_default();
+            // A button that holds a DPI isn't one ATK's app sets: how it would be kept isn't known.
+            let held_buttons = board.read().settings.as_ref().and_then(|s| s.buttons.clone()).unwrap_or_default();
+            if let Some(buttons) = &offered.buttons
+                && buttons.iter().enumerate().any(|(i, b)| {
+                    matches!(b, crate::mice::model::ButtonAction::DpiLock { .. }) && held_buttons.get(i) != Some(b)
+                })
+            {
+                bail!("This mouse's buttons can't hold a DPI.");
+            }
             let mut rest = offered.clone();
+            // Its lift-off goes as its sensor keeps it too, below.
+            rest.lod = None;
             if let Some(stages) = rest.stages.as_mut() {
                 for (i, st) in stages.iter_mut().enumerate() {
                     st.dpi = held.get(i).map_or(st.dpi, |h| h.dpi);
@@ -863,10 +877,14 @@ impl Driver for Connected {
                 }
             }
             target = image::encode(&rest, &self.image);
+            atk::keys_as_atks_app(&mut target, m);
             target.resize(self.image.len(), 0xFF);
             target[p::FLASH_SIZE..].copy_from_slice(&self.image[p::FLASH_SIZE..]);
             if let Some(now) = &offered.stages {
                 atk::write_stages(m, &mut target, &was, now).map_err(|e| anyhow!(e))?;
+            }
+            if let Some(lod) = offered.lod.filter(|l| Some(*l) != atk::lod(m, &self.image)) {
+                atk::put_lod(m, &mut target, lod).map_err(|e| anyhow!(e))?;
             }
             // Its sleep time, where offered: 0xAD in 10 s steps, not a Zaopin's 0xBB.
             if let (Some(s), Some(times)) = (new.sleep_s, caps.sleep_times_s.as_ref())
@@ -926,15 +944,11 @@ impl Driver for Connected {
         // The new profile's settings first (a fifth of a second), so the pop-up and the HUD say it
         // at once; then its key-combination slots, in the same job, so nothing writes to the
         // mouse in between. The firmware, long-range mode and battery don't change with a profile.
-        // An ATK's slots aren't read: its buttons aren't offered.
         let config = self.read_flash(0, p::CONFIG_REGION)?;
         self.image[..p::CONFIG_REGION].copy_from_slice(&config);
         board.set(|s| s.profile = Some(index));
         self.refresh_settings(board);
         board.publish(Some(DeviceEvent::Profile { index }));
-        if self.atk.is_some() {
-            return Ok(());
-        }
         let slots = self.read_flash(p::CONFIG_REGION, LOADED_REGION - p::CONFIG_REGION)?;
         self.image[p::CONFIG_REGION..LOADED_REGION].copy_from_slice(&slots);
         self.refresh_settings(board);

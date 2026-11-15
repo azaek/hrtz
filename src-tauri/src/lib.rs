@@ -1238,7 +1238,7 @@ fn follow_primary(app: &AppHandle, ctx: &Ctx) {
     if let Some(st) = &p.settings {
         meter::set_dpi(st.dpi().unwrap_or(0));
         if let Some(lod) = st.lod {
-            meter::set_lift_off(lod != mice::model::Lod::Low);
+            meter::set_lift_off(lod != mice::model::Lod::LOW);
         }
     }
     refresh_tray(ctx, &p);

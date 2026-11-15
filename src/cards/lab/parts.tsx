@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Caption1, Caption1Strong } from "@fluentui/react-components";
-import { api, on, type CaptureClosed, type CaptureScreen, type ConnStats, type Lod, type MeterSample } from "@/api";
+import { api, lodName, on, type CaptureClosed, type CaptureScreen, type ConnStats, type Lod, type MeterSample } from "@/api";
 import { useRawInput } from "@/rawInput";
 import { GAP_BINS, fill, fmt, got, perMinute, type ConnRun } from "./connection";
-import { LOD_NAME, leakPerLift, stallsPerMinute, type LodResult } from "./liftoff";
+import { leakPerLift, stallsPerMinute, type LodResult } from "./liftoff";
 import { mm } from "./tracking";
 
 // Pieces the Lab page's guided tests share.
@@ -208,7 +208,7 @@ export function LodTable({ tried, dpi, chosen }: { tried: LodResult[]; dpi: numb
         const stalls = stallsPerMinute(r);
         return (
           <Fragment key={r.lod}>
-            <Caption1Strong style={chosen === r.lod ? good : undefined}>{LOD_NAME[r.lod]}</Caption1Strong>
+            <Caption1Strong style={chosen === r.lod ? good : undefined}>{lodName(r.lod)}</Caption1Strong>
             <Caption1 style={{ ...right, ...(stalls >= 1 ? warn : {}) }}>{stalls < 0.05 ? "never" : `${stalls.toFixed(1)} a minute`}</Caption1>
             <Caption1 style={right}>{mm(leakPerLift(r, dpi))}</Caption1>
           </Fragment>
