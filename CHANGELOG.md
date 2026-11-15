@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Improved
+- The VXE R1 PRO with a PAW3950 Ultra sensor is now tested, the first of ATK's mice to be. Its owner's check passed on its 1K receiver and its cable: its DPI stages, their colours and the DPI light, polling rate, debounce, motion sync, angle snapping, ripple control, sleep timer, the DPI button and the onboard profiles.
+
 ## 0.5.2 — 2026-11-15
 
 ### Improved

@@ -18,9 +18,10 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
+| VXE R1 PRO (PAW3950 Ultra) | Tested |
 
 <details>
-<summary>ATK, VXE and MAD mice (137)</summary>
+<summary>ATK, VXE and MAD mice not tested yet (136)</summary>
 
 | Mouse | Status |
 |---|---|
@@ -144,7 +145,6 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | VXE R1 (PAW3950 Ultra) | Not tested yet |
 | VXE R1 NK | Not tested yet |
 | VXE R1 PRO (PAW3395) | Not tested yet |
-| VXE R1 PRO (PAW3950 Ultra) | Not tested yet |
 | VXE R1 PRO MAX (PAW3395) | Not tested yet |
 | VXE R1 PRO MAX (PAW3950 Ultra) | Not tested yet |
 | VXE R1 S NK | Not tested yet |

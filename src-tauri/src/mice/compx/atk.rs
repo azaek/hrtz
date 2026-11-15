@@ -352,10 +352,12 @@ mod tests {
         assert_eq!((u2u.name, u2u.sensor.dpi_method()), ("U2 Plus NK (PAW3950 Ultra)", Some(Method::Ultra)));
         // ATK's unreleased "Mouse" entries, and a Zaopin's IDs, mean nothing here.
         assert!(model(1, 86).is_none() && model(7, 4).is_none());
-        // One model per CID and MID, and none tested yet.
+        // One model per CID and MID. Tested: the R1 PRO with a PAW3950 Ultra, whose owner's check
+        // passed on its 1K receiver and its cable (hrtz 0.5.2, 2026-11-15).
         for (i, a) in MODELS.iter().enumerate() {
             assert!(MODELS[i + 1..].iter().all(|b| (a.cid, a.mid) != (b.cid, b.mid)), "{a:?}");
-            assert!(!a.tested && ["ATK", "VXE", "MAD"].contains(&a.brand));
+            assert!(["ATK", "VXE", "MAD"].contains(&a.brand));
+            assert_eq!(a.tested, (a.cid, a.mid) == (2, 125), "{a:?}");
         }
     }
 

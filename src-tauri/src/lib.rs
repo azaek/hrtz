@@ -1898,16 +1898,18 @@ mod readme {
             let status = if m.tested { "Tested" } else { "Not tested yet" };
             format!("| {} {} | {status} |\n", m.brand, m.model)
         };
-        // ATK's mice, many and from ATK's own list, are folded away below the others, each name
-        // once (ATK gives some one name for several model IDs), by brand and name.
+        // ATK's mice not tested yet, many and from ATK's own list, are folded away below the
+        // others, each name once (ATK gives some one name for several model IDs), by brand and
+        // name. One an owner's check has passed on is listed with the others, after them.
         let atk = |m: &crate::mice::model::Supported| ["ATK", "VXE", "MAD"].contains(&m.brand);
         let mut want = String::from("| Mouse | Status |\n|---|---|\n");
         all.iter().filter(|m| !atk(m)).for_each(|m| want.push_str(&row(m)));
-        let mut atks: Vec<String> = all.iter().filter(|m| atk(m)).map(row).collect();
+        all.iter().filter(|m| atk(m) && m.tested).for_each(|m| want.push_str(&row(m)));
+        let mut atks: Vec<String> = all.iter().filter(|m| atk(m) && !m.tested).map(row).collect();
         atks.sort();
         atks.dedup();
         want.push_str(&format!(
-            "\n<details>\n<summary>ATK, VXE and MAD mice ({})</summary>\n\n| Mouse | Status |\n|---|---|\n{}\n</details>\n",
+            "\n<details>\n<summary>ATK, VXE and MAD mice not tested yet ({})</summary>\n\n| Mouse | Status |\n|---|---|\n{}\n</details>\n",
             atks.len(),
             atks.concat()
         ));

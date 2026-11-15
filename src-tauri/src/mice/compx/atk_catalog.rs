@@ -1487,7 +1487,7 @@ pub const MODELS: [Model; 160] = [
         sensor: Sensor::Paw3950Ultra,
         light: true,
         zero_debounce: true,
-        tested: false,
+        tested: true,
     },
     Model {
         cid: 2,
