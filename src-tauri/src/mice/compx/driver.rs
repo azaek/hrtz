@@ -480,6 +480,14 @@ impl Connected {
                     }
                     decoded.sensor_mode = mode.then(|| atk::sensor_mode(&self.image)).flatten();
                     decoded.sensor_angle = angle.then(|| atk::angle(&self.image)).flatten();
+                    // How long a charge lasts by ATK's own figures, for the sensor mode it's in.
+                    let held = atk::sensor_mode(&self.image);
+                    board.set(|s| {
+                        if let Some(c) = s.capabilities.as_mut() {
+                            let rates = c.polling.as_ref().map(|p| p.rates.clone()).unwrap_or_default();
+                            c.rated_hours = atk::rated_hours(model, held, &rates);
+                        }
+                    });
                 }
                 decoded
             }
@@ -548,9 +556,9 @@ impl Connected {
     }
 
     /// An ATK's load: its firmware, the profile in use, and its settings, buttons and
-    /// key-combination slots, as ATK's app reads them. No long-range mode: it isn't offered. A
-    /// mouse that doesn't say its profile shows none. Its firmware settles the rest of what's
-    /// offered: the sensor's top mode and the sensor angle.
+    /// key-combination slots, as ATK's app reads them, and long range where the model has it (ATK's
+    /// app asks every CompX mouse). A mouse that doesn't say its profile shows none. Its firmware
+    /// settles the rest of what's offered: the sensor's top mode and the sensor angle.
     fn load_atk(&mut self, board: &Board) -> Result<()> {
         let fw = self.transact_simple(cmd::VERSION).ok();
         let profile = self.transact_simple(cmd::GET_PROFILE).ok();
@@ -565,6 +573,10 @@ impl Connected {
             a.looked = Instant::now();
         }
         let model = self.atk.as_ref().and_then(|a| a.model);
+        let long_range = match model {
+            Some(m) if m.long_range => self.transact_simple(cmd::GET_LONG_RANGE).ok(),
+            _ => None,
+        };
         board.set(|s| {
             s.online = true;
             // Binary-coded decimal: 0x01 0x23 is 1.23, written as a Zaopin's is.
@@ -573,7 +585,7 @@ impl Connected {
                 atk::with_firmware(m, caps, s.firmware.as_deref());
             }
             s.profile = profile.filter(|r| r[5] > 0 && r[6] < atk::PROFILES).map(|r| r[6]);
-            s.long_range = None;
+            s.long_range = long_range.map(|r| r[6] != 0);
         });
         self.refresh_settings(board);
         Ok(())
@@ -982,10 +994,32 @@ impl Driver for Connected {
     }
 
     fn set_long_range(&mut self, board: &Board, on: bool) -> Result<()> {
-        self.zaopin_only()?;
         let mut data = [0u8; 10];
         data[0] = on as u8;
-        self.transact(&p::packet(cmd::SET_LONG_RANGE, 0, &data, None), REPLY_TIMEOUT)?;
+        let pkt = p::packet(cmd::SET_LONG_RANGE, 0, &data, None);
+        // An ATK's, where the model has it, as ATK's app sets it (the same ten bytes) and as its
+        // other writes go: sent unanswered, then asked, a few times.
+        if let Some(model) = self.atk.as_ref().map(|a| a.model) {
+            if !model.is_some_and(|m| m.long_range) {
+                bail!("This mouse can't do that.");
+            }
+            self.send_unanswered(&pkt)?;
+            let mut now = None;
+            for wait in READ_BACK_AFTER {
+                thread::sleep(wait.max(Duration::from_millis(60)));
+                now = Some(self.transact_simple(cmd::GET_LONG_RANGE)?[6] != 0);
+                if now == Some(on) {
+                    break;
+                }
+            }
+            board.set(|s| s.long_range = now);
+            board.publish(None);
+            if now != Some(on) {
+                bail!("The mouse didn't keep long-range mode.");
+            }
+            return Ok(());
+        }
+        self.transact(&pkt, REPLY_TIMEOUT)?;
         let r = self.transact_simple(cmd::GET_LONG_RANGE)?;
         board.set(|s| s.long_range = Some(r[6] != 0));
         board.publish(None);

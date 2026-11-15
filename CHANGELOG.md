@@ -11,6 +11,8 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 - Lift-off distance on mice with a PAW3950 Ultra or PAW3955 sensor, from 0.7 to 1.7 mm in steps of 0.1, as ATK's app has it. Not tried on a real mouse yet.
 - Sensor mode on ATK, VXE and MAD mice: Low power or High performance, and Maximum on the models and firmware ATK's app offers it on (its "competitive MAX"), which runs the sensor at its limit and uses the most battery. Not tried on a real mouse yet.
 - Sensor angle on ATK, VXE and MAD mice whose firmware has it: turn the sensor's direction up to 30° either way to match how you hold the mouse, or switch it off. Not tried on a real mouse yet.
+- Long-range mode on ATK, VXE and MAD mice that have it (ATK's "Ultra Long Range Mode"), in Settings, as on a Zaopin. Not tried on a real mouse yet.
+- How long a charge lasts on 53 ATK, VXE and MAD models, from ATK's own figures for the sensor mode in use, at 1K and 8K Hz, until hrtz has measured your mouse's own. Where ATK gives a range, the Battery page shows its low end.
 - A sensor angle test in Lab, for any mouse hrtz runs: swipe side to side the way that feels level, and hrtz measures how far your grip tilts your swipes. On a mouse with a sensor angle, one click sets the angle that levels them; on any other, it says the tilt, which hrtz can't correct there.
 
 ### Improved

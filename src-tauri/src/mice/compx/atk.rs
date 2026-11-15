@@ -148,6 +148,13 @@ pub struct Model {
     /// Likewise the sensor angle: ATK's own on any firmware, the others from the version that
     /// list gives the angle or the top mode; none where ATK's app says the model has none.
     pub angle_from: Option<u16>,
+    /// It has long range ("FarDistance", ATK's "Ultra Long Range Mode"): on unless ATK's app says
+    /// the model has none.
+    pub long_range: bool,
+    /// ATK's own battery figures, in hours of use a charge lasts: at 1,000 and at 8,000 Hz in each
+    /// sensor mode (low power, high performance, the top one). ATK's app shows each as a range;
+    /// this is its low end, 0 where ATK gives none at that rate. None for a model it gives none for.
+    pub battery_h: Option<[[u16; 2]; 3]>,
     /// Tried on the real mouse.
     pub tested: bool,
 }
@@ -299,6 +306,23 @@ fn hundredths(firmware: &str) -> Option<u16> {
     Some(major.parse::<u16>().ok()?.checked_mul(100)? + minor.parse::<u16>().ok()?)
 }
 
+/// How long a charge lasts on `m` in `mode` (low power where it isn't known, as ATK's app has it)
+/// at the rates of `rates` ATK gives a figure for, by ATK's own figures; none without one.
+pub fn rated_hours(m: &Model, mode: Option<SensorMode>, rates: &[u32]) -> Option<Vec<(u32, f64)>> {
+    let [lp, hp, top] = m.battery_h?;
+    let [at_1k, at_8k] = match mode.unwrap_or(SensorMode::Lp) {
+        SensorMode::Lp => lp,
+        SensorMode::Hp => hp,
+        SensorMode::Corded => top,
+    };
+    let hours: Vec<(u32, f64)> = [(1000, at_1k), (8000, at_8k)]
+        .into_iter()
+        .filter(|(hz, h)| *h > 0 && rates.contains(hz))
+        .map(|(hz, h)| (hz, h as f64))
+        .collect();
+    (!hours.is_empty()).then_some(hours)
+}
+
 /// What `m`'s firmware adds to what's offered, as ATK's app decides it: the sensor's top mode and
 /// the sensor angle, each from the firmware that has it. A mouse that hasn't said its firmware gets
 /// neither.
@@ -344,8 +368,9 @@ pub fn put_sleep(target: &mut [u8], seconds: u32) {
 /// does. The polling rate (to what the connection allows); the DPI stages (packed as a Zaopin's),
 /// and on a model with a DPI light, their colours and the light; the lift-off distance its sensor
 /// offers; debounce, motion sync, straight-line correction (a Zaopin's angle snapping) and ripple
-/// control; the sensor's low-power and high-performance modes; the onboard profiles. The battery
-/// is the mouse's own reading. Its top sensor mode and the sensor angle wait for its firmware
+/// control; the sensor's low-power and high-performance modes; long range, where the model has
+/// it; the onboard profiles. The battery is the mouse's own reading, and how long a charge lasts
+/// ATK's own figure where it gives one (`rated_hours`, set with the sensor mode it's in). Its top sensor mode and the sensor angle wait for its firmware
 /// (`with_firmware`).
 pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
     let (min, max) = m.sensor.dpi();
@@ -379,6 +404,7 @@ pub fn capabilities(m: &Model, kind: u8) -> Capabilities {
         angle_snapping: true,
         ripple_control: true,
         profiles: Some(PROFILES),
+        long_range: m.long_range,
         sleep_times_s: R1_SLEEP_MODELS.contains(&(m.cid, m.mid)).then(|| R1_SLEEP_S.to_vec()),
         battery: true,
         // ATK's app hears of a DPI-button press from the mouse (0x0A), as hrtz does; the driver
@@ -590,7 +616,7 @@ mod tests {
         assert_eq!(names, ["Left", "Right", "Wheel click", "Back", "Forward", "DPI"]);
         // One without the button underneath (the MAD R) lists five.
         assert_eq!(buttons(model(2, 49).unwrap()).len(), 5);
-        assert!(!caps.long_range && !caps.pairing && !caps.factory_reset && !caps.backups);
+        assert!(!caps.pairing && !caps.factory_reset && !caps.backups);
         // On a cable at 1K, and a 1K receiver.
         let wired = capabilities(u2, link::WIRED_1K);
         assert!(wired.wired && wired.polling.unwrap().rates.last() == Some(&1000));
@@ -633,6 +659,37 @@ mod tests {
         assert_eq!(MODELS.iter().filter(|m| m.corded_from.is_some()).count(), 100);
         assert_eq!(MODELS.iter().filter(|m| m.angle_from.is_some()).count(), 102);
         assert!(MODELS.iter().all(|m| m.corded_from.is_none() || m.angle_from.is_some()));
+    }
+
+    #[test]
+    fn long_range_where_atks_app_has_it() {
+        assert!(capabilities(model(2, 125).unwrap(), link::DONGLE_1K).long_range, "the R1 PRO");
+        // Its features say no on the U2 Plus NK with a PAW3950 Ultra.
+        assert!(!capabilities(model(2, 124).unwrap(), link::NEARLINK).long_range);
+        assert_eq!(MODELS.iter().filter(|m| m.long_range).count(), 137);
+    }
+
+    #[test]
+    fn a_charge_lasts_by_atks_figures_in_the_mode_in_use() {
+        // The Duckbill Ultra: 160 to 200 h at 1K in low power, 34 to 42 at 8K; 152 and 33 in high
+        // performance; 45 and 27 in its top mode. The low end, at the rates the connection has.
+        let m = model(1, 2).unwrap();
+        let all = [125, 250, 500, 1000, 2000, 4000, 8000];
+        assert_eq!(rated_hours(m, Some(SensorMode::Lp), &all), Some(vec![(1000, 160.0), (8000, 34.0)]));
+        assert_eq!(rated_hours(m, None, &all), Some(vec![(1000, 160.0), (8000, 34.0)]), "low power, unknown");
+        assert_eq!(rated_hours(m, Some(SensorMode::Hp), &all), Some(vec![(1000, 152.0), (8000, 33.0)]));
+        assert_eq!(rated_hours(m, Some(SensorMode::Corded), &all), Some(vec![(1000, 45.0), (8000, 27.0)]));
+        assert_eq!(rated_hours(m, Some(SensorMode::Lp), &all[..4]), Some(vec![(1000, 160.0)]), "on 1K, no 8K figure");
+        // The U2 Pro Max (2,100): ATK gives a range across both rates only (44 h at 8K to 250 at
+        // 1K), so no low figure at 1K.
+        let u2pm = model(2, 100).unwrap();
+        assert_eq!(u2pm.battery_h.map(|b| b[0]), Some([0, 44]));
+        assert_eq!(rated_hours(u2pm, None, &all), Some(vec![(8000, 44.0)]));
+        assert_eq!(rated_hours(u2pm, None, &all[..4]), None);
+        // None for a model ATK gives none for: the R1 PRO and the U2 Plus NK.
+        assert_eq!(rated_hours(model(2, 125).unwrap(), None, &all), None);
+        assert_eq!(rated_hours(model(2, 78).unwrap(), None, &all), None);
+        assert_eq!(MODELS.iter().filter(|m| m.battery_h.is_some()).count(), 53);
     }
 
     #[test]
