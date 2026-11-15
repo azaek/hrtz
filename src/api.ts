@@ -778,6 +778,11 @@ export const api = {
   createBackup: (note: string) => invoke<BackupMeta>("create_backup", { mouse, note }),
   /** A test report's reading of the mouse shown: its memory, and its family's facts. */
   mouseReport: () => invoke<unknown>("mouse_report", { mouse }),
+  /** Where its family keeps them: what hrtz last sent the mouse and what it answered, oldest first
+   *  (`said`), and its memory as hrtz holds it now, in base64 (`memory`). For a test report: what
+   *  was said around a change the mouse didn't keep, and whether its memory is as it was once
+   *  every change is put back. Sends it nothing. */
+  mouseTrace: () => invoke<{ said: string[]; memory: string } | null>("mouse_trace", { mouse }),
   /** Write a test report where the tester picked. */
   saveReport: (path: string, text: string) => invoke<void>("save_report", { path, text }),
   /** Saves the mouse as it is first (an automatic backup), unless it already matches. */

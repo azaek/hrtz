@@ -21,7 +21,8 @@ type Kind = Support | "reads" | "asleep" | "windows";
 /** What the check does, said before it starts. */
 const ABOUT: Record<Exclude<Kind, "asleep">, string> = {
   tested: "This model is tested. If something looks wrong, check it and send the report.",
-  untested: "A 2-minute check of what works on this model. It reads the mouse, measures its polling rate, asks you to press each button, and changes one DPI stage and puts it back.",
+  untested:
+    "A 2-minute check of what works on this model. It reads the mouse, measures its polling rate, asks you to press each button, then changes each setting hrtz offers on it, one at a time, and puts each back.",
   unknown:
     "hrtz runs this mouse but doesn't know the model yet. The check reads its settings and memory, measures its polling rate and asks you to press each button. It changes nothing.",
   reads:
@@ -29,12 +30,22 @@ const ABOUT: Record<Exclude<Kind, "asleep">, string> = {
   windows: "hrtz can't read this mouse yet, so its report holds what it tells Windows: its IDs and how it connects. Nothing is sent to it.",
 };
 
+/** The same, for a model hrtz knows, by what it offers on it: where hrtz sets no buttons yet (an
+ *  ATK), only the DPI button is asked for, where the mouse says when it's pressed. */
+function about(kind: Exclude<Kind, "asleep">, device: DeviceState | null): string {
+  const caps = device?.capabilities;
+  if (kind !== "untested" || !caps || caps.buttons?.length) return ABOUT[kind];
+  const buttons = caps.dpiButton && caps.dpi ? ", asks you to press its DPI button" : "";
+  return `A 2-minute check of what works on this model. It reads the mouse, measures its polling rate${buttons}, then changes each setting hrtz offers on it, one at a time, and puts each back.`;
+}
+
 /** What each stage asks of you, while the full screen is up. */
 const DOING: Record<string, string> = {
   reading: "Reading the mouse",
   moving: "Move the mouse in quick circles",
   buttons: "Press each button when asked",
-  writing: "Checking a change",
+  writing: "Checking each setting",
+  rate: "Move the mouse in quick circles again",
 };
 
 /** How long a mouse is waited for before the card says what else to look at. */
@@ -57,8 +68,8 @@ function useAfter(active: boolean, ms: number) {
 /**
  * Inspect a mouse's check of the mouse picked: everything hrtz can safely learn of it, handed on
  * as one part of a report (`onDone`). One hrtz runs is read, its polling measured and each button
- * pressed, on the full screen; a model it knows also has one DPI stage changed and put back. One
- * it leaves alone but can read is read, then its polling rate measured (which sends it nothing),
+ * pressed, on the full screen; a model it knows also has each setting hrtz offers on it changed
+ * and put back, one at a time, so one check says all it keeps. One it leaves alone but can read is read, then its polling rate measured (which sends it nothing),
  * with nothing changed. A mouse that's asleep is waited for, with what to do said plainly: a
  * report from a sleeping mouse holds next to nothing.
  */
@@ -151,7 +162,7 @@ export function MouseCheck({ mouse, support, device, onDone }: { mouse: Inspecte
               ? "Running full screen. Press Esc to skip it."
               : p.stopped
                 ? "Stopped. Your settings are as they were."
-                : (r.error ?? ABOUT[kind])}
+                : (r.error ?? about(kind, device))}
         </Body1>
       )}
 

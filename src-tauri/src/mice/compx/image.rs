@@ -446,6 +446,11 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities, method: Method
         (s.motion_sync != old.motion_sync, caps.motion_sync, "motion sync"),
         (s.angle_snapping != old.angle_snapping, caps.angle_snapping, "angle snapping"),
         (s.ripple_control != old.ripple_control, caps.ripple_control, "ripple control"),
+        (
+            s.peak_timeout_enabled != old.peak_timeout_enabled,
+            caps.peak_timeouts_s.is_some(),
+            "a peak performance timeout",
+        ),
     ] {
         if changed && !offered {
             return Err(format!("this mouse doesn't offer {what}"));
@@ -455,13 +460,18 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities, method: Method
     {
         return Err("this mouse doesn't have that sensor mode".into());
     }
-    if s.debounce_ms > 20 {
+    // Left as the mouse holds it, any value passes: these are checked only when they change. An
+    // ATK keeps something else where a Zaopin keeps its peak timeout (an R1 PRO held 180 there,
+    // 2026-11-15), and refusing that refused every change to it.
+    if s.debounce_ms != old.debounce_ms && s.debounce_ms > 20 {
         return Err("debounce must be 0-20 ms".into());
     }
     if !offered(&caps.debounce_choices_ms, s.debounce_ms, old.debounce_ms) {
         return Err(format!("this mouse doesn't offer {} ms of debounce", s.debounce_ms));
     }
-    if !PEAK_TIMEOUTS_S.contains(&s.peak_timeout_s) {
+    if s.peak_timeout_s != old.peak_timeout_s
+        && !caps.peak_timeouts_s.as_ref().is_some_and(|l| l.contains(&s.peak_timeout_s))
+    {
         return Err("unsupported peak performance timeout".into());
     }
     if !(1..=255).contains(&s.sleep_s) {
@@ -480,6 +490,7 @@ fn validate_fields(s: &Fields, old: &Fields, caps: &Capabilities, method: Method
             }
         }
         if let ButtonAction::Keys { modifiers, keys } = b
+            && old.buttons.get(i) != Some(b)
             && modifiers.count_ones() as usize + keys.len() > 3
         {
             return Err("a key combination can have at most three keys".into());
@@ -860,5 +871,37 @@ mod tests {
         // What it offers is fine.
         assert!(!refused(&|n| n.debounce_ms = 4));
         assert!(!refused(&|n| n.polling_hz = 500));
+    }
+
+    #[test]
+    fn what_the_mouse_holds_never_stops_a_change_to_something_else() {
+        // As an owner's R1 PRO held it (2026-11-15): 180 where a Zaopin keeps its peak timeout,
+        // which isn't one of a Zaopin's. And a debounce over 20 ms, for the same reason.
+        let mut f = FIXTURE.clone();
+        put_pair(&mut f, addr::PEAK_TIMEOUT, 180);
+        put_pair(&mut f, addr::DEBOUNCE, 30);
+        let s = decode_fields(&f, Method::Step50);
+        assert_eq!((s.peak_timeout_s, s.debounce_ms), (1800, 30));
+        // A Z1 PRO MAX's, which offers the peak timeout, and a model that offers none.
+        let zaopin = super::super::models::capabilities(4, 5);
+        let none = Capabilities { peak_timeouts_s: None, ..zaopin.clone() };
+        for caps in [&zaopin, &none] {
+            let mut next = s.clone();
+            next.polling_hz = 500;
+            next.stages[1].dpi = 850;
+            assert_eq!(validate_fields(&next, &s, caps, Method::Step50), Ok(()));
+        }
+        // Changed, it's held to what's offered.
+        let changed = |change: &dyn Fn(&mut Fields), caps: &Capabilities| {
+            let mut next = s.clone();
+            change(&mut next);
+            validate_fields(&next, &s, caps, Method::Step50)
+        };
+        assert_eq!(changed(&|n| n.peak_timeout_s = 120, &zaopin), Ok(()));
+        assert!(changed(&|n| n.peak_timeout_s = 45, &zaopin).is_err());
+        assert!(changed(&|n| n.peak_timeout_s = 120, &none).is_err());
+        assert!(changed(&|n| n.peak_timeout_enabled = !n.peak_timeout_enabled, &none).is_err());
+        assert!(changed(&|n| n.debounce_ms = 25, &zaopin).is_err());
+        assert_eq!(changed(&|n| n.debounce_ms = 8, &zaopin), Ok(()));
     }
 }

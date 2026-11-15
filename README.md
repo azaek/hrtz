@@ -183,8 +183,8 @@ hrtz is in beta. If you have one of the mice above, these help most:
 
 - **A model that isn't tested yet:** its card shows an amber **Not tested** badge. Click it (or
   **Inspect a mouse** in the title bar) for a 2-minute check on a full screen: move the mouse, press
-  each button, and hrtz changes one DPI stage and puts it back. A mouse with a receiver and a cable
-  is checked on each, into one report. hrtz then opens a GitHub issue with the report inside it, to
+  each button, and hrtz changes each setting it offers on the mouse, one at a time, and puts each
+  back. A mouse with a receiver and a cable is checked on each, into one report. hrtz then opens a GitHub issue with the report inside it, to
   submit (or save the report as a file and send it any other way). A few of those and a model moves
   to Tested.
 - **A mouse that isn't supported yet:** **Inspect a mouse**, in the title bar, checks what it safely

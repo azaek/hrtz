@@ -509,9 +509,38 @@ fn a_report_file_makes_a_mouse() {
         theirs.firmware[1],
         theirs.image().len()
     );
-    let r = Rig::connected(theirs);
+    let mut r = Rig::connected(theirs);
     let s = r.state();
     println!("hrtz: {}", if s.foreign { "leaves it alone".to_string() } else { format!("runs it as {:?}", s.model) });
+    // The check's change, where hrtz offers its DPI: the stage in use up a step, then back.
+    let step = s.capabilities.and_then(|c| c.dpi).map(|d| d.step);
+    if let (Some(was), Some(step)) = (s.settings.filter(|x| x.stages.is_some()), step) {
+        let i = was.dpi_stage.unwrap_or(0) as usize;
+        let dpi_of = |now: Settings| now.stages.map(|st| st[i].dpi);
+        let from = was.stages.as_ref().unwrap()[i].dpi;
+        let mut next = was.clone();
+        next.stages.as_mut().unwrap()[i].dpi = from + step;
+        let kept = r.w.apply_settings(&next).map(dpi_of);
+        let back = r.w.apply_settings(&was).map(dpi_of);
+        println!("stage {} at {from} DPI: changed, it holds {kept:?}; put back, it holds {back:?}", i + 1);
+    }
+    // Every change the check would try on it (HRTZ_PLAN, from the front end's `changesFor`): each
+    // sent as the check sends it, then the settings it started with.
+    let Ok(plan) = std::env::var("HRTZ_PLAN") else { return };
+    let plan: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(plan).unwrap()).unwrap();
+    let original: Settings = serde_json::from_value(plan["original"].clone()).unwrap();
+    assert_eq!(r.settings(), original, "the report's settings are what its memory reads as here");
+    let image = r.mouse.lock().image().to_vec();
+    for change in plan["changes"].as_array().unwrap() {
+        let next: Settings = serde_json::from_value(change["next"].clone()).unwrap();
+        let (req, _) = r.mark();
+        let kept = r.w.apply_settings(&next).map(|now| now == next);
+        let wrote = r.mouse.lock().writes_since(req);
+        let back = r.w.apply_settings(&original).map(|now| now == original);
+        println!("{}: kept {kept:?}, wrote at {wrote:04X?}, put back {back:?}", change["what"].as_str().unwrap());
+        assert!(matches!((&kept, &back), (Ok(true), Ok(true))), "{change}");
+        assert!(r.mouse.lock().image() == image, "its memory is as it was");
+    }
 }
 
 #[test]
@@ -1085,6 +1114,121 @@ mod atk_mice {
         let caps = s.capabilities.unwrap();
         assert!(!caps.wired && caps.polling.unwrap().rates.last() == Some(&1000));
         assert!(r.settings().dpi().is_some());
+    }
+
+    /// snowyuonA's R1 PRO, as his check on 0.5.1 found it (2026-11-15): the PAW3950 Ultra one,
+    /// CID 2 and MID 125, on that 1K receiver.
+    fn his_r1_pro() -> SimMouse {
+        let his = SimMouse { usb: (p::VENDOR_ID, 0xF58A), mid: 125, device_type: 0, ..SimMouse::r1_pro() };
+        stored_as(his, Method::Ultra)
+    }
+
+    #[test]
+    fn a_change_goes_through_whatever_an_atk_keeps_where_a_zaopin_keeps_its_peak_timeout() {
+        // His held 180 at 0xB7, which isn't one of a Zaopin's peak timeouts: 0.5.1 refused every
+        // change to it for that ("unsupported peak performance timeout").
+        let mut r = Rig::connected(his_r1_pro());
+        assert_eq!(r.mouse.lock().image()[0xB7..0xB9], [180, checksum(&[180])]);
+        assert_eq!(r.state().model.as_deref(), Some("R1 PRO (PAW3950 Ultra)"));
+        // The check's change: a DPI stage, then back.
+        let was = r.settings();
+        let mut next = was.clone();
+        next.stages.as_mut().unwrap()[1].dpi = 850;
+        assert_eq!(r.w.apply_settings(&next).unwrap().stages.unwrap()[1].dpi, 850);
+        assert_eq!(r.w.apply_settings(&was).unwrap().stages.unwrap()[1].dpi, 800);
+        // And each of the rest that's offered.
+        let mut next = was.clone();
+        next.polling_hz = Some(500);
+        next.debounce_ms = Some(8);
+        next.motion_sync = Some(true);
+        next.sleep_s = Some(300);
+        let now = r.w.apply_settings(&next).unwrap();
+        assert_eq!(
+            (now.polling_hz, now.debounce_ms, now.motion_sync, now.sleep_s),
+            (Some(500), Some(8), Some(true), Some(300))
+        );
+        assert_eq!(r.mouse.lock().image()[0xB7..0xB9], [180, checksum(&[180])], "left as it was");
+    }
+
+    #[test]
+    fn a_write_the_mouse_is_slow_to_keep_is_read_back_again() {
+        // Kept by the second read after it: the first read-back still finds the old bytes.
+        let mut r = Rig::connected(SimMouse { slow_writes: 1, ..his_r1_pro() });
+        let mut next = r.settings();
+        next.polling_hz = Some(500);
+        let (req, _) = r.mark();
+        assert_eq!(r.w.apply_settings(&next).unwrap().polling_hz, Some(500));
+        let m = r.mouse.lock();
+        assert_eq!(m.writes_since(req), vec![0x00], "written once");
+        assert_eq!(m.reads_since(req).len(), 2, "read back twice");
+        drop(m);
+        // One that only keeps it after the write is sent again.
+        let mut r = Rig::connected(SimMouse { slow_writes: 4, ..his_r1_pro() });
+        let (req, _) = r.mark();
+        assert_eq!(r.w.apply_settings(&next).unwrap().polling_hz, Some(500));
+        assert_eq!(r.mouse.lock().writes_since(req), vec![0x00, 0x00]);
+    }
+
+    #[test]
+    fn what_was_said_around_a_change_that_didnt_hold_is_kept_for_the_report() {
+        let mut r = Rig::connected(SimMouse { forget_writes: true, ..his_r1_pro() });
+        let mut next = r.settings();
+        next.polling_hz = Some(500);
+        assert!(r.w.apply_settings(&next).is_err());
+        let trace = r.w.trace().unwrap();
+        // Its memory as hrtz holds it (what it has loaded): the write that wasn't kept isn't in it.
+        assert_eq!(memory_of(&trace)[..p::CONFIG_REGION], r.mouse.lock().image()[..p::CONFIG_REGION]);
+        let said: Vec<&str> = trace["said"].as_array().unwrap().iter().map(|l| l.as_str().unwrap()).collect();
+        // The row from 0x00 written with 500 Hz (0x02 and its check byte), then sent once more;
+        // each read-back still with 1,000 Hz (0x01).
+        let from = said.iter().position(|l| l.contains("> 0807")).expect("a write");
+        let count = |part: &str| said[from..].iter().filter(|l| l.contains(part)).count();
+        assert_eq!(count("> 08070000000A0253"), 2, "{said:#?}");
+        assert_eq!(count("< 08080000000A0154"), 6, "{said:#?}");
+        // A mouse hrtz doesn't run has nothing to show.
+        assert!(Rig::connected(SimMouse::foreign()).w.trace().is_err());
+    }
+
+    #[test]
+    fn after_the_checks_changes_its_memory_is_as_its_first_reading_found_it() {
+        // As the check goes: all of its memory read, a setting changed and put back, its profile
+        // switched and switched back. What hrtz then holds of it is what it read at the start.
+        let mut r = Rig::connected(his_r1_pro());
+        let before = memory_of(&r.w.report().unwrap());
+        let was = r.settings();
+        let mut next = was.clone();
+        next.polling_hz = Some(500);
+        next.debounce_ms = Some(8);
+        r.w.apply_settings(&next).unwrap();
+        r.w.apply_settings(&was).unwrap();
+        r.w.set_profile(1).unwrap();
+        r.w.set_profile(0).unwrap();
+        assert!(memory_of(&r.w.trace().unwrap()) == before, "as it was");
+        // One left changed shows, where it's kept.
+        r.w.apply_settings(&next).unwrap();
+        let after = memory_of(&r.w.trace().unwrap());
+        let differs: Vec<usize> = (0..before.len()).filter(|i| before[*i] != after[*i]).collect();
+        assert_eq!(differs, [0x00, 0x01, 0xA9, 0xAA]);
+    }
+
+    #[test]
+    fn a_report_of_an_atk_under_compx_vid_becomes_an_atk_here() {
+        // His report: a check, so what hrtz ran. Its USB ID is CompX's, and it answers as an ATK.
+        let mut r = Rig::connected(his_r1_pro());
+        let device = r.w.report().unwrap();
+        let report = serde_json::json!({ "connections": [{
+            "ids": "3554:F58A",
+            "how": "check",
+            "mouse": { "cid": 2, "mid": 125, "deviceType": 0, "firmware": "1.25" },
+            "device": device,
+        }]});
+        let theirs = SimMouse::from_report(&report.to_string()).unwrap();
+        assert!(matches!(theirs.maker, Maker::Atk { receiver: true }));
+        let r = Rig::connected(theirs);
+        let s = r.state();
+        assert!(s.connected && !s.foreign);
+        assert_eq!((s.key.as_deref(), s.firmware.as_deref()), (Some("compx/2-125"), Some("1.25")));
+        assert_eq!(r.settings().dpi(), Some(800), "read its sensor's way");
     }
 
     #[test]

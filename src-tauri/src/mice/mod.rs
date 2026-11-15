@@ -190,6 +190,14 @@ pub trait Driver: Send {
         Ok(serde_json::Value::Null)
     }
 
+    /// Where its family keeps them: the last packets sent to the mouse and received from it, oldest
+    /// first (`said`), and its memory as hrtz holds it now, each write checked (`memory`). For a
+    /// test report: what was said around a change the mouse didn't keep, and whether its memory
+    /// is as it was once every change is put back.
+    fn trace(&mut self) -> serde_json::Value {
+        serde_json::Value::Null
+    }
+
     /// All of the mouse's memory, for a backup; `progress` shows a progress bar.
     fn read_image(&mut self, _board: &Board, _progress: bool) -> Result<Vec<u8>> {
         unsupported()

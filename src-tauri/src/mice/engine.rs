@@ -476,6 +476,12 @@ impl Worker {
         }))
     }
 
+    /// What was last said between hrtz and the mouse, and its memory as hrtz holds it
+    /// (`Driver::trace`). Sends it nothing.
+    pub fn trace(&mut self) -> Result<serde_json::Value> {
+        self.drive(|d, _| Ok(d.trace()))
+    }
+
     /// Inspect a mouse's reading of a mouse hrtz left alone: who it is and its memory, with nothing
     /// written. Only for one that answered as speaking the family's protocol, and only when its
     /// owner starts it: until then, a mouse hrtz doesn't run is sent nothing more.

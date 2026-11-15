@@ -4,9 +4,11 @@ import { LINK_NAME, linkName } from "@/links";
 import { familyOf, modelKeyOf, SUPPORT_TEXT, type Support } from "@/models";
 import { mouseIssueUrl } from "@/report";
 import { pack, PACKED } from "./pack";
+import type { WriteCheck } from "./changes";
 import type { Checks } from "./useParticipate";
 
-const fmt = (n: number) => n.toLocaleString("en-US");
+/** Whole: a rate counted comes with decimals ("990.051 reports a second"). */
+const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const hex = (n: number) => n.toString(16).toUpperCase().padStart(4, "0");
 
 /** "3554:F527", as Windows and the GitHub forms write a device's IDs; a simulated mouse has none. */
@@ -203,15 +205,36 @@ export function summaryLines(c: Checks): Line[] {
     for (const b of seeable.filter((x) => !x.seen)) lines.push({ ok: false, text: `${b.name}: no press seen (set to ${b.does})` });
   }
   for (const b of c.buttons.filter((x) => x.seen === null)) lines.push({ ok: null, text: b.why ? `${b.name}: ${b.why}` : `${b.name} is set to ${b.does}, which hrtz can't see` });
-  if (c.write) {
-    const w = c.write;
+  // Every change tried; a report from before each setting was tried has the one.
+  const writes = c.writes ?? (c.write ? [c.write] : []);
+  const held = writes.filter(writeHeld);
+  if (held.length === 1) lines.push({ ok: true, text: `${held[0].what} ${held[0].from} → ${held[0].to}: kept, put back` });
+  else if (held.length) lines.push({ ok: true, text: `${held.length} settings changed, kept and put back: ${held.map((w) => w.what).join(", ")}` });
+  for (const w of held) {
+    if (w.hz && w.measured) lines.push({ ok: true, text: `Set to ${fmt(w.hz)} Hz, it counted ${fmt(w.measured)} reports a second` });
+    else if (w.hz) lines.push({ ok: null, text: `Set to ${fmt(w.hz)} Hz and kept; not counted, the mouse wasn't moved` });
+  }
+  for (const w of writes.filter((x) => !writeHeld(x))) lines.push({ ok: false, text: writeFailed(w) });
+  if (c.left) {
     lines.push(
-      w.error
-        ? { ok: false, text: `Change failed: ${w.error}` }
-        : { ok: w.kept && w.restored, text: `${w.what} ${w.from} → ${w.to}: ${w.kept ? "kept" : "not kept"}, ${w.restored ? "put back" : "not put back"}` },
+      c.left.length
+        ? { ok: false, text: `After the check, its memory isn't as it was at ${c.left.slice(0, 6).join(", ")}${c.left.length > 6 ? " and more" : ""}` }
+        : { ok: true, text: "After the check, its memory is as it was" },
     );
   }
   return lines;
+}
+
+/** A change the check tried held: kept, put back, and where it was a polling rate that was
+ *  counted, counted at that rate. */
+const writeHeld = (w: WriteCheck) => !w.error && w.kept && w.restored && (!w.hz || !w.measured || rateNear(w.measured) === w.hz);
+
+function writeFailed(w: WriteCheck): string {
+  const change = w.from || w.to ? `${w.what} ${w.from} → ${w.to}` : "Change";
+  if (w.error) return `${change} failed: ${w.error}`;
+  if (!w.kept) return `${change}: not kept`;
+  if (!w.restored) return `${change}: kept, not put back`;
+  return `${change}: kept, but it still counted ${fmt(w.measured ?? 0)} reports a second`;
 }
 
 /** What its owner said of the readings, a line each; none for a part they weren't asked about. */
