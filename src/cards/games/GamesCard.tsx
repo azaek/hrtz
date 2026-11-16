@@ -24,7 +24,7 @@ const sensText = (s: number) => String(Number(s.toFixed(3)));
 const cmText = (cm: number) => `${cm >= 100 ? Math.round(cm) : cm.toFixed(1)} cm`;
 
 /** Each game's sensitivity as its settings file has it now, read again every 30 s while shown. */
-function useGames(): (GameSensitivity & { exe: string })[] {
+export function useGames(): (GameSensitivity & { exe: string })[] {
   const [games, setGames] = useState<(GameSensitivity & { exe: string })[]>([]);
   useEffect(() => {
     const read = () =>
