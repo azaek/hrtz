@@ -22,7 +22,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU8, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicIsize, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -235,6 +235,11 @@ static TRACKING: AtomicBool = AtomicBool::new(false);
 static CLICKS: AtomicBool = AtomicBool::new(false);
 /// The activity log counts movement over days.
 static ACTIVITY: AtomicBool = AtomicBool::new(false);
+/// The blind test's arena is up: every report's movement is added up for its crosshair, as a game
+/// adds it up for its camera.
+static ARENA: AtomicBool = AtomicBool::new(false);
+static ARENA_X: AtomicI64 = AtomicI64::new(0);
+static ARENA_Y: AtomicI64 = AtomicI64::new(0);
 /// Two mice or more are connected: input is followed to tell which one is in use.
 static WATCH: AtomicBool = AtomicBool::new(false);
 /// The mice connected now, by where they're plugged in: (USB port path, key).
@@ -472,7 +477,8 @@ fn handle(now: Instant, raw: &RAWINPUT) {
     let counting = CLICKS.load(Ordering::Relaxed);
     let watching = WATCH.load(Ordering::Relaxed);
     let logging = ACTIVITY.load(Ordering::Relaxed);
-    if !(running || tracking || counting || watching || logging) || raw.header.dwType != RIM_TYPEMOUSE.0 {
+    let arena = ARENA.load(Ordering::Relaxed);
+    if !(running || tracking || counting || watching || logging || arena) || raw.header.dwType != RIM_TYPEMOUSE.0 {
         return;
     }
     let Some(c) = COUNTS.get() else { return };
@@ -484,6 +490,10 @@ fn handle(now: Instant, raw: &RAWINPUT) {
     let flags = unsafe { m.Anonymous.Anonymous.usButtonFlags };
     let data = unsafe { m.Anonymous.Anonymous.usButtonData } as i16;
     let active = dx != 0 || dy != 0 || flags != 0;
+    if arena && (dx != 0 || dy != 0) {
+        ARENA_X.fetch_add(dx as i64, Ordering::Relaxed);
+        ARENA_Y.fetch_add(dy as i64, Ordering::Relaxed);
+    }
     // A mouse used on that port is awake, whether or not it's met yet.
     if active && let Some(port) = &port {
         crate::mice::input::note(port);
@@ -597,6 +607,24 @@ fn listening() -> bool {
         || CLICKS.load(Ordering::SeqCst)
         || WATCH.load(Ordering::SeqCst)
         || ACTIVITY.load(Ordering::SeqCst)
+        || ARENA.load(Ordering::SeqCst)
+}
+
+/// The blind test's arena is up, or not: add up movement for its crosshair.
+pub fn set_arena(on: bool) {
+    if ARENA.swap(on, Ordering::SeqCst) != on {
+        register();
+    }
+}
+
+/// The movement added up for the arena's crosshair so far, in counts.
+pub fn arena_counts() -> (i64, i64) {
+    (ARENA_X.load(Ordering::Relaxed), ARENA_Y.load(Ordering::Relaxed))
+}
+
+/// The DPI movement is measured at: the mouse's, or a usual one before it has said.
+pub fn dpi_in_use() -> u32 {
+    dpi_or_default()
 }
 
 /// The mice connected now, by USB port, so each report can be put down to one: the hub's states,

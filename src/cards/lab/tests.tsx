@@ -51,7 +51,7 @@ export const TESTS: Test[] = [
     title: "Can you feel it?",
     icon: <EyeOff20Regular />,
     description: "A blind test: hrtz switches a setting without telling you which, and you guess.",
-    hint: "Runs over the whole window, and puts your settings back at the end.",
+    hint: "Runs full screen, and puts your settings back at the end.",
     // Two rates to compare, or motion sync.
     needs: (c) => (c.polling?.rates.length ?? 0) >= 2 || c.motionSync,
   },

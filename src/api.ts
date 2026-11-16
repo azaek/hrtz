@@ -627,10 +627,18 @@ export interface CaptureScreen {
   /** How far along, 0 to 1, and a line under the bar. */
   progress: number;
   progressLabel: string;
+  /** The blind test's arena, in place of the words: hrtz draws a dot to follow and a crosshair the
+   *  mouse moves, every frame. Before a run (`running` false) the dot waits where it will start. */
+  arena?: { running: boolean; seed: number; label: string };
 }
 
 /** Why game mode's screen closed: the page closed it, Esc, or another window came in front. */
 export type CaptureClosed = "done" | "esc" | "away";
+/** A click or key on game mode's screen: left or right click, 1 or 2, Enter or Space. */
+export type CaptureInput = "left" | "right" | "one" | "two" | "next";
+/** How closely the blind test's crosshair followed the dot in a run: the mean distance as a share of
+ *  the screen's height, over how many frames, and the screen's refresh rate. */
+export type ArenaRun = { miss: number; frames: number; refreshHz: number | null };
 
 /** One 100 ms tick of raw input from the mouse. */
 export interface MeterSample {
@@ -868,6 +876,8 @@ export const api = {
   captureOpen: (screen: CaptureScreen) => invoke<void>("capture_open", { screen }),
   captureUpdate: (screen: CaptureScreen) => invoke<void>("capture_update", { screen }),
   captureClose: () => invoke<void>("capture_close"),
+  /** The blind test's run just done, measured on game mode's screen; its count starts again. */
+  captureArenaTake: () => invoke<ArenaRun | null>("capture_arena_take"),
   /** The pad record for `app` (exe in lower case), or for every app together. */
   padState: (app?: string | null) => invoke<PadView | null>("pad_state", { app: app ?? null }),
   /** Put the receiver into pairing for up to 30 s (`on.pairing` counts down). True when a mouse
@@ -915,6 +925,7 @@ export const on = {
   updateInstall: (f: () => void) => listen("update-install", () => f()),
   /** Game mode's screen closed. */
   captureClosed: (f: (why: CaptureClosed) => void) => listen<CaptureClosed>("capture-closed", (e) => f(e.payload)),
+  captureInput: (f: (kind: CaptureInput) => void) => listen<CaptureInput>("capture-input", (e) => f(e.payload)),
 };
 
 export function message(e: unknown): string {

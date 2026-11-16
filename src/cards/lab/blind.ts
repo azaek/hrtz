@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Capabilities, type Settings } from "@/api";
+import { api, on, type CaptureInput, type Capabilities, type Settings } from "@/api";
 import { hzText } from "@/rates";
 import { commit, useStore } from "@/store";
 import type { TestResult } from "./result";
 
 // The blind test: can you feel the difference between two settings of your mouse? hrtz sets one or
-// the other before each run without saying which, you follow a dot with the pointer, and after
-// two runs you say which was which. The pointer is Windows' own, which moves with every report the
-// mouse sends: that's what a faster polling rate changes on the desktop. How closely the pointer
-// followed the dot is measured too, so a difference you can't name may still show.
+// the other before each run without saying which, you keep a crosshair on a moving dot, and after
+// two runs you say which was which. It runs on game mode's screen (capture.rs): hrtz draws the dot
+// and the crosshair itself every frame of the screen, the crosshair moved by the mouse's own reports
+// as a game moves its camera, so what you feel is what a game would give you. How closely the
+// crosshair followed the dot is measured there too, so a difference you can't name may still show.
 
 /** Rounds in a test, each two runs. */
 export const ROUNDS = 10;
@@ -19,8 +20,6 @@ export const RUN_MS = 4000;
 /** Before each run, as long whether the mouse needs a write or not, so timing gives nothing away
  *  (ms). A write to an ATK takes up to about half a second. */
 export const READY_MS = 1400;
-/** The start of a run, while the hand catches the dot, isn't measured (ms). */
-const LEAD_IN_MS = 600;
 
 /** Two values of one setting the mouse has: the one asked about, and the other. */
 export type Pair = {
@@ -84,16 +83,6 @@ const choose = (n: number, k: number) => {
   return c;
 };
 
-/** Where the dot is, `t` ms into a run, in a box `w` by `h`: a slow loop that turns back on itself.
- *  Both runs of a round follow the same path, so their misses compare. */
-export function dotAt(t: number, seed: number, w: number, h: number): { x: number; y: number } {
-  const s = t / 1000;
-  return {
-    x: w / 2 + w * 0.36 * Math.sin(2 * Math.PI * 0.23 * s + seed),
-    y: h / 2 + h * 0.3 * Math.sin(2 * Math.PI * 0.37 * s + seed * 1.7),
-  };
-}
-
 type Run = { asked: boolean; miss: number; frames: number };
 type Round = { askedFirst: boolean; seed: number; runs: Run[]; right?: boolean };
 export type Phase = "ready" | "run" | "answer" | "reveal";
@@ -102,17 +91,19 @@ export type Phase = "ready" | "run" | "answer" | "reveal";
  *  score so far. */
 export type Reveal = { right: boolean; askedFirst: boolean; score: number; done: number };
 
+export type View = { round: number; run: 0 | 1; phase: Phase; seed: number; pair: Pair; reveal: Reveal | null };
+
 export type Result = {
   pair: Pair;
   rounds: number;
   right: number;
   /** The chance of as many right by guessing. */
   chance: number;
-  /** How much closer the pointer followed the dot with the asked setting, as a share (0.06 is 6%
+  /** How much closer the crosshair followed the dot with the asked setting, as a share (0.06 is 6%
    *  closer; below 0 is farther), and whether that held round after round. */
   closer: number;
   consistent: boolean;
-  /** The screen's refresh rate, as the runs saw it. */
+  /** The screen's refresh rate, as game mode's screen saw it. */
   refreshHz: number | null;
 };
 
@@ -132,29 +123,28 @@ let kept: Result | null = null;
 
 /**
  * The test. `start` takes the pair; then up to ten rounds of two runs, each run set up out of
- * sight first. The screen shows the dot and calls `sample` each frame of a run with how far the
- * pointer was from it, and `answer` once both runs of a round are done; the round's answer shows
- * then, with the score so far, and `next` starts the next round (the user's call: "test show test
- * show"). `finish` ends it with a result from five rounds on. The user's own settings go back at
- * the end, on `stop`, and if the test goes away mid-way. hrtz's pop-up for a rate change stays
- * quiet throughout.
+ * sight first. The page shows each part on game mode's screen (`view`); a run's measure comes from
+ * there when it ends. Clicks and keys on that screen answer: left or 1 for the first run, right or 2
+ * for the second; then the round's answer shows with the score so far, and a click or Enter starts
+ * the next (the user's call: "test show test show"). `stop` (Esc) ends it with a result from five
+ * rounds on. The user's own settings go back at the end, on `stop`, and if the test goes away
+ * mid-way. hrtz's pop-up for a rate change stays quiet throughout.
  */
 export function useBlindTest() {
   const device = useStore((x) => x.device);
   const latest = useRef(device);
   latest.current = device;
   const [result, setResult] = useState<Result | null>(kept);
-  const [view, setView] = useState<{ round: number; run: 0 | 1; phase: Phase; seed: number; pair: Pair; reveal: Reveal | null } | null>(null);
+  const [view, setView] = useState<View | null>(null);
   const going = useRef<{
     pair: Pair;
     rounds: Round[];
     i: number;
     run: 0 | 1;
     phase: Phase;
-    runAt: number;
     original: Settings;
     timer?: ReturnType<typeof setTimeout>;
-    frames: number[];
+    refreshHz: number | null;
   } | null>(null);
 
   const show = () => {
@@ -185,7 +175,7 @@ export function useBlindTest() {
     void api.osdQuiet(false);
     const done = g.rounds.filter((r) => r.right !== undefined);
     if (keep && done.length >= FEWEST) {
-      kept = resultOf(g.pair, done, g.frames);
+      kept = resultOf(g.pair, done, g.refreshHz);
       setResult(kept);
     }
     show();
@@ -206,11 +196,14 @@ export function useBlindTest() {
       () => {
         if (going.current !== g) return;
         g.phase = "run";
-        g.runAt = performance.now();
-        round.runs[g.run] = { asked, miss: 0, frames: 0 };
         show();
-        g.timer = setTimeout(() => {
+        g.timer = setTimeout(async () => {
           if (going.current !== g) return;
+          // How closely the crosshair followed, from game mode's screen, which counted it.
+          const measured = await api.captureArenaTake().catch(() => null);
+          if (going.current !== g) return;
+          round.runs[g.run] = { asked, miss: measured?.miss ?? 0, frames: measured?.frames ?? 0 };
+          g.refreshHz = measured?.refreshHz ?? g.refreshHz;
           if (g.run === 0) {
             g.run = 1;
             void begin();
@@ -224,6 +217,35 @@ export function useBlindTest() {
     );
   };
 
+  const answer = (first: boolean) => {
+    const g = going.current;
+    if (!g || g.phase !== "answer") return;
+    const round = g.rounds[g.i];
+    round.right = first === round.askedFirst;
+    g.phase = "reveal";
+    show();
+  };
+  const next = () => {
+    const g = going.current;
+    if (!g || g.phase !== "reveal") return;
+    if (g.i + 1 >= ROUNDS) return end(true);
+    g.i += 1;
+    g.run = 0;
+    void begin();
+  };
+
+  // Clicks and keys on game mode's screen.
+  useEffect(() => {
+    const unlisten = on.captureInput((kind: CaptureInput) => {
+      const g = going.current;
+      if (g?.phase === "answer") {
+        if (kind === "left" || kind === "one") answer(true);
+        else if (kind === "right" || kind === "two") answer(false);
+      } else if (g?.phase === "reveal" && (kind === "left" || kind === "right" || kind === "next")) next();
+    });
+    return () => void unlisten.then((f) => f());
+  }, []);
+
   // Leaving the test puts everything back.
   useEffect(() => () => end(false), []);
 
@@ -236,60 +258,27 @@ export function useBlindTest() {
       if (!s || going.current) return;
       void api.osdQuiet(true);
       const rounds = Array.from({ length: ROUNDS }, () => ({ askedFirst: Math.random() < 0.5, seed: Math.random() * 6.28, runs: [] }));
-      going.current = { pair, rounds, i: 0, run: 0, phase: "ready", runAt: 0, original: s, frames: [] };
+      going.current = { pair, rounds, i: 0, run: 0, phase: "ready", original: s, refreshHz: null };
       void begin();
     },
-    /** How far the pointer was from the dot this frame (px), and the frame's length (ms). */
-    sample: (miss: number, frameMs: number) => {
-      const g = going.current;
-      if (!g || g.phase !== "run") return;
-      if (frameMs > 0 && frameMs < 100) g.frames.push(frameMs);
-      if (performance.now() - g.runAt < LEAD_IN_MS) return;
-      const run = g.rounds[g.i].runs[g.run];
-      if (!run) return;
-      run.miss += miss;
-      run.frames += 1;
-    },
-    /** Which run was the asked one: the round's answer shows. */
-    answer: (first: boolean) => {
-      const g = going.current;
-      if (!g || g.phase !== "answer") return;
-      const round = g.rounds[g.i];
-      round.right = first === round.askedFirst;
-      g.phase = "reveal";
-      show();
-    },
-    /** The next round, or the result after the last. */
-    next: () => {
-      const g = going.current;
-      if (!g || g.phase !== "reveal") return;
-      if (g.i + 1 >= ROUNDS) return end(true);
-      g.i += 1;
-      g.run = 0;
-      void begin();
-    },
-    /** Esc, Stop or Finish: five rounds or more still make a result. */
+    /** Esc, another window in front, or Stop: five rounds or more still make a result. */
     stop: () => end(true),
   };
 }
 
-function resultOf(pair: Pair, rounds: Round[], frames: number[]): Result {
+function resultOf(pair: Pair, rounds: Round[], refreshHz: number | null): Result {
   const right = rounds.filter((r) => r.right).length;
   // Per round, how much closer the asked run followed than the other.
   const gains = rounds
     .map((r) => {
       const a = r.runs.find((x) => x.asked);
       const o = r.runs.find((x) => !x.asked);
-      if (!a?.frames || !o?.frames) return null;
-      const am = a.miss / a.frames;
-      const om = o.miss / o.frames;
-      return om > 0 ? (om - am) / om : null;
+      if (!a?.frames || !o?.frames || o.miss <= 0) return null;
+      return (o.miss - a.miss) / o.miss;
     })
     .filter((x): x is number => x !== null);
   const mean = gains.length ? gains.reduce((n, x) => n + x, 0) / gains.length : 0;
   const sd = gains.length > 1 ? Math.sqrt(gains.reduce((n, x) => n + (x - mean) ** 2, 0) / (gains.length - 1)) : Infinity;
-  const sorted = [...frames].sort((a, b) => a - b);
-  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
   return {
     pair,
     rounds: rounds.length,
@@ -297,6 +286,6 @@ function resultOf(pair: Pair, rounds: Round[], frames: number[]): Result {
     chance: byChance(right, rounds.length),
     closer: mean,
     consistent: gains.length >= 5 && Math.abs(mean) > 2 * (sd / Math.sqrt(gains.length)),
-    refreshHz: median > 0 ? Math.round(1000 / median) : null,
+    refreshHz,
   };
 }

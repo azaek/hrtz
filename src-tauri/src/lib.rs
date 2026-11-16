@@ -780,9 +780,17 @@ fn capture_open(app: AppHandle, screen: serde_json::Value) {
     if let Ok(screen) = serde_json::from_value::<capture::Screen>(screen) {
         let main = app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map_or(0, |h| h.0 as isize);
         let handle = app.clone();
-        capture::open(screen, main, move |why| {
-            let _ = handle.emit_to("main", "capture-closed", why);
-        });
+        let input = app.clone();
+        capture::open(
+            screen,
+            main,
+            move |why| {
+                let _ = handle.emit_to("main", "capture-closed", why);
+            },
+            move |kind| {
+                let _ = input.emit_to("main", "capture-input", kind);
+            },
+        );
     }
     #[cfg(not(windows))]
     let _ = (app, screen);
@@ -802,6 +810,16 @@ fn capture_update(screen: serde_json::Value) {
 fn capture_close() {
     #[cfg(windows)]
     capture::close();
+}
+
+/// How closely the blind test's crosshair followed the dot in the run just done, and the screen's
+/// refresh rate. The count starts again.
+#[tauri::command]
+fn capture_arena_take() -> serde_json::Value {
+    #[cfg(windows)]
+    return serde_json::to_value(capture::arena_take()).unwrap_or_default();
+    #[cfg(not(windows))]
+    serde_json::Value::Null
 }
 
 /// A timing test is open (`true`) or closed: while it's open, its timing counts only in game mode.
@@ -1912,6 +1930,7 @@ pub fn run() {
             fix_pointer,
             test_popup,
             osd_quiet,
+            capture_arena_take,
         ])
         .run(context)
         .expect("error while running hrtz");

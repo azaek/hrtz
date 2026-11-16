@@ -657,6 +657,9 @@ function setupInput() {
       captured = false;
       void emit("capture-closed", "esc");
     }
+    // The blind test's answers on game mode's screen: 1 and 2, Enter.
+    const input = ({ "1": "one", "2": "two", Enter: "next" } as Record<string, string>)[e.key];
+    if (input && captured) void emit("capture-input", input);
   });
   window.addEventListener(
     "wheel",
@@ -1139,6 +1142,9 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       return null;
     case "capture_update":
       return null;
+    case "capture_arena_take":
+      // A run of the blind test: a little closer now and then, as a hand would.
+      return { miss: 0.03 + Math.random() * 0.02, frames: 520, refreshHz: 144 };
     case "capture_close":
       if (captured) {
         captured = false;
