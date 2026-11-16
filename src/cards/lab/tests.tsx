@@ -50,8 +50,8 @@ export const TESTS: Test[] = [
     name: "Blind test",
     title: "Can you feel it?",
     icon: <EyeOff20Regular />,
-    description: "hrtz switches a setting of your mouse without telling you which. You guess.",
-    hint: "Runs over the whole window. Changes your polling rate or motion sync while it runs, then restores yours.",
+    description: "A blind test: hrtz switches a setting without telling you which, and you guess.",
+    hint: "Runs over the whole window, and puts your settings back at the end.",
     // Two rates to compare, or motion sync.
     needs: (c) => (c.polling?.rates.length ?? 0) >= 2 || c.motionSync,
   },

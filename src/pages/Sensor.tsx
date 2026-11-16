@@ -20,9 +20,6 @@ import { formatDuration } from "../format";
 import { DpiStagesCard } from "../cards/dpi-stages/DpiStagesCard";
 import { GamesCard } from "../cards/games/GamesCard";
 import { NewThings } from "../cards/discover/NewThings";
-import { WeekMoment } from "../cards/discover/WeekMoment";
-import { pairsFor } from "../cards/lab/blind";
-import { discovery } from "../discover";
 import { openTest } from "../cards/lab/tests";
 import { isZaopin } from "../models";
 import { SignalRgbCard, useSetBySignalRgb } from "../cards/signalrgb/SignalRgbCard";
@@ -44,7 +41,6 @@ export function SensorPage() {
   const disabled = !device.online;
   const top = topRate(caps);
   const mode = caps.sensorMode;
-  const blind = pairsFor(caps, s).find((p) => p.id === "polling");
   const lockedCorded =
     !!mode && ((mode.cordedWhenWired && caps.wired) || (mode.cordedFromHz !== undefined && (s.pollingHz ?? 0) >= mode.cordedFromHz));
 
@@ -60,15 +56,6 @@ export function SensorPage() {
             : caps.wired && top !== undefined
               ? `How often the mouse reports to your PC. Up to ${hzText(top)} when wired.`
               : "How often the mouse reports to your PC."}
-          {/* The moment the blind test matters: picking a rate. */}
-          {discovery() === "moments" && blind && (
-            <>
-              {" "}
-              <Link inline as="button" onClick={() => openTest("blind")}>
-                Can you feel {blind.feel}?
-              </Link>
-            </>
-          )}
         </>
       }
       below={
@@ -301,8 +288,8 @@ export function SensorPage() {
 
   return (
     <fieldset disabled={disabled || busy} style={{ border: 0, margin: 0, padding: 0, minWidth: 0, opacity: disabled ? 0.6 : 1 }}>
-      {discovery() === "front" && <NewThings />}
-      {discovery() === "moments" && <WeekMoment />}
+      {/* The features lab's pick (DECISIONS.md, "Three things to try"). */}
+      <NewThings />
       {tracking && (
         <Group title="Tracking">
           {dpi}

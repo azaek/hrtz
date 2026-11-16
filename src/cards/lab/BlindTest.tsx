@@ -5,7 +5,6 @@ import { StepCard } from "@/kit";
 import { hzText } from "@/rates";
 import { commit, toast, useStore } from "@/store";
 import { blindSummary, dotAt, FEWEST, pairsFor, READY_MS, ROUNDS, shareText, useBlindTest, type Pair, type Phase, type Result, type Reveal } from "./blind";
-import { Motion } from "./parts";
 import { useReport, type TestProps } from "./result";
 
 const muted = { color: "var(--colorNeutralForeground3)" };
@@ -60,11 +59,12 @@ export function BlindTest({ onResult }: TestProps) {
       {t.result && !t.running ? (
         <Outcome r={t.result} again={start} online={online} other={pairs.find((p) => p.id !== pair.id) ?? null} tryOther={(p) => (setPick(p.id), setStopped(false), t.start(p))} />
       ) : (
+        // Only what to do now: the pane above says what the test is, and its footer what it
+        // changes (the user: "it looks too busy on card").
         <StepCard
-          label={stopped ? "Stopped. Five rounds or more make a result." : `About 2 minutes · ${ROUNDS} rounds`}
-          title={`Can you feel ${pair.feel}?`}
-          detail={`hrtz switches your mouse between ${pair.asked} and ${pair.other} without telling you which. Follow the dot for a few seconds, twice, say which was which, and see if you were right. Yours goes back at the end.`}
-          art={<Motion kind="circles" />}
+          label={stopped ? "Stopped. Five rounds or more make a result." : `${ROUNDS} rounds · about 2 minutes`}
+          title={pair.id === "polling" ? `${pair.asked} or ${pair.other}?` : "Motion sync on or off?"}
+          detail={`Follow the dot twice, then pick the run that had ${pair.asked}.`}
           status={choose}
           actions={
             <Button appearance="primary" disabled={!online || t.running} onClick={start}>
@@ -92,16 +92,9 @@ function Outcome({ r, again, online, other, tryOther }: { r: Result; again: () =
     r.right * 2 > r.rounds
       ? `Guessing gets that many or more ${r.chance < 0.01 ? "less than 1%" : `${Math.round(r.chance * 100)}%`} of the time.`
       : "That's about what guessing gets.";
-  const tracking =
-    r.consistent && pct >= 1
-      ? `You followed the dot ${pct}% closer with ${r.closer > 0 ? r.pair.asked : r.pair.other}.`
-      : "You followed the dot about as closely with either.";
+  const tracking = r.consistent && pct >= 1 ? `Followed ${pct}% closer with ${r.closer > 0 ? r.pair.asked : r.pair.other}` : "Followed as closely with either";
   const screen =
-    r.refreshHz && r.pair.id === "polling"
-      ? r.refreshHz <= 75
-        ? ` Your screen runs at ${r.refreshHz} Hz, where a faster polling rate is hard to see.`
-        : ` Your screen runs at ${r.refreshHz} Hz.`
-      : "";
+    r.refreshHz && r.pair.id === "polling" ? (r.refreshHz <= 75 ? `${r.refreshHz} Hz, where a faster polling rate is hard to see` : `${r.refreshHz} Hz`) : "";
   // Can't feel the faster rate on a wireless mouse: the slower one lasts longer on a charge.
   const low = r.pair.low;
   const saver = r.right <= 7 && low && s?.pollingHz && s.pollingHz > low && !device?.capabilities?.wired && device?.capabilities?.battery;
@@ -114,7 +107,7 @@ function Outcome({ r, again, online, other, tryOther }: { r: Result; again: () =
     <StepCard
       label="Result"
       title={title}
-      detail={`${r.right} of ${r.rounds} right. ${odds} ${tracking}${screen}`}
+      detail={`${r.right} of ${r.rounds} right. ${odds}`}
       status={
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link as="button" onClick={copy}>
@@ -133,15 +126,31 @@ function Outcome({ r, again, online, other, tryOther }: { r: Result; again: () =
         </Button>
       }
     >
-      {saver && (
-        <Caption1 style={soft}>
-          {`${hzText(low)} lasts longer on a charge, and you didn't feel the difference. `}
-          <Link inline as="button" disabled={!online} onClick={() => s && void commit({ ...s, pollingHz: low })}>
-            Use {hzText(low)}
-          </Link>
-        </Caption1>
-      )}
+      <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+        <Fact name="The dot">{tracking}</Fact>
+        {screen && <Fact name="Your screen">{screen}</Fact>}
+        {saver && (
+          <Fact name="Battery">
+            {`${hzText(low)} lasts longer on a charge. `}
+            <Link inline as="button" disabled={!online} onClick={() => s && void commit({ ...s, pollingHz: low })}>
+              Use {hzText(low)}
+            </Link>
+          </Fact>
+        )}
+      </ul>
     </StepCard>
+  );
+}
+
+/** One finding of a result: what it's about, muted, then what was found. */
+function Fact({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <Caption1 className="w-24 shrink-0" style={muted}>
+        {name}
+      </Caption1>
+      <Caption1 style={soft}>{children}</Caption1>
+    </li>
   );
 }
 

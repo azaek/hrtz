@@ -9,8 +9,9 @@ import { goTo, useStore } from "@/store";
 
 const HIDE_KEY = "hrtz.newThingsHidden";
 
-/** "New in hrtz": the three new things at the top of the Sensor page, each a button away, until
- *  hidden. (The features lab's "front" direction.) */
+/** "New in hrtz": the three new things at the top of the Sensor page, the page hrtz opens on, each
+ *  a button away, until hidden (the user's pick in the features lab, DECISIONS.md "Three things to
+ *  try"). */
 export function NewThings() {
   const device = useStore((x) => x.device);
   const week = useWeek();

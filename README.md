@@ -231,10 +231,15 @@ Each mouse gets what it has; hrtz shows only the settings yours does.
   soon the mouse sleeps.
 - **In-game HUD:** battery, polling rate, DPI and profile at the edge of the screen, in a window of
   its own. Nothing is injected into games.
-- **Lab:** checks for the connection (the polling rate that runs best on your PC), tracking, lift-off,
-  DPI accuracy, the sensor angle your grip needs, double clicks and the scroll wheel, a map of where
-  the mouse travels on the pad, and a look at Windows' pointer settings. The timing checks run on a screen of their own, the way a game
-  reads the mouse.
+- **Lab:** a blind test of whether you can feel 8,000 Hz or motion sync, checks for the connection
+  (the polling rate that runs best on your PC), tracking, lift-off, DPI accuracy, the sensor angle
+  your grip needs, double clicks and the scroll wheel, a map of where the mouse travels on the pad,
+  and a look at Windows' pointer settings. The timing checks run on a screen of their own, the way a
+  game reads the mouse.
+- **Your week:** how far the mouse travelled, how long it moved, your fastest flick and your clicks,
+  each day and in each game. Totals only, kept on your PC.
+- **Sensitivity in your games:** how far a full turn is in Valorant, Apex and CS2 at your DPI, read
+  from each game's settings, and what to set in each to make them feel the same.
 - **Backups:** full copies of the mouse's settings, restores that show what changes and can be undone,
   export and import, and factory settings.
 - **Pairing** (Zaopin), a tray icon with the battery level, a low-battery alert, and a pop-up when the

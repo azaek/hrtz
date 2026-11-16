@@ -4,6 +4,14 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### New
+- A blind test in Lab: can you feel 8,000 Hz, or motion sync? hrtz switches your mouse between the two without telling you which, you follow a dot, then pick which run was which, and see after each round whether you were right. Ten rounds, about two minutes; your settings go back at the end. The result says how likely your score was by guessing, and whether you followed the dot more closely with either.
+- Your week: a page with how far your mouse travelled, how long it moved, your fastest flick and your clicks, each day and in each game, with the full turns you made in Valorant, Apex or CS2. Counted as you use the mouse, totals only, kept on your PC; you can switch it off there.
+- Sensitivity in your games, on the Sensor page: how far a full turn is in Valorant, Apex and CS2 at your DPI, and what to set in each so they all feel like the one you pick. hrtz reads each game's own settings.
+- "New in hrtz" at the top of the Sensor page, a button away from each, until you hide it.
+
 ## 0.5.4 — 2026-11-15
 
 ### Fixed
