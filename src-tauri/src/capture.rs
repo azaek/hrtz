@@ -274,6 +274,8 @@ fn render_while_up() {
     let mut seen = crate::meter::arena_counts();
     let mut cross: Option<(f64, f64)> = None;
     let mut drawn: Vec<RECT> = Vec::new();
+    // The arena drawn off screen, the background everywhere but the dot and the crosshair.
+    let mut frame: Option<Frame> = None;
     loop {
         unsafe {
             let _ = DwmFlush();
@@ -318,7 +320,8 @@ fn render_while_up() {
             cross = Some(dot);
         }
         let per_count = ht / CM_PER_HEIGHT * 2.54 / crate::meter::dpi_in_use().max(1) as f64;
-        let edge = 120.0 * s as f64;
+        // Clear of the line at the top and Esc at the bottom, which the copies never touch.
+        let edge = 160.0 * s as f64;
         let c = cross.get_or_insert(dot);
         c.0 = (c.0 + moved.0 * per_count).clamp(edge, w - edge);
         c.1 = (c.1 + moved.1 * per_count).clamp(edge, ht - edge);
@@ -328,12 +331,37 @@ fn render_while_up() {
             run.1 += 1;
         }
         let cross_at = *c;
-        unsafe { drawn = draw_arena(hwnd, s, dot, cross_at, arena.running, &drawn) };
+        let (wi, hi) = (w as i32, ht as i32);
+        if frame.as_ref().is_none_or(|f| (f.w, f.h) != (wi, hi)) {
+            frame = Frame::new(None, wi, hi);
+            if let Some(f) = &frame {
+                unsafe {
+                    let back = CreateSolidBrush(BACKGROUND);
+                    FillRect(f.dc, &RECT { left: 0, top: 0, right: wi, bottom: hi }, back);
+                    let _ = DeleteObject(back.into());
+                }
+            }
+            drawn.clear();
+        }
+        let Some(f) = &frame else { continue };
+        let now_boxes = boxes(s, dot, cross_at);
+        unsafe { draw_arena(f.dc, s, dot, cross_at, arena.running, &drawn) };
+        // Each thing's old and new place together, so it's never seen gone or half drawn; the two
+        // as one when they touch.
+        let mut areas: Vec<RECT> = match drawn.as_slice() {
+            [old_dot, old_cross] => vec![union(old_dot, &now_boxes[0]), union(old_cross, &now_boxes[1])],
+            _ => now_boxes.to_vec(),
+        };
+        if overlap(&areas[0], &areas[1]) {
+            areas = vec![union(&areas[0], &areas[1])];
+        }
+        unsafe { show_areas(hwnd, f, &areas) };
+        drawn = now_boxes.to_vec();
     }
 }
 
-/// Erase where the dot and crosshair were, and draw them where they are. Returns where they are now.
-unsafe fn draw_arena(hwnd: HWND, s: f32, dot: (f64, f64), cross: (f64, f64), running: bool, old: &[RECT]) -> Vec<RECT> {
+/// The boxes the dot and the crosshair take at `s` times 100%, with room for their edges.
+fn boxes(s: f32, dot: (f64, f64), cross: (f64, f64)) -> [RECT; 2] {
     let px = |v: f32| (v * s).round() as i32;
     let (r, arm, thick) = (px(14.0), px(10.0), px(2.0).max(2));
     let box_at = |(x, y): (f64, f64), half: i32| RECT {
@@ -342,13 +370,29 @@ unsafe fn draw_arena(hwnd: HWND, s: f32, dot: (f64, f64), cross: (f64, f64), run
         right: x as i32 + half + 1,
         bottom: y as i32 + half + 1,
     };
-    let dot_box = box_at(dot, r + thick + 1);
-    let cross_box = box_at(cross, arm + thick + 1);
+    [box_at(dot, r + thick + 2), box_at(cross, arm + thick + 2)]
+}
+
+/// The smallest box around both.
+fn union(a: &RECT, b: &RECT) -> RECT {
+    RECT {
+        left: a.left.min(b.left),
+        top: a.top.min(b.top),
+        right: a.right.max(b.right),
+        bottom: a.bottom.max(b.bottom),
+    }
+}
+
+fn overlap(a: &RECT, b: &RECT) -> bool {
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+}
+
+/// Into `dc`: where the dot and the crosshair were (`old`) back to the background, then both where
+/// they are now. The frame is off screen, so nothing half-drawn is ever seen.
+unsafe fn draw_arena(dc: HDC, s: f32, dot: (f64, f64), cross: (f64, f64), running: bool, old: &[RECT]) {
+    let px = |v: f32| (v * s).round() as i32;
+    let (r, arm, thick) = (px(14.0), px(10.0), px(2.0).max(2));
     unsafe {
-        let dc = GetDC(Some(hwnd));
-        if dc.is_invalid() {
-            return old.to_vec();
-        }
         let back = CreateSolidBrush(BACKGROUND);
         for rect in old {
             FillRect(dc, rect, back);
@@ -375,9 +419,23 @@ unsafe fn draw_arena(hwnd: HWND, s: f32, dot: (f64, f64), cross: (f64, f64), run
         FillRect(dc, &RECT { left: cx - half, top: cy - arm, right: cx - half + thick, bottom: cy + arm + 1 }, ink);
         let _ = DeleteObject(ink.into());
         let _ = GdiFlush();
+    }
+}
+
+/// Copy `areas` of the off-screen frame onto the window, each in one go.
+unsafe fn show_areas(hwnd: HWND, frame: &Frame, areas: &[RECT]) {
+    unsafe {
+        let dc = GetDC(Some(hwnd));
+        if dc.is_invalid() {
+            return;
+        }
+        for a in areas {
+            let _ =
+                BitBlt(dc, a.left, a.top, a.right - a.left, a.bottom - a.top, Some(frame.dc), a.left, a.top, SRCCOPY);
+        }
+        let _ = GdiFlush();
         ReleaseDC(Some(hwnd), dc);
     }
-    vec![dot_box, cross_box]
 }
 
 /// Tell the page of a click or key.
