@@ -19,9 +19,11 @@ startFakeBackend();
 
 const NEW = ["blindtest", "week", "gamesens"];
 
-/** Each direction starts as a first look: badges unseen, nothing hidden. */
+/** Each direction starts as a first look, on the Sensor page where they differ: badges unseen,
+ *  nothing hidden. */
 function fresh(mode: Discovery) {
   setDiscovery(mode);
+  goTo("sensor");
   setWeekMomentAlways(true);
   localStorage.removeItem("hrtz.newThingsHidden");
   localStorage.removeItem("hrtz.weekShown");
@@ -37,19 +39,19 @@ const variants: Variant[] = [
   {
     name: "Badges",
     Component: Badges,
-    note: "Each feature where it belongs, with its New badge until seen: Your week in the sidebar, the blind test first in Lab, the games card under the DPI stages. Nothing else asks for attention.",
+    note: "Only the New badges: on Your week and Lab in the sidebar, on the blind test in Lab, on the games card under the DPI stages. Nothing else on the Sensor page asks for attention.",
     enter: () => fresh("badges"),
   },
   {
     name: "Front door",
     Component: FrontDoor,
-    note: "\"New in hrtz\" at the top of the Sensor page, the page hrtz opens on: the three, each a button away, until hidden. Plus the badges.",
+    note: "The badges, and \"New in hrtz\" at the top of the Sensor page (the page hrtz opens on): the three, each a button away, until you hide them.",
     enter: () => fresh("front"),
   },
   {
     name: "Moments",
     Component: Moments,
-    note: "Each at the moment it matters: Your week pops up once a week when there's a week to show; the polling rate card asks \"Can you feel 8,000 Hz?\"; the games card sits under the DPI stages. Plus the badges.",
+    note: "The badges, and each at the moment it matters: Your week pops up once a week when there's a week to show (here, every time), and the polling rate card asks \"Can you feel 8,000 Hz?\".",
     enter: () => fresh("moments"),
   },
 ];

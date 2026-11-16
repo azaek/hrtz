@@ -58,7 +58,7 @@ export function BlindTest({ onResult }: TestProps) {
         />
       )}
       {t.result && !t.running ? (
-        <Outcome r={t.result} again={start} online={online} choose={choose} />
+        <Outcome r={t.result} again={start} online={online} other={pairs.find((p) => p.id !== pair.id) ?? null} tryOther={(p) => (setPick(p.id), setStopped(false), t.start(p))} />
       ) : (
         <StepCard
           label={stopped ? "Stopped. Five rounds or more make a result." : `About 2 minutes · ${ROUNDS} rounds`}
@@ -78,13 +78,20 @@ export function BlindTest({ onResult }: TestProps) {
 }
 
 /** What the test found, with the next step. */
-function Outcome({ r, again, online, choose }: { r: Result; again: () => void; online: boolean; choose: React.ReactNode }) {
+/** What the test found: one button (Test again), and the rest as links, so it fits the Lab's pane
+ *  (the user's screenshot: the choice, Copy result, Use 1,000 Hz and Test again in one row, each
+ *  wrapping). */
+function Outcome({ r, again, online, other, tryOther }: { r: Result; again: () => void; online: boolean; other: Pair | null; tryOther: (p: Pair) => void }) {
   const device = useStore((x) => x.device);
   const s = device?.settings;
   const pct = Math.round(Math.abs(r.closer) * 100);
   const title =
     r.right >= 8 ? `You can feel ${r.pair.feel}` : r.right >= 6 ? `Hard to say: ${r.right} of ${r.rounds} right` : `You couldn't tell ${r.pair.asked} from ${r.pair.other}`;
-  const odds = r.chance < 0.01 ? "less than 1%" : `${Math.round(r.chance * 100)}%`;
+  // The chance only says something for more right than half: 2 of 5 is what guessing gets.
+  const odds =
+    r.right * 2 > r.rounds
+      ? `Guessing gets that many or more ${r.chance < 0.01 ? "less than 1%" : `${Math.round(r.chance * 100)}%`} of the time.`
+      : "That's about what guessing gets.";
   const tracking =
     r.consistent && pct >= 1
       ? `You followed the dot ${pct}% closer with ${r.closer > 0 ? r.pair.asked : r.pair.other}.`
@@ -107,29 +114,33 @@ function Outcome({ r, again, online, choose }: { r: Result; again: () => void; o
     <StepCard
       label="Result"
       title={title}
-      detail={`${r.right} of ${r.rounds} right. Guessing gets that many right ${odds} of the time. ${tracking}${screen}`}
+      detail={`${r.right} of ${r.rounds} right. ${odds} ${tracking}${screen}`}
       status={
-        <span className="flex items-center gap-4">
-          {choose}
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link as="button" onClick={copy}>
             Copy result
           </Link>
+          {other && (
+            <Link as="button" disabled={!online} onClick={() => tryOther(other)}>
+              Test {other.name.toLowerCase()}
+            </Link>
+          )}
         </span>
       }
       actions={
-        <>
-          {saver && (
-            <Button disabled={!online} onClick={() => s && void commit({ ...s, pollingHz: low })}>
-              Use {hzText(low)}
-            </Button>
-          )}
-          <Button appearance={saver ? "secondary" : "primary"} disabled={!online} onClick={again}>
-            Test again
-          </Button>
-        </>
+        <Button appearance="primary" disabled={!online} onClick={again}>
+          Test again
+        </Button>
       }
     >
-      {saver && <Caption1 style={soft}>{`${hzText(low)} lasts longer on a charge, and you didn't feel the difference.`}</Caption1>}
+      {saver && (
+        <Caption1 style={soft}>
+          {`${hzText(low)} lasts longer on a charge, and you didn't feel the difference. `}
+          <Link inline as="button" disabled={!online} onClick={() => s && void commit({ ...s, pollingHz: low })}>
+            Use {hzText(low)}
+          </Link>
+        </Caption1>
+      )}
     </StepCard>
   );
 }
