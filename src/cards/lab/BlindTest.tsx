@@ -4,7 +4,7 @@ import { Choice } from "@/components";
 import { StepCard } from "@/kit";
 import { hzText } from "@/rates";
 import { commit, toast, useStore } from "@/store";
-import { blindSummary, dotAt, pairsFor, READY_MS, ROUNDS, shareText, useBlindTest, type Pair, type Phase, type Result } from "./blind";
+import { blindSummary, dotAt, FEWEST, pairsFor, READY_MS, ROUNDS, shareText, useBlindTest, type Pair, type Phase, type Result, type Reveal } from "./blind";
 import { Motion } from "./parts";
 import { useReport, type TestProps } from "./result";
 
@@ -36,6 +36,8 @@ export function BlindTest({ onResult }: TestProps) {
     setStopped(false);
     t.start(pair);
   };
+  // Alone on the left of the button row: beside a status line too, it had no room and wrapped
+  // (the user's screenshot). The stopped note goes on top instead.
   const choose =
     pairs.length > 1 ? (
       <Choice label="What to test" value={pair.id} options={pairs.map((p) => ({ value: p.id, label: p.name }))} onChange={(id) => setPick(id)} />
@@ -48,6 +50,7 @@ export function BlindTest({ onResult }: TestProps) {
           view={t.view}
           onSample={t.sample}
           onAnswer={t.answer}
+          onNext={t.next}
           onStop={() => {
             setStopped(true);
             t.stop();
@@ -58,18 +61,15 @@ export function BlindTest({ onResult }: TestProps) {
         <Outcome r={t.result} again={start} online={online} choose={choose} />
       ) : (
         <StepCard
-          label={`About 2 minutes · ${ROUNDS} rounds`}
+          label={stopped ? "Stopped. Five rounds or more make a result." : `About 2 minutes · ${ROUNDS} rounds`}
           title={`Can you feel ${pair.feel}?`}
-          detail={`hrtz switches your mouse between ${pair.asked} and ${pair.other} without telling you which. Follow the dot for a few seconds, twice, then say which was which. Yours goes back at the end.`}
+          detail={`hrtz switches your mouse between ${pair.asked} and ${pair.other} without telling you which. Follow the dot for a few seconds, twice, say which was which, and see if you were right. Yours goes back at the end.`}
           art={<Motion kind="circles" />}
-          status={stopped ? <span style={muted}>Stopped. Five rounds or more make a result.</span> : undefined}
+          status={choose}
           actions={
-            <>
-              {choose}
-              <Button appearance="primary" disabled={!online || t.running} onClick={start}>
-                Start
-              </Button>
-            </>
+            <Button appearance="primary" disabled={!online || t.running} onClick={start}>
+              Start
+            </Button>
           }
         />
       )}
@@ -109,13 +109,15 @@ function Outcome({ r, again, online, choose }: { r: Result; again: () => void; o
       title={title}
       detail={`${r.right} of ${r.rounds} right. Guessing gets that many right ${odds} of the time. ${tracking}${screen}`}
       status={
-        <Link as="button" onClick={copy}>
-          Copy result
-        </Link>
+        <span className="flex items-center gap-4">
+          {choose}
+          <Link as="button" onClick={copy}>
+            Copy result
+          </Link>
+        </span>
       }
       actions={
         <>
-          {choose}
           {saver && (
             <Button disabled={!online} onClick={() => s && void commit({ ...s, pollingHz: low })}>
               Use {hzText(low)}
@@ -137,11 +139,13 @@ function Arena({
   view,
   onSample,
   onAnswer,
+  onNext,
   onStop,
 }: {
-  view: { round: number; run: 0 | 1; phase: Phase; seed: number; pair: Pair };
+  view: { round: number; run: 0 | 1; phase: Phase; seed: number; pair: Pair; reveal: Reveal | null };
   onSample: (miss: number, frameMs: number) => void;
   onAnswer: (first: boolean) => void;
+  onNext: () => void;
   onStop: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -150,16 +154,26 @@ function Arena({
   const handlers = useRef({ onSample, onStop });
   handlers.current = { onSample, onStop };
 
+  const handlersNext = useRef(onNext);
+  handlersNext.current = onNext;
+  const revealing = view.phase === "reveal";
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && handlers.current.onStop();
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, []);
+    const keys = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handlers.current.onStop();
+      // Enter or Space for the next round, once the answer is up.
+      else if (revealing && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        handlersNext.current();
+      }
+    };
+    window.addEventListener("keydown", keys);
+    return () => window.removeEventListener("keydown", keys);
+  }, [revealing]);
 
   // The dot moves every frame of a run; before one, it waits where the run will start.
   useEffect(() => {
     const el = box.current;
-    if (!el || view.phase === "answer") return;
+    if (!el || view.phase === "answer" || view.phase === "reveal") return;
     const start = performance.now();
     let last = start;
     let frame = 0;
@@ -179,7 +193,7 @@ function Arena({
 
   const where = `Round ${view.round + 1} of ${ROUNDS}`;
   const line =
-    view.phase === "answer"
+    view.phase === "answer" || view.phase === "reveal"
       ? "Both runs done"
       : view.phase === "ready"
         ? `${view.run === 0 ? "First" : "Second"} run in a moment`
@@ -203,7 +217,7 @@ function Arena({
           </div>
           <Caption1 style={muted}>Esc to stop</Caption1>
         </div>
-        {view.phase !== "answer" && (
+        {(view.phase === "ready" || view.phase === "run") && (
           <div
             ref={dot}
             aria-hidden
@@ -232,6 +246,27 @@ function Arena({
               <Button onClick={() => onAnswer(false)}>The second</Button>
             </div>
             <Body1 style={muted}>If you can't tell, go with your gut.</Body1>
+          </div>
+        )}
+        {view.phase === "reveal" && view.reveal && (
+          <div className="flex flex-col items-center justify-center gap-3" style={{ position: "absolute", inset: 0 }}>
+            <Title3>{view.reveal.right ? "Right" : "Not this time"}</Title3>
+            <Body1>
+              The {view.reveal.askedFirst ? "first" : "second"} run had {view.pair.asked}, the {view.reveal.askedFirst ? "second" : "first"} {view.pair.other}.
+            </Body1>
+            <Body1 className="tabular-nums" style={muted}>
+              {view.reveal.score} of {view.reveal.done} right so far
+            </Body1>
+            <div className="mt-2 flex items-center gap-4">
+              <Button appearance="primary" onClick={onNext}>
+                {view.round + 1 >= ROUNDS ? "See your result" : "Next round"}
+              </Button>
+              {view.reveal.done >= FEWEST && view.round + 1 < ROUNDS && (
+                <Link as="button" onClick={onStop}>
+                  Finish here
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>

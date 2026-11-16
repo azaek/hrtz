@@ -12,6 +12,8 @@ import type { TestResult } from "./result";
 
 /** Rounds in a test, each two runs. */
 export const ROUNDS = 10;
+/** Rounds that make a result, if you stop early. */
+export const FEWEST = 5;
 /** One run of following the dot (ms). */
 export const RUN_MS = 4000;
 /** Before each run, as long whether the mouse needs a write or not, so timing gives nothing away
@@ -94,7 +96,11 @@ export function dotAt(t: number, seed: number, w: number, h: number): { x: numbe
 
 type Run = { asked: boolean; miss: number; frames: number };
 type Round = { askedFirst: boolean; seed: number; runs: Run[]; right?: boolean };
-export type Phase = "ready" | "run" | "answer";
+export type Phase = "ready" | "run" | "answer" | "reveal";
+
+/** A round's answer, shown before the next: right or not, which run was the asked one, and the
+ *  score so far. */
+export type Reveal = { right: boolean; askedFirst: boolean; score: number; done: number };
 
 export type Result = {
   pair: Pair;
@@ -125,9 +131,11 @@ export const shareText = (r: Result) =>
 let kept: Result | null = null;
 
 /**
- * The test. `start` takes the pair; then ten rounds of two runs, each run set up out of sight
- * first. The screen shows the dot and calls `sample` each frame of a run with how far the pointer
- * was from it, and `answer` once both runs of a round are done. The user's own settings go back at
+ * The test. `start` takes the pair; then up to ten rounds of two runs, each run set up out of
+ * sight first. The screen shows the dot and calls `sample` each frame of a run with how far the
+ * pointer was from it, and `answer` once both runs of a round are done; the round's answer shows
+ * then, with the score so far, and `next` starts the next round (the user's call: "test show test
+ * show"). `finish` ends it with a result from five rounds on. The user's own settings go back at
  * the end, on `stop`, and if the test goes away mid-way. hrtz's pop-up for a rate change stays
  * quiet throughout.
  */
@@ -136,7 +144,7 @@ export function useBlindTest() {
   const latest = useRef(device);
   latest.current = device;
   const [result, setResult] = useState<Result | null>(kept);
-  const [view, setView] = useState<{ round: number; run: 0 | 1; phase: Phase; seed: number; pair: Pair } | null>(null);
+  const [view, setView] = useState<{ round: number; run: 0 | 1; phase: Phase; seed: number; pair: Pair; reveal: Reveal | null } | null>(null);
   const going = useRef<{
     pair: Pair;
     rounds: Round[];
@@ -151,7 +159,14 @@ export function useBlindTest() {
 
   const show = () => {
     const g = going.current;
-    setView(g ? { round: g.i, run: g.run, phase: g.phase, seed: g.rounds[g.i].seed, pair: g.pair } : null);
+    if (!g) return setView(null);
+    const round = g.rounds[g.i];
+    const done = g.rounds.filter((r) => r.right !== undefined);
+    const reveal =
+      g.phase === "reveal" && round.right !== undefined
+        ? { right: round.right, askedFirst: round.askedFirst, score: done.filter((r) => r.right).length, done: done.length }
+        : null;
+    setView({ round: g.i, run: g.run, phase: g.phase, seed: round.seed, pair: g.pair, reveal });
   };
 
   const putBack = (original: Settings) => {
@@ -169,7 +184,7 @@ export function useBlindTest() {
     putBack(g.original);
     void api.osdQuiet(false);
     const done = g.rounds.filter((r) => r.right !== undefined);
-    if (keep && done.length >= 5) {
+    if (keep && done.length >= FEWEST) {
       kept = resultOf(g.pair, done, g.frames);
       setResult(kept);
     }
@@ -235,18 +250,25 @@ export function useBlindTest() {
       run.miss += miss;
       run.frames += 1;
     },
-    /** Which run was the asked one. */
+    /** Which run was the asked one: the round's answer shows. */
     answer: (first: boolean) => {
       const g = going.current;
       if (!g || g.phase !== "answer") return;
       const round = g.rounds[g.i];
       round.right = first === round.askedFirst;
+      g.phase = "reveal";
+      show();
+    },
+    /** The next round, or the result after the last. */
+    next: () => {
+      const g = going.current;
+      if (!g || g.phase !== "reveal") return;
       if (g.i + 1 >= ROUNDS) return end(true);
       g.i += 1;
       g.run = 0;
       void begin();
     },
-    /** Esc or Stop: five rounds or more still make a result. */
+    /** Esc, Stop or Finish: five rounds or more still make a result. */
     stop: () => end(true),
   };
 }
