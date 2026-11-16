@@ -249,6 +249,9 @@ export interface Prefs {
   padTracking: boolean;
   /** Count double clicks over days, in the background too. */
   clickHistory: boolean;
+  /** Count how far and how fast the mouse moves over days, for Your week, in the background too.
+   *  Totals only, kept on this PC. */
+  activity: boolean;
   /** The games the pad map records in; nothing else is recorded. Known games join on their own. */
   padGames: PadGame[];
   /** Known games taken off the list, so they don't join again (exe names in lower case). */
@@ -689,6 +692,28 @@ export interface GameSensitivity {
   file: string;
 }
 
+/** A game's share of a day in the activity log. */
+export interface ActivityGameDay {
+  /** Its exe, in lower case. */
+  exe: string;
+  cm: number;
+  movingS: number;
+  /** The fastest moment, over 50 ms, in metres a second. */
+  topMps: number;
+  /** Full turns, counted while the game's sensitivity was known. */
+  turns: number;
+}
+
+/** A day in the activity log: how far and how fast the mouse moved. A mouse hrtz runs only. */
+export interface ActivityDay {
+  /** Local date, "2026-11-16". */
+  date: string;
+  cm: number;
+  movingS: number;
+  topMps: number;
+  games: ActivityGameDay[];
+}
+
 /** Mousepad record. Positions are cm from the resting spot, x right and y down. */
 /** One button's day in the click log. */
 export interface ClickButtonDay {
@@ -850,6 +875,10 @@ export const api = {
   pairReceiver: () => invoke<boolean>("pair_receiver", { mouse }),
   /** Double clicks counted over the last 30 days, oldest first. */
   clickHistory: () => invoke<ClickDay[]>("click_history"),
+  /** How far and how fast the mouse moved, each day of the last 60, oldest first. */
+  activityDays: () => invoke<ActivityDay[]>("activity_days"),
+  /** Keep hrtz's pop-ups quiet while a blind test runs (they'd say which setting it just set). */
+  osdQuiet: (on: boolean) => invoke<void>("osd_quiet", { on }),
   gameSensitivity: (exe: string) => invoke<GameSensitivity | null>("game_sensitivity", { exe }),
   batterySummary: () => invoke<BatterySummary>("battery_summary", { mouse }),
   pointerSettings: () => invoke<PointerSettings | null>("pointer_settings"),

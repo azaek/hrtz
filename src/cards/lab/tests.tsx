@@ -6,6 +6,7 @@ import {
   ArrowStepOver20Regular,
   CursorClick20Regular,
   DataLine20Regular,
+  EyeOff20Regular,
   Map20Regular,
   Ruler20Regular,
   TopSpeed20Regular,
@@ -13,6 +14,7 @@ import {
 import { type Capabilities, api, currentDpi, type PadCalibration } from "@/api";
 import { goTo, savePrefs, useStore } from "@/store";
 import { AngleCheck } from "./AngleCheck";
+import { BlindTest } from "./BlindTest";
 import { ClickCheck } from "./ClickCheck";
 import { ConnectionCheck } from "./ConnectionCheck";
 import { DpiCheck } from "./DpiCheck";
@@ -25,7 +27,7 @@ import { TrackingCheck } from "./TrackingCheck";
 // The Lab page's tests, in list order, and the last result of each, remembered on this PC so the
 // list can say how things stood when last checked.
 
-export type TestId = "connection" | "dpi" | "tracking" | "liftoff" | "angle" | "clicks" | "wheel" | "pad";
+export type TestId = "blind" | "connection" | "dpi" | "tracking" | "liftoff" | "angle" | "clicks" | "wheel" | "pad";
 
 export type Test = {
   id: TestId;
@@ -43,6 +45,16 @@ export type Test = {
 };
 
 export const TESTS: Test[] = [
+  {
+    id: "blind",
+    name: "Blind test",
+    title: "Can you feel it?",
+    icon: <EyeOff20Regular />,
+    description: "hrtz switches a setting of your mouse without telling you which. You guess.",
+    hint: "Runs over the whole window. Changes your polling rate or motion sync while it runs, then restores yours.",
+    // Two rates to compare, or motion sync.
+    needs: (c) => (c.polling?.rates.length ?? 0) >= 2 || c.motionSync,
+  },
   {
     id: "connection",
     name: "Connection",
@@ -201,6 +213,8 @@ export function TestBody({ id, onResult }: { id: TestId; onResult: (r: TestResul
   const device = useStore((x) => x.device!);
   const dpi = currentDpi(device.settings) ?? 1600;
   switch (id) {
+    case "blind":
+      return <BlindTest onResult={onResult} />;
     case "connection":
       return <ConnectionCheck onResult={onResult} />;
     case "dpi":

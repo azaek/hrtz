@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { DeviceState } from "./api";
 import type { PageId } from "./App";
 import { isZaopin } from "./models";
+import { pairsFor } from "./cards/lab/blind";
 import { markSeen, useStore } from "./store";
 
 /**
@@ -12,6 +13,11 @@ import { markSeen, useStore } from "./store";
 export const NEWS = [
   // SignalRGB sets a Zaopin's light only.
   { id: "signalrgb", page: "sensor", applies: (d: DeviceState) => !!d.capabilities?.dpi?.light && isZaopin(d) },
+  // Something to compare: two polling rates, or motion sync.
+  { id: "blindtest", page: "lab", applies: (d: DeviceState) => pairsFor(d.capabilities, d.settings).length > 0 },
+  { id: "week", page: "week", applies: () => true },
+  // Shown once a game's settings are read; its badge marks it seen.
+  { id: "gamesens", page: "sensor", applies: () => false },
 ] as const satisfies readonly {
   id: string;
   page: PageId;
