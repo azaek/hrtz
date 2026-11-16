@@ -2,6 +2,7 @@ import React, { useState, type ComponentType } from "react";
 import ReactDOM from "react-dom/client";
 import type { PageId } from "@/App";
 import { BatteryPage } from "@/pages/Battery";
+import { WeekPage } from "@/pages/Week";
 import { ButtonsPage } from "@/pages/Buttons";
 import { HudPage } from "@/pages/Hud";
 import { LabPage } from "@/pages/Lab";
@@ -37,6 +38,7 @@ const PAGES: Record<PageId, ComponentType> = {
   buttons: ButtonsPage,
   profiles: ProfilesPage,
   battery: BatteryPage,
+  week: WeekPage,
   hud: HudPage,
   lab: LabPage,
   settings: SettingsPage,

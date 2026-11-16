@@ -20,12 +20,14 @@ struct Found {
     sens: f64,
     acceleration: bool,
     file: PathBuf,
+    /// The game's own degrees per count, where its file says (CS2's `m_yaw`).
+    yaw: Option<f64>,
 }
 
 const GAMES: &[Game] = &[
     Game { name: "Valorant", exes: &["valorant-win64-shipping.exe"], yaw: Some(0.07), read: Some(valorant) },
     Game { name: "Apex Legends", exes: &["r5apex.exe", "r5apex_dx12.exe"], yaw: Some(0.022), read: Some(apex) },
-    Game { name: "Counter-Strike 2", exes: &["cs2.exe"], yaw: Some(0.022), read: None },
+    Game { name: "Counter-Strike 2", exes: &["cs2.exe"], yaw: Some(0.022), read: Some(cs2) },
     Game { name: "Overwatch 2", exes: &["overwatch.exe"], yaw: Some(0.0066), read: None },
     Game { name: "Fortnite", exes: &["fortniteclient-win64-shipping.exe"], yaw: None, read: None },
     Game { name: "Rainbow Six Siege", exes: &["rainbowsix.exe", "rainbowsix_vulkan.exe"], yaw: None, read: None },
@@ -55,7 +57,7 @@ pub fn sensitivity(exe: &str) -> Option<Sensitivity> {
     Some(Sensitivity {
         game: game.name,
         sens: found.sens,
-        yaw: game.yaw?,
+        yaw: found.yaw.or(game.yaw)?,
         acceleration: found.acceleration,
         file: found.file.to_string_lossy().into_owned(),
     })
@@ -69,7 +71,7 @@ fn env_path(var: &str) -> Option<PathBuf> {
 fn apex() -> Option<Found> {
     let file = env_path("USERPROFILE")?.join(r"Saved Games\Respawn\Apex\local\settings.cfg");
     let (sens, acceleration) = parse_apex(&fs::read_to_string(&file).ok()?)?;
-    Some(Found { sens, acceleration, file })
+    Some(Found { sens, acceleration, file, yaw: None })
 }
 
 /// Lines like `mouse_sensitivity "0.85"`.
@@ -96,7 +98,7 @@ fn valorant() -> Option<Found> {
         .max_by_key(|(t, _)| *t)?
         .1;
     let sens = parse_valorant(&fs::read_to_string(&file).ok()?)?;
-    Some(Found { sens, acceleration: false, file })
+    Some(Found { sens, acceleration: false, file, yaw: None })
 }
 
 /// `EAresFloatSettingName::MouseSensitivity=0.144999996`
@@ -107,6 +109,36 @@ fn parse_valorant(text: &str) -> Option<f64> {
         let sens = v.trim().parse::<f32>().ok()?;
         (sens > 0.0).then(|| format!("{sens}").parse().unwrap_or(sens as f64))
     })
+}
+
+/// `<Steam>\userdata\<account>\730\local\cfg\cs2_user_convars_0_slot0.vcfg`, one folder per
+/// Steam account: the one changed last. CS2 reads the mouse raw, with no acceleration.
+fn cs2() -> Option<Found> {
+    #[cfg(windows)]
+    let steam = crate::win::steam_path()?;
+    #[cfg(not(windows))]
+    let steam = PathBuf::new();
+    let file = fs::read_dir(steam.join("userdata"))
+        .ok()?
+        .flatten()
+        .map(|e| e.path().join(r"730\local\cfg\cs2_user_convars_0_slot0.vcfg"))
+        .filter_map(|p| Some((modified(&p)?, p)))
+        .max_by_key(|(t, _)| *t)?
+        .1;
+    let (sens, yaw) = parse_cs2(&fs::read_to_string(&file).ok()?)?;
+    Some(Found { sens, acceleration: false, file, yaw })
+}
+
+/// Lines like `"sensitivity"\t\t"1.250000"` and `"m_yaw"\t\t"0.022000"` in the file's convars.
+fn parse_cs2(text: &str) -> Option<(f64, Option<f64>)> {
+    let value = |key: &str| {
+        text.lines().find_map(|line| {
+            let mut parts = line.split('"').map(str::trim).filter(|p| !p.is_empty());
+            (parts.next()? == key).then(|| parts.next()?.parse::<f64>().ok()).flatten()
+        })
+    };
+    let sens = value("sensitivity").filter(|s| *s > 0.0)?;
+    Some((sens, value("m_yaw").filter(|y| *y > 0.0)))
 }
 
 fn modified(p: &Path) -> Option<std::time::SystemTime> {
@@ -123,6 +155,17 @@ mod tests {
         assert_eq!(parse_apex(text), Some((0.85, false)));
         assert_eq!(parse_apex("mouse_sensitivity \"2.5\"\nm_acceleration \"1\""), Some((2.5, true)));
         assert_eq!(parse_apex("mouse_sensitivity_x \"2\""), None);
+    }
+
+    #[test]
+    fn reads_cs2() {
+        // As this PC's CS2 keeps it: tabs between quoted names and values, CRLF line ends.
+        let text = "\"config\"\r\n{\r\n\t\"convars\"\r\n\t{\r\n\t\t\"m_yaw\"\t\t\"0.022000\"\r\n\t\t\"sensitivity\"\t\t\"1.250000\"\r\n\t\t\"zoom_sensitivity_ratio\"\t\t\"1.000000\"\r\n\t}\r\n}\r\n";
+        assert_eq!(parse_cs2(text), Some((1.25, Some(0.022))));
+        // A changed yaw is the game's own.
+        assert_eq!(parse_cs2("\"sensitivity\" \"2\"\n\"m_yaw\" \"0.0165\""), Some((2.0, Some(0.0165))));
+        assert_eq!(parse_cs2("\"sensitivity\" \"0.8\""), Some((0.8, None)));
+        assert_eq!(parse_cs2("\"zoom_sensitivity_ratio\" \"1\""), None);
     }
 
     #[test]

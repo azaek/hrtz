@@ -18,6 +18,8 @@ import { commit, useStore } from "../store";
 import { lodName, sensorModeName, topRate, type Lod, type SensorMode, type Settings } from "../api";
 import { formatDuration } from "../format";
 import { DpiStagesCard } from "../cards/dpi-stages/DpiStagesCard";
+import { GamesCard } from "../cards/games/GamesCard";
+import { NewThings } from "../cards/discover/NewThings";
 import { openTest } from "../cards/lab/tests";
 import { isZaopin } from "../models";
 import { SignalRgbCard, useSetBySignalRgb } from "../cards/signalrgb/SignalRgbCard";
@@ -48,11 +50,13 @@ export function SensorPage() {
       icon={<TopSpeed20Regular />}
       title="Polling rate"
       description={
-        top !== undefined && s.pollingHz > top
-          ? `Set to ${hzText(s.pollingHz)} for the receiver. Wired, it runs at up to ${hzText(top)}.`
-          : caps.wired && top !== undefined
-            ? `How often the mouse reports to your PC. Up to ${hzText(top)} when wired.`
-            : "How often the mouse reports to your PC."
+        <>
+          {top !== undefined && s.pollingHz > top
+            ? `Set to ${hzText(s.pollingHz)} for the receiver. Wired, it runs at up to ${hzText(top)}.`
+            : caps.wired && top !== undefined
+              ? `How often the mouse reports to your PC. Up to ${hzText(top)} when wired.`
+              : "How often the mouse reports to your PC."}
+        </>
       }
       below={
         <div style={{ marginTop: 12 }}>
@@ -278,14 +282,18 @@ export function SensorPage() {
       )}
     </SettingCard>
   );
+  const games = <GamesCard />;
   const tracking = [dpi, polling, liftOff, sensorMode, sensorAngle, motionSync, angleSnapping, ripple].some(Boolean);
   const clicks = [debounce, peak].some(Boolean);
 
   return (
     <fieldset disabled={disabled || busy} style={{ border: 0, margin: 0, padding: 0, minWidth: 0, opacity: disabled ? 0.6 : 1 }}>
+      {/* The features lab's pick (DECISIONS.md, "Three things to try"). */}
+      <NewThings />
       {tracking && (
         <Group title="Tracking">
           {dpi}
+          <div id="games-card">{games}</div>
           {polling}
           {liftOff}
           {sensorMode}

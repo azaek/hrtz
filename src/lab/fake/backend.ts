@@ -130,7 +130,7 @@ export const real = {
   prefs: (() => {
     const prefs = prefsJson as unknown as Prefs;
     // A dump from before the click log (2026-10-17) counts, as the app does unless told not to.
-    return { ...prefs, clickHistory: prefs.clickHistory ?? true };
+    return { ...prefs, clickHistory: prefs.clickHistory ?? true, activity: prefs.activity ?? true };
   })(),
   /** This PC's Zaopin as hrtz knows it, its snapshots' actions with `kind` first. */
   mice: (() => {
@@ -657,6 +657,9 @@ function setupInput() {
       captured = false;
       void emit("capture-closed", "esc");
     }
+    // The blind test's answers on game mode's screen: 1 and 2, Enter.
+    const input = ({ "1": "one", "2": "two", Enter: "next" } as Record<string, string>)[e.key];
+    if (input && captured) void emit("capture-input", input);
   });
   window.addEventListener(
     "wheel",
@@ -1139,6 +1142,9 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       return null;
     case "capture_update":
       return null;
+    case "capture_arena_take":
+      // A run of the blind test: a little closer now and then, as a hand would.
+      return { miss: 0.03 + Math.random() * 0.02, frames: 520, refreshHz: 144 };
     case "capture_close":
       if (captured) {
         captured = false;
@@ -1163,13 +1169,43 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       });
       return days;
     }
+    case "osd_quiet":
+      return null;
+    case "activity_days": {
+      // Two weeks: an hour or two of use a day, more at the weekend, Valorant most evenings and
+      // CS2 now and then; this week a little busier than the last.
+      const day = (back: number) => {
+        const d = new Date(Date.now() - back * 86_400_000);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      return Array.from({ length: 14 }, (_, i) => {
+        const back = 13 - i;
+        const weekend = [0, 6].includes(new Date(Date.now() - back * 86_400_000).getDay());
+        const busy = (back < 7 ? 1.15 : 1) * (weekend ? 1.6 : 1) * (0.8 + ((i * 37) % 10) / 25);
+        const valorant = i % 7 !== 2 ? { exe: "valorant-win64-shipping.exe", cm: 21_000 * busy, movingS: 2_900 * busy, topMps: 3.1 + ((i * 13) % 9) / 10, turns: 410 * busy } : null;
+        const cs2 = i % 3 === 0 ? { exe: "cs2.exe", cm: 9_000 * busy, movingS: 1_300 * busy, topMps: 2.6 + ((i * 7) % 6) / 10, turns: 160 * busy } : null;
+        const games = [valorant, cs2].filter((g) => !!g);
+        const gamesCm = games.reduce((n, g) => n + g.cm, 0);
+        return {
+          date: day(back),
+          cm: gamesCm + 6_500 * busy,
+          movingS: games.reduce((n, g) => n + g.movingS, 0) + 1_800 * busy,
+          topMps: Math.max(1.4, ...games.map((g) => g.topMps)),
+          games,
+        };
+      });
+    }
     case "pad_state":
       return padView((args.app as string | null) ?? null);
     case "pad_calibrate":
     case "pad_clear":
       return null;
-    case "game_sensitivity":
-      return real.games[String(args.exe).toLowerCase()] ?? null;
+    case "game_sensitivity": {
+      const exe = String(args.exe).toLowerCase();
+      // CS2 joined after this PC's data was written: as this PC's own file has it.
+      if (exe === "cs2.exe" && !(exe in real.games)) return { game: "Counter-Strike 2", sens: 1.25, yaw: 0.022, acceleration: false, file: "cs2_user_convars_0_slot0.vcfg" };
+      return real.games[exe] ?? null;
+    }
     case "running_apps":
       return running();
     case "installed_games":

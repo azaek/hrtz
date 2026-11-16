@@ -49,7 +49,10 @@ export function StepCard(props: {
       {props.progress != null && <ProgressLine value={props.progress} />}
       {(props.status || props.actions) && (
         <div className="flex min-h-8 items-center justify-between gap-3">
-          <Caption1 className="tabular-nums">{props.status}</Caption1>
+          {/* A div in a caption's type, so a control can sit there too (the blind test's choice). */}
+          <div className="tabular-nums" style={{ fontSize: "var(--fontSizeBase200)", lineHeight: "var(--lineHeightBase200)" }}>
+            {props.status}
+          </div>
           <div className="flex items-center gap-3">{props.actions}</div>
         </div>
       )}

@@ -252,12 +252,26 @@ export function SettingCard(props: {
   );
 }
 
-export function Group(props: { title?: string; children: ReactNode }) {
+/** A section of cards under a heading. `action` sits at the heading's right: a link that acts on
+ *  the whole section ("Hide these"). */
+export function Group(props: { title?: string; action?: ReactNode; children: ReactNode }) {
   const s = useStyles();
+  // 14px semibold, like section headers in Windows Settings and PowerToys.
+  const title = props.title && (
+    <Body1Strong className={props.action ? undefined : s.groupTitle} as="h2">
+      {props.title}
+    </Body1Strong>
+  );
   return (
     <section className={s.group}>
-      {/* 14px semibold, like section headers in Windows Settings and PowerToys. */}
-      {props.title && <Body1Strong className={s.groupTitle} as="h2">{props.title}</Body1Strong>}
+      {props.action ? (
+        <div className={s.groupTitle} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+          {title}
+          {props.action}
+        </div>
+      ) : (
+        title
+      )}
       {props.children}
     </section>
   );

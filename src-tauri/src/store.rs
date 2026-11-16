@@ -81,6 +81,9 @@ pub struct Prefs {
     pub pad_tracking: bool,
     /// Count double clicks over days, in the background too (on unless turned off).
     pub click_history: bool,
+    /// Count how far and how fast the mouse moves over days, for the week in review, in the
+    /// background too (on unless turned off). Totals only, kept on this PC.
+    pub activity: bool,
     /// The games the pad map records in; nothing else is recorded. Known games join on their own
     /// the first time they're played.
     pub pad_games: Vec<PadGame>,
@@ -420,6 +423,7 @@ impl Default for Prefs {
             tray_style: TrayStyle::default(),
             pad_tracking: false,
             click_history: true,
+            activity: true,
             pad_games: Vec::new(),
             pad_games_removed: Vec::new(),
             welcomed: false,

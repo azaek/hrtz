@@ -6,6 +6,7 @@ import {
   Games20Regular,
   Settings20Regular,
   Battery820Regular,
+  CalendarLtr20Regular,
   PlugDisconnected16Regular,
   Stack20Regular,
   TopSpeed20Regular,
@@ -22,6 +23,7 @@ import { ButtonsPage } from "./pages/Buttons";
 import { ProfilesPage } from "./pages/Profiles";
 import { LabPage } from "./pages/Lab";
 import { BatteryPage } from "./pages/Battery";
+import { WeekPage } from "./pages/Week";
 import { HudPage } from "./pages/Hud";
 import { SettingsPage } from "./pages/SettingsPage";
 import type { Capabilities, DeviceState } from "./api";
@@ -32,7 +34,7 @@ import { WhatsNew } from "./WhatsNew";
 import { TitleBar } from "./TitleBar";
 import { SidebarFooter } from "./SidebarFooter";
 
-export type PageId = "sensor" | "buttons" | "profiles" | "battery" | "hud" | "lab" | "settings";
+export type PageId = "sensor" | "buttons" | "profiles" | "battery" | "week" | "hud" | "lab" | "settings";
 
 /** What a page needs from the mouse; the navigation leaves it out for a mouse without it. The
  *  rest work for any mouse, or with none. */
@@ -46,6 +48,7 @@ const PAGES: { id: PageId; label: string; icon: ReactElement }[] = [
   { id: "buttons", label: "Buttons", icon: <CursorClick20Regular /> },
   { id: "profiles", label: "Profiles", icon: <Stack20Regular /> },
   { id: "battery", label: "Battery", icon: <Battery820Regular /> },
+  { id: "week", label: "Your week", icon: <CalendarLtr20Regular /> },
   { id: "hud", label: "HUD & Tray", icon: <Games20Regular /> },
   // Tools that work but are still taking shape.
   { id: "lab", label: "Lab", icon: <Beaker20Regular /> },
@@ -206,7 +209,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
       </Empty>
     );
   } else {
-    const Page = pages?.[page] ?? { sensor: SensorPage, buttons: ButtonsPage, profiles: ProfilesPage, battery: BatteryPage, hud: HudPage, lab: LabPage, settings: SettingsPage }[page];
+    const Page = pages?.[page] ?? { sensor: SensorPage, buttons: ButtonsPage, profiles: ProfilesPage, battery: BatteryPage, week: WeekPage, hud: HudPage, lab: LabPage, settings: SettingsPage }[page];
     body = (
       <>
         <header className={s.header}>

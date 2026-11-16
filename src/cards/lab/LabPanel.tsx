@@ -5,6 +5,14 @@ import { useStore } from "@/store";
 import { useClickWeek, weekResult } from "./clicks";
 import { ClickSwitch, OPEN_KEY, PadSwitch, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
 import { WindowsCheck } from "./WindowsCheck";
+import { NewBadge } from "@/kit";
+import { useSeen } from "@/news";
+
+/** The blind test's "New", until it's been on screen. */
+function BlindNew() {
+  const news = useSeen("blindtest");
+  return news.isNew ? <NewBadge ref={news.ref} /> : null;
+}
 
 const muted = { color: "var(--colorNeutralForeground3)" };
 const warn = { color: "var(--colorPaletteMarigoldForeground1)" };
@@ -59,7 +67,10 @@ export function LabPanel() {
                   >
                     <span className="st-row__icon">{x.icon}</span>
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <Body1 style={truncate}>{x.name}</Body1>
+                      <span className="flex items-center gap-2">
+                        <Body1 style={truncate}>{x.name}</Body1>
+                        {x.id === "blind" && <BlindNew />}
+                      </span>
                       <Caption1 style={{ ...truncate, ...(r?.tone === "warn" ? warn : muted) }}>
                         {r ? `${r.value} · ${r.detail}` : x.id === "pad" ? "Not calibrated yet" : "Not run yet"}
                       </Caption1>

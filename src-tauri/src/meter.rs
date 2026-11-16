@@ -22,7 +22,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU8, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicIsize, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -44,6 +44,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::{PCWSTR, w};
 
+use crate::activity::{Activity, InGame};
 use crate::clicks::{self, ClickLog, Day};
 use crate::diag::{Conn, ConnStats, Stroke, Strokes};
 use crate::pad::{AppTag, PadData, PadView, Tracker};
@@ -202,6 +203,8 @@ static PAD: OnceLock<Mutex<Tracker>> = OnceLock::new();
 static PAD_PATH: OnceLock<PathBuf> = OnceLock::new();
 static CLICK_LOG: OnceLock<Mutex<ClickLog>> = OnceLock::new();
 static CLICKS_PATH: OnceLock<PathBuf> = OnceLock::new();
+static ACTIVITY_LOG: OnceLock<Mutex<Activity>> = OnceLock::new();
+static ACTIVITY_PATH: OnceLock<PathBuf> = OnceLock::new();
 static EPOCH: OnceLock<Instant> = OnceLock::new();
 static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
 /// The reader thread's message-only window, where raw input arrives.
@@ -230,6 +233,13 @@ static FOREGROUND: AtomicBool = AtomicBool::new(true);
 static TRACKING: AtomicBool = AtomicBool::new(false);
 /// Double clicks are counted over days, in the background too.
 static CLICKS: AtomicBool = AtomicBool::new(false);
+/// The activity log counts movement over days.
+static ACTIVITY: AtomicBool = AtomicBool::new(false);
+/// The blind test's arena is up: every report's movement is added up for its crosshair, as a game
+/// adds it up for its camera.
+static ARENA: AtomicBool = AtomicBool::new(false);
+static ARENA_X: AtomicI64 = AtomicI64::new(0);
+static ARENA_Y: AtomicI64 = AtomicI64::new(0);
 /// Two mice or more are connected: input is followed to tell which one is in use.
 static WATCH: AtomicBool = AtomicBool::new(false);
 /// The mice connected now, by where they're plugged in: (USB port path, key).
@@ -258,6 +268,11 @@ pub fn attach(hwnd: isize, pad_file: PathBuf, emit: impl Fn(MeterSample) + Send 
     let clicks_file = pad_file.with_file_name("clicks.json");
     let _ = CLICK_LOG.set(Mutex::new(ClickLog::load(&clicks_file)));
     let _ = CLICKS_PATH.set(clicks_file);
+    let activity_file = pad_file.with_file_name("activity.json");
+    let mut activity = Activity::load(&activity_file);
+    activity.set_game(in_game(APP.lock().as_ref()));
+    let _ = ACTIVITY_LOG.set(Mutex::new(activity));
+    let _ = ACTIVITY_PATH.set(activity_file);
     let _ = PAD_PATH.set(pad_file);
     MAIN_HWND.store(hwnd, Ordering::SeqCst);
     if std::env::var("HRTZ_RAW_INPUT").is_ok_and(|v| v.eq_ignore_ascii_case("window")) {
@@ -282,6 +297,7 @@ pub fn attach(hwnd: isize, pad_file: PathBuf, emit: impl Fn(MeterSample) + Send 
                 if last_save.elapsed() >= SAVE_EVERY {
                     save_pad();
                     save_clicks();
+                    save_activity();
                     last_save = Instant::now();
                 }
                 if !RUNNING.load(Ordering::SeqCst) {
@@ -460,7 +476,9 @@ fn handle(now: Instant, raw: &RAWINPUT) {
     let tracking = TRACKING.load(Ordering::Relaxed);
     let counting = CLICKS.load(Ordering::Relaxed);
     let watching = WATCH.load(Ordering::Relaxed);
-    if !(running || tracking || counting || watching) || raw.header.dwType != RIM_TYPEMOUSE.0 {
+    let logging = ACTIVITY.load(Ordering::Relaxed);
+    let arena = ARENA.load(Ordering::Relaxed);
+    if !(running || tracking || counting || watching || logging || arena) || raw.header.dwType != RIM_TYPEMOUSE.0 {
         return;
     }
     let Some(c) = COUNTS.get() else { return };
@@ -472,17 +490,23 @@ fn handle(now: Instant, raw: &RAWINPUT) {
     let flags = unsafe { m.Anonymous.Anonymous.usButtonFlags };
     let data = unsafe { m.Anonymous.Anonymous.usButtonData } as i16;
     let active = dx != 0 || dy != 0 || flags != 0;
+    if arena && (dx != 0 || dy != 0) {
+        ARENA_X.fetch_add(dx as i64, Ordering::Relaxed);
+        ARENA_Y.fetch_add(dy as i64, Ordering::Relaxed);
+    }
     // A mouse used on that port is awake, whether or not it's met yet.
     if active && let Some(port) = &port {
         crate::mice::input::note(port);
     }
     let Some(mouse) = mouse else { return };
+    // The activity log counts a mouse hrtz runs, whose DPI it knows.
+    let ours = mouse.is_some();
     if let Some(key) = mouse
         && active
     {
         moved(key);
     }
-    if !(running || tracking || counting) {
+    if !(running || tracking || counting || logging) {
         return;
     }
     if running {
@@ -498,6 +522,13 @@ fn handle(now: Instant, raw: &RAWINPUT) {
     }
     if tracking && let Some(p) = PAD.get() {
         p.lock().report(now, dx, dy, DPI.load(Ordering::Relaxed));
+    }
+    if logging
+        && ours
+        && (dx != 0 || dy != 0)
+        && let Some(log) = ACTIVITY_LOG.get()
+    {
+        log.lock().report(secs(now), dx, dy, DPI.load(Ordering::Relaxed));
     }
 }
 
@@ -575,6 +606,25 @@ fn listening() -> bool {
         || RUNNING.load(Ordering::SeqCst)
         || CLICKS.load(Ordering::SeqCst)
         || WATCH.load(Ordering::SeqCst)
+        || ACTIVITY.load(Ordering::SeqCst)
+        || ARENA.load(Ordering::SeqCst)
+}
+
+/// The blind test's arena is up, or not: add up movement for its crosshair.
+pub fn set_arena(on: bool) {
+    if ARENA.swap(on, Ordering::SeqCst) != on {
+        register();
+    }
+}
+
+/// The movement added up for the arena's crosshair so far, in counts.
+pub fn arena_counts() -> (i64, i64) {
+    (ARENA_X.load(Ordering::Relaxed), ARENA_Y.load(Ordering::Relaxed))
+}
+
+/// The DPI movement is measured at: the mouse's, or a usual one before it has said.
+pub fn dpi_in_use() -> u32 {
+    dpi_or_default()
 }
 
 /// The mice connected now, by USB port, so each report can be put down to one: the hub's states,
@@ -698,8 +748,45 @@ pub fn set_dpi(dpi: u32) {
 /// The game in focus; `None` when what's in focus isn't one the pad map records in.
 pub fn set_app(app: Option<AppTag>) {
     *APP.lock() = app.clone();
+    if let Some(log) = ACTIVITY_LOG.get() {
+        log.lock().set_game(in_game(app.as_ref()));
+    }
     if let Some(p) = PAD.get() {
         p.lock().set_app(app);
+    }
+}
+
+/// A game, as the activity log counts it: with its degrees per count where its settings file
+/// says its sensitivity (read as it comes into focus, so a change made in it counts next time).
+fn in_game(app: Option<&AppTag>) -> Option<InGame> {
+    let app = app?;
+    let sens = crate::games::sensitivity(&app.exe).filter(|s| !s.acceleration);
+    Some(InGame { exe: app.exe.to_string(), deg_per_count: sens.map(|s| s.yaw * s.sens) })
+}
+
+/// Count movement over days for the week in review, or stop. Must run on the window's thread.
+pub fn set_activity(on: bool) {
+    if ACTIVITY.swap(on, Ordering::SeqCst) != on {
+        register();
+    }
+    if !on {
+        save_activity();
+    }
+}
+
+/// The activity log's days, oldest first.
+pub fn activity_days() -> Vec<crate::activity::Day> {
+    ACTIVITY_LOG.get().map(|l| l.lock().days()).unwrap_or_default()
+}
+
+/// Write the activity log if it changed since the last save.
+pub fn save_activity() {
+    let (Some(log), Some(path)) = (ACTIVITY_LOG.get(), ACTIVITY_PATH.get()) else { return };
+    let mut log = log.lock();
+    if log.dirty
+        && let Err(e) = log.save(path)
+    {
+        eprintln!("activity log not saved: {e}");
     }
 }
 

@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod battery;
 pub mod battery_log;
 pub mod clicks;
@@ -89,6 +90,8 @@ struct Ctx {
     /// When the pop-up last said a profile, so the DPI and polling rate that came with it don't
     /// pop up after it.
     profile_osd_at: Mutex<Option<Instant>>,
+    /// A blind test is running: hrtz's pop-ups would say which setting it just set.
+    osd_quiet: std::sync::atomic::AtomicBool,
     /// Last rendered (level, style, light taskbar), so the icon is only redrawn when it changes.
     tray_level: Mutex<Option<(TrayLevel, TrayStyle, bool)>>,
     hud: hud::Hud,
@@ -414,6 +417,11 @@ fn set_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, prefs: Prefs) -> CmdResul
     if prefs.click_history != ctx.prefs.read().click_history {
         let on = prefs.click_history;
         let _ = app.run_on_main_thread(move || meter::set_clicks(on));
+    }
+    #[cfg(windows)]
+    if prefs.activity != ctx.prefs.read().activity {
+        let on = prefs.activity;
+        let _ = app.run_on_main_thread(move || meter::set_activity(on));
     }
     if prefs.signalrgb != ctx.prefs.read().signalrgb {
         ctx.signalrgb.set_on(prefs.signalrgb);
@@ -772,9 +780,17 @@ fn capture_open(app: AppHandle, screen: serde_json::Value) {
     if let Ok(screen) = serde_json::from_value::<capture::Screen>(screen) {
         let main = app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map_or(0, |h| h.0 as isize);
         let handle = app.clone();
-        capture::open(screen, main, move |why| {
-            let _ = handle.emit_to("main", "capture-closed", why);
-        });
+        let input = app.clone();
+        capture::open(
+            screen,
+            main,
+            move |why| {
+                let _ = handle.emit_to("main", "capture-closed", why);
+            },
+            move |kind| {
+                let _ = input.emit_to("main", "capture-input", kind);
+            },
+        );
     }
     #[cfg(not(windows))]
     let _ = (app, screen);
@@ -796,6 +812,16 @@ fn capture_close() {
     capture::close();
 }
 
+/// How closely the blind test's crosshair followed the dot in the run just done, and the screen's
+/// refresh rate. The count starts again.
+#[tauri::command]
+fn capture_arena_take() -> serde_json::Value {
+    #[cfg(windows)]
+    return serde_json::to_value(capture::arena_take()).unwrap_or_default();
+    #[cfg(not(windows))]
+    serde_json::Value::Null
+}
+
 /// A timing test is open (`true`) or closed: while it's open, its timing counts only in game mode.
 /// `seq` as for `meter`.
 #[tauri::command]
@@ -804,6 +830,21 @@ fn meter_hold(on: bool, seq: Option<u64>) {
     meter::set_hold(on, seq);
     #[cfg(not(windows))]
     let _ = (on, seq);
+}
+
+/// Keep the pop-ups quiet (a blind test is running: they'd say which setting it set), or not.
+#[tauri::command]
+fn osd_quiet(ctx: State<'_, Arc<Ctx>>, on: bool) {
+    ctx.osd_quiet.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// How far and how fast the mouse moved, each day of the last 60, oldest first.
+#[tauri::command]
+fn activity_days() -> Vec<activity::Day> {
+    #[cfg(windows)]
+    return meter::activity_days();
+    #[cfg(not(windows))]
+    Vec::new()
 }
 
 /// Double clicks counted over the last 30 days, oldest first.
@@ -1292,6 +1333,9 @@ fn first_meeting(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState) {
 }
 
 fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs, mouse: &MousePrefs) {
+    if ctx.osd_quiet.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
     // A profile switch brings its own DPI and polling rate: the pop-up says the profile, not all
     // three in a row.
     match e {
@@ -1616,6 +1660,7 @@ fn quit(app: &AppHandle) {
             meter::set_running(false, None);
             meter::save_pad();
             meter::save_clicks();
+            meter::save_activity();
         }
         for e in ctx.hub.engines() {
             let _ = e.call(|w| {
@@ -1707,6 +1752,7 @@ pub fn run() {
                 update_ready: Mutex::new(None),
                 profiles,
                 profile_osd_at: Mutex::new(None),
+                osd_quiet: std::sync::atomic::AtomicBool::new(false),
                 tray_level: Mutex::new(None),
                 hud,
                 met: Mutex::new(HashSet::new()),
@@ -1785,6 +1831,7 @@ pub fn run() {
                     if let Some(ctx) = app.try_state::<Arc<Ctx>>() {
                         meter::set_tracking(ctx.prefs.read().pad_tracking);
                         meter::set_clicks(ctx.prefs.read().click_history);
+                        meter::set_activity(ctx.prefs.read().activity);
                     }
                 }
                 watch_foreground(handle.clone());
@@ -1876,11 +1923,14 @@ pub fn run() {
             pad_calibrate,
             pad_clear,
             game_sensitivity,
+            activity_days,
             battery_summary,
             battery_history,
             pointer_settings,
             fix_pointer,
             test_popup,
+            osd_quiet,
+            capture_arena_take,
         ])
         .run(context)
         .expect("error while running hrtz");
