@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.5 — 2026-11-16
 
 ### New
 - A blind test in Lab: can you feel 8,000 Hz, or motion sync? hrtz switches your mouse between the two without telling you which, you keep a crosshair on a moving dot full screen, then pick which run was which, and see after each round whether you were right. Ten rounds, about two minutes; your settings go back at the end. The result says how likely your score was by guessing, and whether you followed the dot more closely with either.
