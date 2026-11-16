@@ -26,15 +26,24 @@ use std::time::Instant;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
-use windows::Win32::Graphics::Dwm::DwmFlush;
+use windows::Win32::Graphics::Direct2D::Common::{D2D_RECT_F, D2D_SIZE_U, D2D1_COLOR_F};
+use windows::Win32::Graphics::Direct2D::{
+    D2D1_DRAW_TEXT_OPTIONS_NONE, D2D1_ELLIPSE, D2D1_FACTORY_TYPE_SINGLE_THREADED, D2D1_HWND_RENDER_TARGET_PROPERTIES,
+    D2D1_PRESENT_OPTIONS_NONE, D2D1_RENDER_TARGET_PROPERTIES, D2D1CreateFactory, ID2D1Factory, ID2D1HwndRenderTarget,
+    ID2D1SolidColorBrush,
+};
+use windows::Win32::Graphics::DirectWrite::{
+    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_WEIGHT_NORMAL,
+    DWRITE_MEASURING_MODE_NATURAL, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_TEXT_ALIGNMENT_CENTER,
+    DWriteCreateFactory, IDWriteFactory, IDWriteTextFormat,
+};
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BeginPaint, BitBlt, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS,
-    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreatePen, CreateRoundRectRgn, CreateSolidBrush,
-    DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject,
-    DrawTextW, Ellipse, EndPaint, FF_DONTCARE, FW_NORMAL, FW_SEMIBOLD, FillRect, FillRgn, GdiFlush, GetDC,
-    GetMonitorInfoW, GetStockObject, GetTextExtentPoint32W, HBITMAP, HDC, HFONT, HGDIOBJ, InvalidateRect,
-    MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, NULL_BRUSH, OUT_TT_PRECIS, PAINTSTRUCT, PS_SOLID,
-    ReleaseDC, SRCCOPY, SelectObject, SetBkMode, SetTextAlign, SetTextCharacterExtra, SetTextColor, TA_BASELINE,
+    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRoundRectRgn, CreateSolidBrush, DEFAULT_CHARSET,
+    DIB_RGB_COLORS, DT_CENTER, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, EndPaint,
+    FF_DONTCARE, FW_NORMAL, FW_SEMIBOLD, FillRect, FillRgn, GdiFlush, GetMonitorInfoW, GetTextExtentPoint32W, HBITMAP,
+    HDC, HFONT, HGDIOBJ, InvalidateRect, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_TT_PRECIS,
+    PAINTSTRUCT, SRCCOPY, SelectObject, SetBkMode, SetTextAlign, SetTextCharacterExtra, SetTextColor, TA_BASELINE,
     TEXT_ALIGN_OPTIONS, TRANSPARENT, TextOutW,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -267,19 +276,135 @@ fn render() {
     }
 }
 
-/// Draw the dot and the crosshair once a frame, after each refresh of the screen, until the arena
-/// goes. Only what moved is drawn again; the rest of the screen is the painted background.
+/// What the arena is drawn with: Direct2D on the screen's window, presented in step with the
+/// screen's refresh, a whole frame at a time, so a frame is never seen half drawn (drawn with GDI,
+/// the crosshair went missing now and then and the dot's ring was cut where it moved: the user's
+/// first runs). Text with DirectWrite.
+struct Painter {
+    target: ID2D1HwndRenderTarget,
+    size: (u32, u32),
+    faint: ID2D1SolidColorBrush,
+    bright: ID2D1SolidColorBrush,
+    ink: ID2D1SolidColorBrush,
+    muted: ID2D1SolidColorBrush,
+    label: IDWriteTextFormat,
+    small: IDWriteTextFormat,
+}
+
+const fn color(c: COLORREF) -> D2D1_COLOR_F {
+    let v = c.0;
+    D2D1_COLOR_F {
+        r: (v & 0xFF) as f32 / 255.0,
+        g: ((v >> 8) & 0xFF) as f32 / 255.0,
+        b: ((v >> 16) & 0xFF) as f32 / 255.0,
+        a: 1.0,
+    }
+}
+
+impl Painter {
+    /// In pixels (96 DPI to Direct2D), the text at `s` times 100%.
+    fn new(d2d: &ID2D1Factory, dwrite: &IDWriteFactory, hwnd: HWND, size: (u32, u32), s: f32) -> Option<Self> {
+        unsafe {
+            let props = D2D1_RENDER_TARGET_PROPERTIES { dpiX: 96.0, dpiY: 96.0, ..Default::default() };
+            let hwnd_props = D2D1_HWND_RENDER_TARGET_PROPERTIES {
+                hwnd,
+                pixelSize: D2D_SIZE_U { width: size.0, height: size.1 },
+                // Waits for the screen's refresh to show each frame.
+                presentOptions: D2D1_PRESENT_OPTIONS_NONE,
+            };
+            let target = d2d.CreateHwndRenderTarget(&props, &hwnd_props).ok()?;
+            let brush = |c: COLORREF| target.CreateSolidColorBrush(&color(c), None).ok();
+            let text = |px: f32| {
+                let f = dwrite
+                    .CreateTextFormat(
+                        w!("Segoe UI"),
+                        None,
+                        DWRITE_FONT_WEIGHT_NORMAL,
+                        DWRITE_FONT_STYLE_NORMAL,
+                        DWRITE_FONT_STRETCH_NORMAL,
+                        px * s,
+                        w!("en-us"),
+                    )
+                    .ok()?;
+                let _ = f.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                let _ = f.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+                Some(f)
+            };
+            Some(Self {
+                faint: brush(TRACK)?,
+                bright: brush(FILL)?,
+                ink: brush(TEXT)?,
+                muted: brush(MUTED)?,
+                label: text(16.0)?,
+                small: text(14.0)?,
+                target,
+                size,
+            })
+        }
+    }
+
+    /// One frame: the line at the top, Esc at the bottom, the dot and the crosshair. Waits for the
+    /// screen's refresh to show it. False if the target has to be made again.
+    fn frame(&self, s: f32, label: &str, dot: (f64, f64), cross: (f64, f64), running: bool) -> bool {
+        let (w, h) = (self.size.0 as f32, self.size.1 as f32);
+        let px = |v: f32| v * s;
+        let text = |t: &str, format: &IDWriteTextFormat, y: f32| {
+            let wide: Vec<u16> = t.encode_utf16().collect();
+            let rect = D2D_RECT_F { left: 0.0, top: y - px(16.0), right: w, bottom: y + px(16.0) };
+            unsafe {
+                self.target.DrawText(
+                    &wide,
+                    format,
+                    &rect,
+                    &self.muted,
+                    D2D1_DRAW_TEXT_OPTIONS_NONE,
+                    DWRITE_MEASURING_MODE_NATURAL,
+                )
+            };
+        };
+        unsafe {
+            self.target.BeginDraw();
+            self.target.Clear(Some(&color(BACKGROUND)));
+            text(label, &self.label, px(112.0));
+            text("Esc to stop", &self.small, h - px(64.0));
+            // The dot: a ring with a point in it, faint until the run starts.
+            let ring = if running { &self.bright } else { &self.faint };
+            let ellipse = |r: f32| {
+                let mut e = D2D1_ELLIPSE { radiusX: r, radiusY: r, ..Default::default() };
+                e.point.X = dot.0 as f32;
+                e.point.Y = dot.1 as f32;
+                e
+            };
+            self.target.DrawEllipse(&ellipse(px(14.0)), ring, px(2.0), None);
+            self.target.FillEllipse(&ellipse(px(2.0)), ring);
+            // The crosshair: two bars.
+            let (cx, cy, arm, half) = (cross.0 as f32, cross.1 as f32, px(10.0), px(1.0));
+            self.target.FillRectangle(
+                &D2D_RECT_F { left: cx - arm, top: cy - half, right: cx + arm, bottom: cy + half },
+                &self.ink,
+            );
+            self.target.FillRectangle(
+                &D2D_RECT_F { left: cx - half, top: cy - arm, right: cx + half, bottom: cy + arm },
+                &self.ink,
+            );
+            self.target.EndDraw(None, None).is_ok()
+        }
+    }
+}
+
+/// Draw the dot and the crosshair, a whole frame at each refresh of the screen, until the arena
+/// goes. Then the window is painted again as text.
 fn render_while_up() {
     let mut last = Instant::now();
     let mut seen = crate::meter::arena_counts();
     let mut cross: Option<(f64, f64)> = None;
-    let mut drawn: Vec<RECT> = Vec::new();
-    // The arena drawn off screen, the background everywhere but the dot and the crosshair.
-    let mut frame: Option<Frame> = None;
+    let Ok(d2d) = (unsafe { D2D1CreateFactory::<ID2D1Factory>(D2D1_FACTORY_TYPE_SINGLE_THREADED, None) }) else {
+        return;
+    };
+    let Ok(dwrite) = (unsafe { DWriteCreateFactory::<IDWriteFactory>(DWRITE_FACTORY_TYPE_SHARED) }) else { return };
+    let mut painter: Option<Painter> = None;
+    let mut window = HWND::default();
     loop {
-        unsafe {
-            let _ = DwmFlush();
-        }
         let h = hwnd();
         let Some((arena, since, reset)) =
             PLAY.lock().as_mut().map(|p| (p.arena.clone(), p.since, std::mem::take(&mut p.reset)))
@@ -289,6 +414,22 @@ fn render_while_up() {
         if h == 0 {
             break;
         }
+        window = HWND(h as *mut _);
+        let mut rc = RECT::default();
+        let s = unsafe {
+            let _ = GetClientRect(window, &mut rc);
+            GetDpiForWindow(window).max(96) as f32 / 96.0
+        };
+        let (w, ht) = ((rc.right - rc.left) as f64, (rc.bottom - rc.top) as f64);
+        if w <= 0.0 || ht <= 0.0 {
+            thread::sleep(std::time::Duration::from_millis(5));
+            continue;
+        }
+        let size = (w as u32, ht as u32);
+        if painter.as_ref().is_none_or(|p| p.size != size) {
+            painter = Painter::new(&d2d, &dwrite, window, size, s);
+        }
+        let Some(p) = &painter else { break };
         let now = Instant::now();
         let frame_ms = (now - last).as_secs_f32() * 1000.0;
         last = now;
@@ -300,16 +441,6 @@ fn render_while_up() {
                 ms.drain(..n - 240);
             }
         }
-        let hwnd = HWND(h as *mut _);
-        let mut rc = RECT::default();
-        let s = unsafe {
-            let _ = GetClientRect(hwnd, &mut rc);
-            GetDpiForWindow(hwnd).max(96) as f32 / 96.0
-        };
-        let (w, ht) = ((rc.right - rc.left) as f64, (rc.bottom - rc.top) as f64);
-        if w <= 0.0 || ht <= 0.0 {
-            continue;
-        }
         let t = if arena.running { (now - since).as_secs_f64() } else { 0.0 };
         let dot = dot_at(t, arena.seed, w, ht);
         // The crosshair moves with the mouse's counts at its DPI, a screen's height for 15 cm.
@@ -320,7 +451,7 @@ fn render_while_up() {
             cross = Some(dot);
         }
         let per_count = ht / CM_PER_HEIGHT * 2.54 / crate::meter::dpi_in_use().max(1) as f64;
-        // Clear of the line at the top and Esc at the bottom, which the copies never touch.
+        // Clear of the line at the top and Esc at the bottom.
         let edge = 160.0 * s as f64;
         let c = cross.get_or_insert(dot);
         c.0 = (c.0 + moved.0 * per_count).clamp(edge, w - edge);
@@ -331,110 +462,17 @@ fn render_while_up() {
             run.1 += 1;
         }
         let cross_at = *c;
-        let (wi, hi) = (w as i32, ht as i32);
-        if frame.as_ref().is_none_or(|f| (f.w, f.h) != (wi, hi)) {
-            frame = Frame::new(None, wi, hi);
-            if let Some(f) = &frame {
-                unsafe {
-                    let back = CreateSolidBrush(BACKGROUND);
-                    FillRect(f.dc, &RECT { left: 0, top: 0, right: wi, bottom: hi }, back);
-                    let _ = DeleteObject(back.into());
-                }
-            }
-            drawn.clear();
+        // Waits for the refresh; a lost target is made again next time.
+        if !p.frame(s, &arena.label, dot, cross_at, arena.running) {
+            painter = None;
         }
-        let Some(f) = &frame else { continue };
-        let now_boxes = boxes(s, dot, cross_at);
-        unsafe { draw_arena(f.dc, s, dot, cross_at, arena.running, &drawn) };
-        // Each thing's old and new place together, so it's never seen gone or half drawn; the two
-        // as one when they touch.
-        let mut areas: Vec<RECT> = match drawn.as_slice() {
-            [old_dot, old_cross] => vec![union(old_dot, &now_boxes[0]), union(old_cross, &now_boxes[1])],
-            _ => now_boxes.to_vec(),
-        };
-        if overlap(&areas[0], &areas[1]) {
-            areas = vec![union(&areas[0], &areas[1])];
-        }
-        unsafe { show_areas(hwnd, f, &areas) };
-        drawn = now_boxes.to_vec();
     }
-}
-
-/// The boxes the dot and the crosshair take at `s` times 100%, with room for their edges.
-fn boxes(s: f32, dot: (f64, f64), cross: (f64, f64)) -> [RECT; 2] {
-    let px = |v: f32| (v * s).round() as i32;
-    let (r, arm, thick) = (px(14.0), px(10.0), px(2.0).max(2));
-    let box_at = |(x, y): (f64, f64), half: i32| RECT {
-        left: x as i32 - half,
-        top: y as i32 - half,
-        right: x as i32 + half + 1,
-        bottom: y as i32 + half + 1,
-    };
-    [box_at(dot, r + thick + 2), box_at(cross, arm + thick + 2)]
-}
-
-/// The smallest box around both.
-fn union(a: &RECT, b: &RECT) -> RECT {
-    RECT {
-        left: a.left.min(b.left),
-        top: a.top.min(b.top),
-        right: a.right.max(b.right),
-        bottom: a.bottom.max(b.bottom),
-    }
-}
-
-fn overlap(a: &RECT, b: &RECT) -> bool {
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
-}
-
-/// Into `dc`: where the dot and the crosshair were (`old`) back to the background, then both where
-/// they are now. The frame is off screen, so nothing half-drawn is ever seen.
-unsafe fn draw_arena(dc: HDC, s: f32, dot: (f64, f64), cross: (f64, f64), running: bool, old: &[RECT]) {
-    let px = |v: f32| (v * s).round() as i32;
-    let (r, arm, thick) = (px(14.0), px(10.0), px(2.0).max(2));
-    unsafe {
-        let back = CreateSolidBrush(BACKGROUND);
-        for rect in old {
-            FillRect(dc, rect, back);
+    drop(painter);
+    // The screen's words come back, painted as before.
+    if !window.is_invalid() && hwnd() == window.0 as isize {
+        unsafe {
+            let _ = InvalidateRect(Some(window), None, false);
         }
-        let _ = DeleteObject(back.into());
-        // The dot: a ring with a point in it, faint until the run starts.
-        let color = if running { FILL } else { TRACK };
-        let pen = CreatePen(PS_SOLID, thick, color);
-        let old_pen = SelectObject(dc, pen.into());
-        let old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
-        let (x, y) = (dot.0 as i32, dot.1 as i32);
-        let _ = Ellipse(dc, x - r, y - r, x + r + 1, y + r + 1);
-        SelectObject(dc, old_brush);
-        SelectObject(dc, old_pen);
-        let _ = DeleteObject(pen.into());
-        let mark = CreateSolidBrush(color);
-        FillRect(dc, &RECT { left: x - thick, top: y - thick, right: x + thick, bottom: y + thick }, mark);
-        let _ = DeleteObject(mark.into());
-        // The crosshair: two bars.
-        let ink = CreateSolidBrush(TEXT);
-        let (cx, cy) = (cross.0 as i32, cross.1 as i32);
-        let half = thick / 2;
-        FillRect(dc, &RECT { left: cx - arm, top: cy - half, right: cx + arm + 1, bottom: cy - half + thick }, ink);
-        FillRect(dc, &RECT { left: cx - half, top: cy - arm, right: cx - half + thick, bottom: cy + arm + 1 }, ink);
-        let _ = DeleteObject(ink.into());
-        let _ = GdiFlush();
-    }
-}
-
-/// Copy `areas` of the off-screen frame onto the window, each in one go.
-unsafe fn show_areas(hwnd: HWND, frame: &Frame, areas: &[RECT]) {
-    unsafe {
-        let dc = GetDC(Some(hwnd));
-        if dc.is_invalid() {
-            return;
-        }
-        for a in areas {
-            let _ =
-                BitBlt(dc, a.left, a.top, a.right - a.left, a.bottom - a.top, Some(frame.dc), a.left, a.top, SRCCOPY);
-        }
-        let _ = GdiFlush();
-        ReleaseDC(Some(hwnd), dc);
     }
 }
 
@@ -638,6 +676,11 @@ fn paint(hwnd: HWND) {
     unsafe {
         let mut ps = PAINTSTRUCT::default();
         let dc = BeginPaint(hwnd, &mut ps);
+        // The arena is drawn by its own thread, a whole frame at each refresh.
+        if screen.arena.is_some() && PLAY.lock().is_some() {
+            let _ = EndPaint(hwnd, &ps);
+            return;
+        }
         let mut rc = RECT::default();
         let _ = GetClientRect(hwnd, &mut rc);
         let (w, h) = (rc.right - rc.left, rc.bottom - rc.top);
