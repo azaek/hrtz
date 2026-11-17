@@ -11,7 +11,7 @@ Commands marked **do not use** can change the device's identity or put it into f
 | Mouse (wired) | 0x3554 | 0xF526, 0xF50F, 0xF511 | F511 = a Z11 ("2.4G Dual Mode Mouse") |
 | Dongle | 0x3554 | 0xF524, 0xF50D, 0xF527, 0xF5D5 | F527 = 8K dongle (CH32V305); F5D5 = a Z11's 1K receiver ("2.4G Wireless Receiver") |
 
-Models are identified by `CID`/`MID` from the handshake, not by PID. CID 7 = Zaopin. MID: 1 ZI PRO, 2 Z2, 3 Z2 mini, 4 Z1 PRO MAX, 5 Z2 MAX, 6 Z2 mini MAX (the vendor app's list), 9 Z11 (PAW3311, from an owner's report, 2026-11-12). Device type 5 = 8K dongle.
+Models are identified by `CID`/`MID` from the handshake, not by PID. CID 7 = Zaopin. MID: 1 ZI PRO, 2 Z2, 3 Z2 mini, 4 Z1 PRO MAX, 5 Z2 MAX, 6 Z2 mini MAX (the vendor app's list), 9 Z11 (PAW3311, from an owner's report, 2026-11-12), 11 a Z2 too (PAW3395, from an owner's report on a 4K receiver, 2026-11-17). Device type 5 = 8K dongle.
 
 A Z11's receiver (F5D5) answered the handshake with CID 0 and MID 0 while the Z11 was paired, likely while it slept (it sleeps after 10 s). hrtz takes 0, 0 as a receiver with no mouse paired, and asks again once the receiver says a mouse is there.
 
@@ -119,7 +119,7 @@ A Z11 as it came (its owner's report): codes 31, 18, 9, 56, 75 and 150 at 0x0C, 
 
 From the vendor driver's `driver_sensor.h`: motion sync on the 3395 and 3950 only; the sensor mode, ripple control and angle snapping ("fixline") on the 3395, 3311, 3370, 3335 and 3950; lift-off calibration on the 3395, 3370, 3399, 3335 and 3950. Zaopin's web app (`sensor.json`) agrees, and adds the 3955 and 8980: it shows lift-off only for the 3395, 3370, 3335, 3950, 3955 and 8980, so not on a 3311, and its sensor modes are LP, HP and Corded (Corded automatic). hrtz offers the Z11 no motion sync, no lift-off, and LP and HP, and a Zaopin it doesn't know none of these, nor its DPI.
 
-The web app's `cfg.json` lists Zaopin's models by MID with their sensors: 1 to 3, 7, 10 to 13 a 3395; 4 to 6, 8, 14 to 16 a 3950; 9 a 3311 (the Z11). It names none; hrtz knows 1 to 6 and 9.
+The web app's `cfg.json` lists Zaopin's models by MID with their sensors: 1 to 3, 7, 10 to 13 a 3395; 4 to 6, 8, 14 to 16 a 3950; 9 a 3311 (the Z11). It names none; hrtz knows 1 to 6, 9 and 11 (a Z2, by its owner).
 
 ### Buttons
 
