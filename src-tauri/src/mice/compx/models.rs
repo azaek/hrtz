@@ -19,8 +19,10 @@ pub fn is_zaopin(cid: u8, mid: u8) -> bool {
 
 /// A Zaopin's sensor. MIDs 1 to 6 are the vendor app's list (its Config.ini); the Z11 (MID 9) is
 /// from its owner's report (Mayank_j, 2026-11-12) and Zaopin's web app (Control HUB WEB,
-/// controlhub.top/zaopin: its cfg.json and sensor.json, 2026-11-13). The web app lists more
-/// models (7, 8, 10 to 16) without names; hrtz doesn't know them yet.
+/// controlhub.top/zaopin: its cfg.json and sensor.json, 2026-11-13). MID 11 is a Z2 too, by its
+/// owner's report (issue #19, 2026-11-17, on a 4K receiver, firmware 2.17): the web app groups it
+/// with MID 10, a PAW3395 to 26,000 DPI with the same settings as MIDs 1 to 3. The web app lists
+/// more models (7, 8, 10, 12 to 16) without names; hrtz doesn't know them yet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sensor {
     Paw3395,
@@ -30,7 +32,7 @@ pub enum Sensor {
 
 pub fn sensor(mid: u8) -> Option<Sensor> {
     match mid {
-        1..=3 => Some(Sensor::Paw3395),
+        1..=3 | 11 => Some(Sensor::Paw3395),
         4..=6 => Some(Sensor::Paw3950),
         9 => Some(Sensor::Paw3311),
         _ => None,
@@ -57,16 +59,17 @@ pub fn dpi_method(mid: u8) -> Method {
 /// The mice on this channel hrtz runs: Zaopin's models, by MID, then ATK's, each with whether it has
 /// been tried on the real mouse (the Z1 PRO MAX only, so far).
 pub fn supported() -> Vec<Supported> {
-    let mut all: Vec<Supported> = [(4, true), (1, false), (2, false), (5, false), (3, false), (6, false), (9, false)]
-        .into_iter()
-        .map(|(mid, tested)| Supported {
-            family: "compx",
-            brand: "Zaopin",
-            model: model_name(mid),
-            key: format!("compx/{CID}-{mid}"),
-            tested,
-        })
-        .collect();
+    let mut all: Vec<Supported> =
+        [(4, true), (1, false), (2, false), (11, false), (5, false), (3, false), (6, false), (9, false)]
+            .into_iter()
+            .map(|(mid, tested)| Supported {
+                family: "compx",
+                brand: "Zaopin",
+                model: model_name(mid),
+                key: format!("compx/{CID}-{mid}"),
+                tested,
+            })
+            .collect();
     all.extend(super::atk::supported());
     all
 }
@@ -181,7 +184,7 @@ pub fn offered(s: Settings, caps: &Capabilities) -> Settings {
 pub fn model_name(mid: u8) -> &'static str {
     match mid {
         1 => "ZI PRO",
-        2 => "Z2",
+        2 | 11 => "Z2",
         3 => "Z2 mini",
         4 => "Z1 PRO MAX",
         5 => "Z2 MAX",
@@ -228,6 +231,19 @@ mod tests {
         assert!(!mode.corded_when_wired && mode.corded_from_hz.is_none());
         assert_eq!(caps.lod, None);
         assert!(supported().iter().any(|m| m.key == "compx/7-9" && m.model == "Z11" && !m.tested));
+    }
+
+    #[test]
+    fn a_z2_answering_mid_11_is_a_z2() {
+        assert!(known(11));
+        assert_eq!(model_name(11), "Z2");
+        assert_eq!(dpi_method(11), Method::Step50);
+        let caps = capabilities(11, 1);
+        let dpi = caps.dpi.unwrap();
+        assert_eq!((dpi.min, dpi.max, dpi.step), (50, 26000, 50));
+        assert!(caps.motion_sync && caps.angle_snapping && caps.ripple_control && caps.sensor_mode.is_some());
+        assert_eq!(caps.polling.unwrap().rates.last(), Some(&4000));
+        assert!(supported().iter().any(|m| m.key == "compx/7-11" && m.model == "Z2" && !m.tested));
     }
 
     #[test]

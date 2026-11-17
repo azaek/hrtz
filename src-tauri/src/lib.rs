@@ -1977,10 +1977,11 @@ mod readme {
         // others, each name once (ATK gives some one name for several model IDs), by brand and
         // name. One a check on the real mouse has passed on is listed with the others, after them,
         // each name once too.
+        // Zaopin's are each listed once too: two model IDs can be one mouse (the Z2's 2 and 11).
         let atk = |m: &crate::mice::model::Supported| ["ATK", "VXE", "MAD"].contains(&m.brand);
         let mut want = String::from("| Mouse | Status |\n|---|---|\n");
-        all.iter().filter(|m| !atk(m)).for_each(|m| want.push_str(&row(m)));
         let mut listed = std::collections::HashSet::new();
+        all.iter().filter(|m| !atk(m)).map(row).filter(|r| listed.insert(r.clone())).for_each(|r| want.push_str(&r));
         all.iter()
             .filter(|m| atk(m) && m.tested)
             .map(row)

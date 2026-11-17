@@ -209,7 +209,9 @@ hrtz is in beta. If you have one of the mice above, these help most:
 
 Thanks to everyone who has tested a mouse:
 
+- [MayankJairaj](https://github.com/MayankJairaj): Zaopin Z11
 - [SAPNXTDOOR](https://github.com/SAPNXTDOOR): VXE R1 PRO MAX (PAW3395)
+- [derekjamesedu](https://github.com/derekjamesedu): Zaopin Z2
 
 ## What it does
 
