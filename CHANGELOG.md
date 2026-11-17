@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.7 — 2026-11-17
 
 ### Improved
 - A Zaopin Z2 that showed as "Zaopin mouse" is now known as the Z2, with its PAW3395's DPI up to 26,000, motion sync, lift-off and the sensor's other settings. Some Z2s answer with a newer model ID; this one was seen on a 4K receiver. Not tested yet: its Not tested badge runs the check. Thanks to derekjamesedu for the report.
