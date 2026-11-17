@@ -245,6 +245,8 @@ export interface Prefs {
   lowBatteryPercent: number;
   osd: boolean;
   trayStyle: TrayStyle;
+  /** The mouse and its battery on the taskbar, beside the tray. */
+  taskbarBattery: boolean;
   /** Track where the mouse moves on the pad, in the background too. */
   padTracking: boolean;
   /** Count double clicks over days, in the background too. */
@@ -418,6 +420,8 @@ export interface AppStatus {
   hudShowing: boolean;
   /** How the SignalRGB link stands. */
   signalrgb?: SignalRgbStatus;
+  /** This Windows can show the battery on the taskbar (Windows 11). */
+  taskbarSupported?: boolean;
 }
 
 /** A mouse or mouse receiver Windows lists, for Inspect a mouse. */

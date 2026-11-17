@@ -376,8 +376,9 @@ fn over(rgba: &mut [u8], i: usize, c: [u8; 3], alpha: f32) {
     px[3] = (a * 255.0).round() as u8;
 }
 
-/// What the logo styles show: how full (0 to 1), in what colour, and how strongly.
-fn logo_state(level: TrayLevel, mono: [u8; 3]) -> (f32, [u8; 3], f32) {
+/// What the logo styles show: how full (0 to 1), in what colour, and how strongly. The battery on
+/// the taskbar (`taskbar.rs`) takes its colour and strength from here too.
+pub(crate) fn logo_state(level: TrayLevel, mono: [u8; 3]) -> (f32, [u8; 3], f32) {
     match level {
         TrayLevel::Disconnected => (0.0, mono, DIMMED),
         TrayLevel::Asleep { level } => (level.map_or(0.0, |l| l.min(100) as f32 / 100.0), mono, DIMMED),

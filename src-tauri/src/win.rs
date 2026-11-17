@@ -485,6 +485,96 @@ pub fn windows_version() -> String {
     out
 }
 
+/// Windows 11 or later (build 22000 on).
+pub fn is_windows_11() -> bool {
+    use windows::Win32::System::Registry::HKEY_LOCAL_MACHINE;
+    use windows::core::w;
+    static IS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *IS.get_or_init(|| {
+        reg_string(HKEY_LOCAL_MACHINE, w!(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"), w!("CurrentBuild"))
+            .and_then(|b| b.parse::<u32>().ok())
+            .is_some_and(|b| b >= 22000)
+    })
+}
+
+/// Shows hrtz's tray icon on the taskbar instead of under the ^, unless someone has chosen for it.
+/// Windows 11 keeps a key per tray icon under `HKCU\Control Panel\NotifyIconSettings`, naming the
+/// app's exe, and gives it `IsPromoted` only once the icon is shown or hidden in Settings (or
+/// dragged): with none, it's under the ^ by Windows' default. Explorer adds the key when the icon
+/// first appears, so this is tried until it's there. Returns whether it was found.
+pub fn promote_tray_icon() -> bool {
+    use windows::Win32::System::Registry::{
+        HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE, REG_DWORD, RRF_RT_REG_DWORD, RegCloseKey, RegEnumKeyExW,
+        RegGetValueW, RegOpenKeyExW, RegSetValueExW,
+    };
+    use windows::core::{HSTRING, PCWSTR, PWSTR, w};
+    let Ok(exe) = std::env::current_exe() else { return false };
+    let exe = exe.to_string_lossy().to_lowercase();
+    let root = w!(r"Control Panel\NotifyIconSettings");
+    let mut settings = HKEY::default();
+    if unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, root, None, KEY_READ, &mut settings) }.is_err() {
+        return false;
+    }
+    let mut found = false;
+    for i in 0.. {
+        let mut name = [0u16; 64];
+        let mut len = name.len() as u32;
+        let r = unsafe { RegEnumKeyExW(settings, i, Some(PWSTR(name.as_mut_ptr())), &mut len, None, None, None, None) };
+        if r.is_err() {
+            break;
+        }
+        let name = String::from_utf16_lossy(&name[..len as usize]);
+        let sub = HSTRING::from(name.as_str());
+        let Some(path) = reg_string(settings, PCWSTR(sub.as_ptr()), w!("ExecutablePath")) else { continue };
+        if known_folder_path(&path).to_lowercase() != exe {
+            continue;
+        }
+        found = true;
+        let mut promoted = 0u32;
+        let mut size = 4u32;
+        let chosen = unsafe {
+            RegGetValueW(
+                settings,
+                &sub,
+                w!("IsPromoted"),
+                RRF_RT_REG_DWORD,
+                None,
+                Some((&mut promoted as *mut u32).cast()),
+                Some(&mut size),
+            )
+        }
+        .is_ok();
+        if !chosen {
+            let mut icon = HKEY::default();
+            if unsafe { RegOpenKeyExW(settings, &sub, None, KEY_SET_VALUE, &mut icon) }.is_ok() {
+                let _ = unsafe { RegSetValueExW(icon, w!("IsPromoted"), None, REG_DWORD, Some(&1u32.to_le_bytes())) };
+                let _ = unsafe { RegCloseKey(icon) };
+            }
+        }
+    }
+    let _ = unsafe { RegCloseKey(settings) };
+    found
+}
+
+/// A path as `NotifyIconSettings` writes it, with a known folder's ID in place of its path
+/// ("{6D809377-…}\App\app.exe" for Program Files), made whole.
+fn known_folder_path(path: &str) -> String {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::{KF_FLAG_DEFAULT, SHGetKnownFolderPath};
+    let Some((id, rest)) = path.strip_prefix('{').and_then(|p| p.split_once("}\\")) else {
+        return path.to_string();
+    };
+    let Ok(id) = windows::core::GUID::try_from(id) else { return path.to_string() };
+    match unsafe { SHGetKnownFolderPath(&id, KF_FLAG_DEFAULT, None) } {
+        Ok(folder) => {
+            let base = unsafe { folder.to_string() }.unwrap_or_default();
+            unsafe { CoTaskMemFree(Some(folder.0 as *const _)) };
+            if base.is_empty() { path.to_string() } else { format!("{base}\\{rest}") }
+        }
+        Err(_) => path.to_string(),
+    }
+}
+
 /// Whether the taskbar uses the light theme (Settings > Personalisation > Colours > Windows mode).
 pub fn taskbar_is_light() -> bool {
     use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
