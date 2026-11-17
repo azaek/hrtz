@@ -18,10 +18,11 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
+| VXE R1 PRO MAX (PAW3395) | Tested |
 | VXE R1 PRO (PAW3950 Ultra) | Tested |
 
 <details>
-<summary>ATK, VXE and MAD mice not tested yet (136)</summary>
+<summary>ATK, VXE and MAD mice not tested yet (135)</summary>
 
 | Mouse | Status |
 |---|---|
@@ -145,7 +146,6 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | VXE R1 (PAW3950 Ultra) | Not tested yet |
 | VXE R1 NK | Not tested yet |
 | VXE R1 PRO (PAW3395) | Not tested yet |
-| VXE R1 PRO MAX (PAW3395) | Not tested yet |
 | VXE R1 PRO MAX (PAW3950 Ultra) | Not tested yet |
 | VXE R1 S NK | Not tested yet |
 | VXE R1 Ultra (PAW3395 Ultra) | Not tested yet |
@@ -169,8 +169,8 @@ Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED r
 "Tested" means tried on the real mouse; the others use the same protocol as a tested one and should
 work. More mice come one at a time, each tried with its owners before it's called tested.
 
-ATK's mice are the newest: 160 ATK, VXE and MAD models, such as the VXE R1 PRO (tested), the ATK
-U2 Plus NK and the MAD R, by receiver or cable. Each is in the list above. Some of ATK's newer
+ATK's mice are the newest: 160 ATK, VXE and MAD models, such as the VXE R1 PRO and R1 PRO MAX (both
+tested), the ATK U2 Plus NK and the MAD R, by receiver or cable. Each is in the list above. Some of ATK's newer
 mice, such as the ATK A9 3.0 NK, the ATK ZERO + and the VXE V3 Plus, talk to ATK's app a different
 way, and hrtz doesn't run those yet: if yours isn't in the list, it's likely one of them.
 
@@ -206,6 +206,10 @@ hrtz is in beta. If you have one of the mice above, these help most:
 - **Something wrong:** Settings → **Report a problem** opens an issue with your hrtz version, mouse,
   firmware and Windows filled in.
 - **Questions and ideas:** [Discussions](https://github.com/azaek/hrtz/discussions).
+
+Thanks to everyone who has tested a mouse:
+
+- [SAPNXTDOOR](https://github.com/SAPNXTDOOR): VXE R1 PRO MAX (PAW3395)
 
 ## What it does
 

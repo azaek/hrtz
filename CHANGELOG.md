@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Improved
+- The VXE R1 PRO MAX with a PAW3395 sensor is now tested. A check on a real one passed on its 4K receiver: its DPI stages, their colour and the DPI light, the polling rate (4,000 Hz, and 500 reports a second counted at 500 Hz), sensor mode, debounce, motion sync, angle snapping, ripple control, the sleep timer and the onboard profiles, with each of its five buttons seen. Thanks to SAPNXTDOOR for the check.
+
 ## 0.5.5 — 2026-11-16
 
 ### New

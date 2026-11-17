@@ -1950,11 +1950,17 @@ mod readme {
         };
         // ATK's mice not tested yet, many and from ATK's own list, are folded away below the
         // others, each name once (ATK gives some one name for several model IDs), by brand and
-        // name. One an owner's check has passed on is listed with the others, after them.
+        // name. One a check on the real mouse has passed on is listed with the others, after them,
+        // each name once too.
         let atk = |m: &crate::mice::model::Supported| ["ATK", "VXE", "MAD"].contains(&m.brand);
         let mut want = String::from("| Mouse | Status |\n|---|---|\n");
         all.iter().filter(|m| !atk(m)).for_each(|m| want.push_str(&row(m)));
-        all.iter().filter(|m| atk(m) && m.tested).for_each(|m| want.push_str(&row(m)));
+        let mut listed = std::collections::HashSet::new();
+        all.iter()
+            .filter(|m| atk(m) && m.tested)
+            .map(row)
+            .filter(|r| listed.insert(r.clone()))
+            .for_each(|r| want.push_str(&r));
         let mut atks: Vec<String> = all.iter().filter(|m| atk(m) && !m.tested).map(row).collect();
         atks.sort();
         atks.dedup();
