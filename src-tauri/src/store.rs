@@ -77,6 +77,8 @@ pub struct Prefs {
     pub low_battery_percent: u8,
     pub osd: bool,
     pub tray_style: TrayStyle,
+    /// The mouse and its battery on the taskbar, beside the tray (`taskbar`). On unless turned off.
+    pub taskbar_battery: bool,
     /// Track where the mouse moves on the pad, in the background too.
     pub pad_tracking: bool,
     /// Count double clicks over days, in the background too (on unless turned off).
@@ -421,6 +423,7 @@ impl Default for Prefs {
             low_battery_percent: 15,
             osd: true,
             tray_style: TrayStyle::default(),
+            taskbar_battery: true,
             pad_tracking: false,
             click_history: true,
             activity: true,

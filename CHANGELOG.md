@@ -6,7 +6,11 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 
 ## Unreleased
 
+### New
+- Your mouse's battery on the taskbar: a mouse and its level, like "93%", beside the tray icons, for the mouse the tray follows. Hover it for each mouse's battery, polling rate and DPI, or click it to open hrtz. It's on unless you turn it off under HUD & Tray. Windows 11.
+
 ### Improved
+- hrtz's tray icon now shows on the taskbar instead of under the ^, unless you've already chosen where it goes.
 - The VXE R1 PRO MAX with a PAW3395 sensor is now tested. A check on a real one passed on its 4K receiver: its DPI stages, their colour and the DPI light, the polling rate (4,000 Hz, and 500 reports a second counted at 500 Hz), sensor mode, debounce, motion sync, angle snapping, ripple control, the sleep timer and the onboard profiles, with each of its five buttons seen. Thanks to SAPNXTDOOR for the check.
 
 ## 0.5.5 — 2026-11-16

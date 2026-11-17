@@ -11,6 +11,7 @@ pub mod mice;
 pub mod pad;
 pub mod signalrgb;
 pub mod store;
+pub mod taskbar;
 pub mod tray;
 
 #[cfg(windows)]
@@ -62,6 +63,8 @@ struct AppStatus {
     hud_showing: bool,
     /// How the SignalRGB link stands.
     signalrgb: signalrgb::Status,
+    /// This Windows can show the battery on the taskbar (Windows 11).
+    taskbar_supported: bool,
 }
 
 struct Ctx {
@@ -95,6 +98,8 @@ struct Ctx {
     /// Last rendered (level, style, light taskbar), so the icon is only redrawn when it changes.
     tray_level: Mutex<Option<(TrayLevel, TrayStyle, bool)>>,
     hud: hud::Hud,
+    /// The battery on the taskbar, beside the tray.
+    taskbar: taskbar::Taskbar,
     /// Models (`mid`) checked this run for a first backup, so it's looked into once.
     /// The mice (keys) checked for their first backup this run.
     met: Mutex<HashSet<String>>,
@@ -113,6 +118,7 @@ fn status_of(ctx: &Ctx) -> AppStatus {
     s.hud_showing = ctx.hud.showing();
     s.signalrgb = ctx.signalrgb.status();
     s.in_use = ctx.hub.primary_state().key;
+    s.taskbar_supported = ctx.taskbar.supported();
     #[cfg(windows)]
     {
         s.quiet_ports = ctx.hub.quiet_ports();
@@ -1084,13 +1090,15 @@ fn taskbar_light() -> bool {
 fn refresh_tray(ctx: &Ctx, s: &DeviceState) {
     let prefs = ctx.prefs.read().clone();
     let key = (tray_level(s, &prefs), prefs.tray_style, taskbar_light());
+    let tip = tooltip(&tooltip_mice(ctx, s));
+    ctx.taskbar.show(taskbar::Show { on: prefs.taskbar_battery, level: key.0, tip: tip.clone() });
     if let Some((tray, items)) = ctx.tray.lock().as_mut() {
         let mut last = ctx.tray_level.lock();
         if *last != Some(key) {
             let _ = tray.set_icon(Some(tray_image(key.0, key.1)));
             *last = Some(key);
         }
-        let _ = tray.set_tooltip(Some(tooltip(&tooltip_mice(ctx, s))));
+        let _ = tray.set_tooltip(Some(tip));
         if let Some(n) = s.capabilities.as_ref().and_then(|c| c.profiles) {
             fit_tray_profiles(ctx, tray, items, (n as usize).clamp(1, 8));
         }
@@ -1655,6 +1663,7 @@ fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
 fn quit(app: &AppHandle) {
     if let Some(ctx) = app.try_state::<Arc<Ctx>>() {
         ctx.hud.stop();
+        ctx.taskbar.stop();
         #[cfg(windows)]
         {
             meter::set_running(false, None);
@@ -1729,6 +1738,11 @@ pub fn run() {
             }
             let hub = Hub::new();
             let hud = hud::Hud::new(&prefs);
+            let open_handle = handle.clone();
+            let taskbar = taskbar::Taskbar::start(move || {
+                let app = open_handle.clone();
+                let _ = open_handle.run_on_main_thread(move || show_main(&app));
+            });
             let status_handle = handle.clone();
             let signalrgb = signalrgb::SignalRgb::start(hub.clone(), &data_dir, prefs.signalrgb, move || {
                 if let Some(ctx) = status_handle.try_state::<Arc<Ctx>>() {
@@ -1755,6 +1769,7 @@ pub fn run() {
                 osd_quiet: std::sync::atomic::AtomicBool::new(false),
                 tray_level: Mutex::new(None),
                 hud,
+                taskbar,
                 met: Mutex::new(HashSet::new()),
                 names_pending: Mutex::new(HashSet::new()),
                 names_writing: Mutex::new(HashSet::new()),
@@ -1762,6 +1777,16 @@ pub fn run() {
                 connected: Mutex::new(HashSet::new()),
             });
             build_tray(&handle, &ctx)?;
+            // The tray icon on the taskbar, not under the ^, until someone chooses otherwise.
+            #[cfg(windows)]
+            thread::spawn(|| {
+                for wait in [2, 5, 15, 60, 300] {
+                    thread::sleep(Duration::from_secs(wait));
+                    if win::promote_tray_icon() {
+                        break;
+                    }
+                }
+            });
             app.manage(ctx.clone());
             profile_switcher(handle.clone(), profile_asks);
             // Its reports need the state managed above.

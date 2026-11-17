@@ -18,6 +18,7 @@ export const NEWS = [
   { id: "week", page: "week", applies: () => true },
   // Shown once a game's settings are read; its badge marks it seen.
   { id: "gamesens", page: "sensor", applies: () => false },
+  { id: "taskbar", page: "hud", applies: () => true },
 ] as const satisfies readonly {
   id: string;
   page: PageId;

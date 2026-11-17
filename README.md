@@ -246,8 +246,8 @@ Each mouse gets what it has; hrtz shows only the settings yours does.
   from each game's settings, and what to set in each to make them feel the same.
 - **Backups:** full copies of the mouse's settings, restores that show what changes and can be undone,
   export and import, and factory settings.
-- **Pairing** (Zaopin), a tray icon with the battery level, a low-battery alert, and a pop-up when the
-  DPI or profile changes.
+- **Pairing** (Zaopin), the battery on the taskbar and in the tray icon, a low-battery alert, and a
+  pop-up when the DPI or profile changes.
 
 Settings are stored on the mouse, so they keep working on PCs without hrtz.
 
