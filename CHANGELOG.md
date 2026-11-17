@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.6 — 2026-11-17
 
 ### New
 - Your mouse's battery on the taskbar: a mouse and its level, like "93%", beside the tray icons, for the mouse the tray follows. Hover it for each mouse's battery, polling rate and DPI, or click it to open hrtz. It's on unless you turn it off under HUD & Tray. Windows 11.
