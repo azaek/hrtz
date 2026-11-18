@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Body1, Caption1 } from "@fluentui/react-components";
 import { ArrowCounterclockwise16Regular } from "@fluentui/react-icons";
 import type { Capabilities, Settings } from "@/api";
-import { t } from "@/i18n";
+import { physicalName } from "@/hid";
+import i18n, { t } from "@/i18n";
 import { CardNote, MoreMenu, Pane, PaneFooter, PaneHeader, TileChoice, UndoNote } from "@/kit";
 import type { ModelArt } from "@/models";
 import { FunctionOptions } from "./FunctionOptions";
@@ -33,8 +34,8 @@ export function ButtonsPanel({
   family: keyof typeof CATALOGS;
 }) {
   const catalog = CATALOGS[family];
-  // Shown only for a mouse with buttons, so these are there.
-  const physical = caps.buttons ?? [];
+  // Shown only for a mouse with buttons, so these are there; named in the language shown.
+  const physical = useMemo(() => (caps.buttons ?? []).map(([i, n]): [number, string] => [i, physicalName(n)]), [caps.buttons, i18n.language]);
   const actions = s.buttons ?? [];
   const e = useButtons(s, physical);
   const [lit, setLit] = useState<number | null>(null);

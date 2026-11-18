@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, message, type ButtonAction, type CaptureScreen, type DeviceState, type MeterSample, type Settings } from "@/api";
 import { useCapture, useHold } from "@/cards/lab/parts";
-import { actionLabel } from "@/hid";
+import { actionLabel, physicalName } from "@/hid";
 import { english, msg, num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import { useStore } from "@/store";
@@ -400,7 +400,7 @@ function screenOf(
       const left = Math.max(0, BUTTON_MS - (Date.now() - r.since));
       return {
         ...blank,
-        title: b ? t("Press {{button}}", { button: b.name }) : "",
+        title: b ? t("Press {{button}}", { button: physicalName(b.name) }) : "",
         detail: b ? (b.detail ?? t("It's set to {{action}}. Once is enough.", { action: b.does })) : "",
         progress: left / BUTTON_MS,
         progressLabel: t("Button {{n}} of {{total}} · moves on in {{seconds}} s", { n: num(r.at + 1), total: num(r.queue.length), seconds: num(Math.ceil(left / 1000)) }),

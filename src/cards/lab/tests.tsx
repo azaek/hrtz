@@ -12,7 +12,7 @@ import {
   TopSpeed20Regular,
 } from "@fluentui/react-icons";
 import { type Capabilities, api, currentDpi, type PadCalibration } from "@/api";
-import { dateLocale, t } from "@/i18n";
+import i18n, { dateLocale, t } from "@/i18n";
 import { goTo, savePrefs, useStore } from "@/store";
 import { AngleCheck } from "./AngleCheck";
 import { BlindTest } from "./BlindTest";
@@ -137,7 +137,9 @@ export function openTest(id: TestId) {
 /** The tests this mouse can run (all of them with no mouse, waiting for one). */
 export const testsFor = (caps: Capabilities | null | undefined) => allTests().filter((x) => !caps || !x.needs || x.needs(caps));
 
-export type Kept = { result: TestResult; at: number };
+/** A result is kept in the words it was shown in, so it notes the language: one kept before
+ *  translations (no `lang`) is English. */
+export type Kept = { result: TestResult; at: number; lang?: string };
 const KEY = "hrtz.testResults";
 const read = (): Partial<Record<TestId, Kept>> => {
   try {
@@ -153,11 +155,18 @@ export function useResults() {
   const [kept, setKept] = useState(read);
   const keep = (id: TestId) => (r: TestResult | null) => {
     if (!r) return;
-    const next = { ...read(), [id]: { result: r, at: Date.now() } };
+    const next = { ...read(), [id]: { result: r, at: Date.now(), lang: i18n.language } };
     localStorage.setItem(KEY, JSON.stringify(next));
     setKept(next);
   };
   return { kept, keep };
+}
+
+/** A kept result to show in the list: as kept, or, kept in another language, when it ran ("Last
+ *  run today") until the test is opened again and reports it afresh. */
+export function shownResult(k: Kept | undefined): TestResult | undefined {
+  if (!k || (k.lang ?? "en") === i18n.language) return k?.result;
+  return { value: t("Last run {{when}}", { when: whenText(k.at) }), detail: "", tone: "neutral" };
 }
 
 /** "today", "yesterday", "14 Oct". */

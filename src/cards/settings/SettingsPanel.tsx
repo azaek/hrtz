@@ -297,6 +297,8 @@ function LanguageCard({ prefs, set }: { prefs: Prefs; set: (patch: Partial<Prefs
       <Dropdown
         aria-label={t("Language")}
         style={{ minWidth: 200 }}
+        // As wide as its longest option, so "与 Windows 相同（English）" stays on one line.
+        listbox={{ style: { minWidth: "max-content" } }}
         value={picked?.name ?? same}
         selectedOptions={[picked?.code ?? "windows"]}
         onOptionSelect={(_, d) => d.optionValue && set({ language: d.optionValue === "windows" ? null : d.optionValue })}

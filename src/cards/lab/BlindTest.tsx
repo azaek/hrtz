@@ -100,7 +100,9 @@ export function BlindTest({ onResult }: TestProps) {
   // (the user's screenshot). The stopped note goes on top instead.
   const choose =
     pairs.length > 1 ? (
-      <Choice label={t("What to test")} value={pair.id} options={pairs.map((p) => ({ value: p.id, label: p.name }))} onChange={(id) => setPick(id)} />
+      <div style={{ whiteSpace: "nowrap" }}>
+        <Choice label={t("What to test")} value={pair.id} options={pairs.map((p) => ({ value: p.id, label: p.name }))} onChange={(id) => setPick(id)} />
+      </div>
     ) : null;
 
   if (test.running) {

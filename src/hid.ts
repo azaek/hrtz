@@ -96,6 +96,16 @@ export const buttonNames = (s: Speech = screen) => ({
   forward: s.t("Forward", { context: "button" }),
 });
 
+/** A button's name as the mouse code gives it ("Left", "Wheel click", "Button 7"), to read in `s`.
+ *  The code keeps them in English for the report; a name it doesn't know stays as it is. */
+export function physicalName(name: string, s: Speech = screen): string {
+  if (["Left", "Right", "Back", "Forward"].includes(name)) return s.t(name, { context: "button" });
+  if (name === "Wheel click") return s.t("Wheel click");
+  if (name === "DPI button") return s.t("DPI button");
+  const n = /^Button (\d+)$/.exec(name)?.[1];
+  return n ? s.t("Button {{n}}", { n: s.num(Number(n)) }) : name;
+}
+
 const mouseName = (s: Speech) => ({ left: s.t("Left click"), right: s.t("Right click"), middle: s.t("Middle click"), back: buttonNames(s).back, forward: buttonNames(s).forward });
 
 /** What a button does, to read (in English with `english`, for the mouse check's report). */

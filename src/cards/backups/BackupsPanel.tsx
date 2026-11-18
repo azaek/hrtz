@@ -14,6 +14,7 @@ import {
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api, type BackupMeta } from "@/api";
 import { Group, SettingCard } from "@/components";
+import { physicalName } from "@/hid";
 import { num, t } from "@/i18n";
 import { backupFits, familyOf } from "@/models";
 import { afterMenu, CardList, CardListRow, CardNote, MoreMenu, ProgressLine, UndoNote, type MoreMenuItem } from "@/kit";
@@ -80,7 +81,7 @@ export function BackupsPanel() {
     if (!r) return;
     await b.refresh();
     if (r.written === 0) return setRestored({ card, text: t("The mouse already matches {{name}}.", { name }), saved: null });
-    const c = before && then ? changes(before, then, buttons ?? []) : [];
+    const c = before && then ? changes(before, then, (buttons ?? []).map(([i, n]) => [i, physicalName(n)])) : [];
     // A Zaopin's image holds macros and shortcuts too; a Logitech's, its other profiles.
     const rest = familyOf(device?.key) === "compx" ? t("Macros and shortcuts were rewritten.") : t("Its other profiles were rewritten.");
     const what = c.length === 0 ? `${t("Settings already matched.")} ${rest}` : c.length === 1 ? `${c[0][0]}: ${c[0][1]} → ${c[0][2]}.` : t("{{count}} settings changed.", { count: c.length, defaultValue_one: "{{count}} setting changed." });

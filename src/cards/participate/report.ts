@@ -1,5 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type DeviceState, type Inspected, type MouseRead, type Picture, type Reading } from "@/api";
+import { physicalName } from "@/hid";
 import { english, msg, num, screen, t, type Say, type Speech } from "@/i18n";
 import { LINK_NAME, linkName } from "@/links";
 import { familyOf, modelKeyOf, SUPPORT_TEXT, type Support } from "@/models";
@@ -240,9 +241,9 @@ export function summaryLines(c: Checks, voice: Voice): Line[] {
   if (seeable.length) {
     const seen = seeable.filter((b) => b.seen);
     lines.push({ ok: seen.length === seeable.length, text: t("Buttons: {{seen}} of {{total}} seen", { seen: d(seen.length), total: d(seeable.length) }) });
-    for (const b of seeable.filter((x) => !x.seen)) lines.push({ ok: false, text: t("{{button}}: no press seen (set to {{action}})", { button: b.name, action: does(b) }) });
+    for (const b of seeable.filter((x) => !x.seen)) lines.push({ ok: false, text: t("{{button}}: no press seen (set to {{action}})", { button: physicalName(b.name, voice.speech), action: does(b) }) });
   }
-  for (const b of c.buttons.filter((x) => x.seen === null)) lines.push({ ok: null, text: b.why ? t("{{button}}: {{why}}", { button: b.name, why: t(b.why) }) : t("{{button}} is set to {{action}}, which hrtz can't see", { button: b.name, action: does(b) }) });
+  for (const b of c.buttons.filter((x) => x.seen === null)) lines.push({ ok: null, text: b.why ? t("{{button}}: {{why}}", { button: physicalName(b.name, voice.speech), why: t(b.why) }) : t("{{button}} is set to {{action}}, which hrtz can't see", { button: physicalName(b.name, voice.speech), action: does(b) }) });
   // Every change tried; a report from before each setting was tried has the one.
   const writes = c.writes ?? (c.write ? [c.write] : []);
   const held = writes.filter(writeHeld);

@@ -4,7 +4,7 @@ import { t } from "@/i18n";
 import { CardNote, Pane, PaneFooter, PaneHeader } from "@/kit";
 import { useStore } from "@/store";
 import { useClickWeek, weekResult } from "./clicks";
-import { ClickSwitch, OPEN_KEY, PadSwitch, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
+import { ClickSwitch, OPEN_KEY, PadSwitch, shownResult, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
 import { WindowsCheck } from "./WindowsCheck";
 import { NewBadge } from "@/kit";
 import { useSeen } from "@/news";
@@ -54,7 +54,7 @@ export function LabPanel() {
             <PaneHeader title={t("Tests")} description={t("Each test runs while it's open.")} />
             <div role="list" aria-label={t("Tests")} className="flex flex-col gap-0.5 px-1 pb-1">
               {tests.map((x) => {
-                const r = x.id === "pad" ? pad : x.id === "clicks" ? (clicks ?? kept.clicks?.result) : kept[x.id]?.result;
+                const r = x.id === "pad" ? pad : x.id === "clicks" ? (clicks ?? shownResult(kept.clicks)) : shownResult(kept[x.id]);
                 return (
                   <button
                     key={x.id}
@@ -73,7 +73,7 @@ export function LabPanel() {
                         {x.id === "blind" && <BlindNew />}
                       </span>
                       <Caption1 style={{ ...truncate, ...(r?.tone === "warn" ? warn : muted) }}>
-                        {r ? `${r.value} · ${r.detail}` : x.id === "pad" ? t("Not calibrated yet") : t("Not run yet")}
+                        {r ? [r.value, r.detail].filter(Boolean).join(" · ") : x.id === "pad" ? t("Not calibrated yet") : t("Not run yet")}
                       </Caption1>
                     </span>
                   </button>
@@ -104,7 +104,8 @@ export function LabPanel() {
               <TestBody key={sel} id={sel} onResult={keep(sel)} />
             </div>
             <PaneFooter>
-              <CardNote hint={last ? `${test.hint} ${t("Last checked {{when}}.", { when: whenText(last.at) })}` : test.hint} />
+              {/* A date with its own full stop ("18. Okt.") takes no second one. */}
+              <CardNote hint={last ? `${test.hint} ${t("Last checked {{when}}.", { when: whenText(last.at) })}`.replace(/\.\.$/, ".") : test.hint} />
             </PaneFooter>
           </Pane>
         </div>

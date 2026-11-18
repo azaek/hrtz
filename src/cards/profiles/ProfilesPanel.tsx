@@ -130,7 +130,7 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
             <section className="flex flex-col gap-2 px-4 pt-2 pb-4">
               <Body1 style={{ fontWeight: 600 }}>{t("Settings")}</Body1>
               {held ? (
-                <dl className="grid grid-cols-[112px_1fr] gap-y-1.5 text-sm tabular-nums">
+                <dl className="grid grid-cols-[minmax(112px,max-content)_1fr] gap-y-1.5 text-sm tabular-nums [&>dt]:pr-4">
                   <dt className="text-muted-foreground">DPI</dt>
                   <dd>
                     {fmtDpi(held.dpi)} <span className="text-muted-foreground">({t("{{count}} stages", { count: held.stages, defaultValue_one: "one stage" })})</span>
