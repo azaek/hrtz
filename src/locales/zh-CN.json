@@ -1182,6 +1182,7 @@
   "this mouse has no sensor angle": "此鼠标没有传感器角度设置",
   "This mouse has no sensor angle setting to level it.": "此鼠标没有可用于修正的传感器角度设置。",
   "This PC": "此电脑",
+  "This translation hasn't been reviewed yet. If something reads wrong, <1>open an issue on GitHub</1>.": "此翻译尚未经过审校。如有不妥之处，请<1>在 GitHub 上反馈</1>。",
   "This week: {{week}}, up to {{ms}} ms apart.": "本周：{{week}}，间隔最长 {{ms}} ms。",
   "This week: {{week}}.": "本周：{{week}}。",
   "This week: nothing counted yet.": "本周：尚未统计到任何数据。",

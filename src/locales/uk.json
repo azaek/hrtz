@@ -1350,6 +1350,7 @@
   "this mouse has no sensor angle": "у цієї миші немає кута сенсора",
   "This mouse has no sensor angle setting to level it.": "У цієї миші немає налаштування кута сенсора, щоб це вирівняти.",
   "This PC": "Цей ПК",
+  "This translation hasn't been reviewed yet. If something reads wrong, <1>open an issue on GitHub</1>.": "Цей переклад ще не перевірено. Якщо щось звучить не так, <1>повідомте про це на GitHub</1>.",
   "This week: {{week}}, up to {{ms}} ms apart.": "Цього тижня: {{week}}, з інтервалом до {{ms}} мс.",
   "This week: {{week}}.": "Цього тижня: {{week}}.",
   "This week: nothing counted yet.": "Цього тижня: поки нічого не пораховано.",

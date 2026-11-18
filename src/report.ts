@@ -28,6 +28,16 @@ export async function reportUrl(device: DeviceState | null): Promise<string> {
   ]);
 }
 
+/** "Fix a translation": the translation form, with the language shown and hrtz's version. */
+export async function translationUrl(language: string): Promise<string> {
+  const version = await getVersion().catch(() => "");
+  return issueUrl("translation", [
+    ["title", `Translation (${language}): `],
+    ["language", language],
+    ["version", version],
+  ]);
+}
+
 /**
  * Inspect a mouse's issue: a test report for a model hrtz knows, or a request to add one it
  * doesn't. `mouse` is its name, where there's one to give; `report` goes into the form's one box.

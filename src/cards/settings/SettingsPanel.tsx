@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Body1, Button, Caption1, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Dropdown, Option, Switch } from "@fluentui/react-components";
+import { Body1, Button, Caption1, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Dropdown, Link, Option, Switch } from "@fluentui/react-components";
 import {
   Alert20Regular,
   ArrowRotateClockwise20Regular,
@@ -18,10 +18,11 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { api, message, on, type KnownMouse, type Prefs } from "@/api";
 import { Group, SettingCard } from "@/components";
 import { UndoNote } from "@/kit";
-import { LANGUAGES, num, t, windowsLanguage } from "@/i18n";
+import { Trans } from "react-i18next";
+import { LANGUAGES, languageFor, num, t, windowsLanguage } from "@/i18n";
 import { linkLabel } from "@/links";
 import { familyOf, makerOf, supportOf } from "@/models";
-import { reportUrl } from "@/report";
+import { reportUrl, translationUrl } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { forgetMouse, restoreMouse, run, savePrefs, setInspecting, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
@@ -274,13 +275,25 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   );
 }
 
-/** The language hrtz shows its text in: Windows' unless one is picked. Each is named in itself. */
+/** The language hrtz shows its text in: Windows' unless one is picked. Each is named in itself.
+ *  Under a translation, a note that it hasn't been reviewed, with a link to the form that fixes a
+ *  line (English, the code's own, needs none). */
 function LanguageCard({ prefs, set }: { prefs: Prefs; set: (patch: Partial<Prefs>) => void }) {
   const picked = LANGUAGES.find((l) => l.code === prefs.language);
   const windows = LANGUAGES.find((l) => l.code === windowsLanguage())!;
+  const shown = LANGUAGES.find((l) => l.code === languageFor(prefs.language))!;
   const same = t("Same as Windows ({{name}})", { name: windows.name });
+  const fix = () => void translationUrl(shown.name).then(openUrl).catch((e) => toast(message(e), "error"));
+  const note = shown.code !== "en" && (
+    <div className="tw pl-9">
+      <Caption1 style={{ color: "var(--colorNeutralForeground3)" }}>
+        {/* On one line, so the link is the Trans's child 1: "…wrong, <1>open an issue on GitHub</1>." */}
+        <Trans>This translation hasn't been reviewed yet. If something reads wrong, <Link inline onClick={fix}>open an issue on GitHub</Link>.</Trans>
+      </Caption1>
+    </div>
+  );
   return (
-    <SettingCard icon={<LocalLanguage20Regular />} title={t("Language")} description={t("The language hrtz shows its text in.")}>
+    <SettingCard stacked={!!note} below={note} icon={<LocalLanguage20Regular />} title={t("Language")} description={t("The language hrtz shows its text in.")}>
       <Dropdown
         aria-label={t("Language")}
         style={{ minWidth: 200 }}
