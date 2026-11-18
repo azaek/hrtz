@@ -20,8 +20,13 @@ pub const RECEIVERS: [u16; 4] = [0xC539, 0xC547, 0xC54D, 0xC53F];
 /// (`devices_0002.json`). A read-only probe of a G304 on its C53F receiver (PR #26, 2026-11-18):
 /// HID++ on vendor page 0xFF00 (short reports usage 1, long 2); DPI 200 to 12,000 in steps of 50
 /// (0x2201); 125, 250, 500 and 1,000 Hz (0x8060); battery by 0x1000, an AA cell; onboard memory
-/// format 3, one profile, six buttons, 255-byte sectors. It lists six sectors, but reads of 3 to 5
-/// are refused, and sector 2 holds something other than a profile, without a profile's checksum.
+/// format 3, one profile, six buttons, 255-byte sectors. G HUB saved Ctrl+C directly in both
+/// button tables in sector 1. For X then Y, the records pointed to copies of the macro in sector
+/// 2 at offsets 0x00 and 0x16. Sector 2 had a valid profile-style CRC after this write. Its earlier
+/// macro data had FF FF in the CRC field. Switching back to Ctrl+C restored sector 1 byte for byte
+/// and left the new macro bytes in sector 2. Sectors 3 to 5 refused reads in every capture.
+/// On RQM 68.02, hrtz verified writing both sectors, applying the ROM profile, and restoring the
+/// original readable memory byte for byte. Factory reset preserves the macro sector.
 pub const G304: u16 = 0x4074;
 const WIRELESS: [(u16, &str); 1] = [(G304, "G304 / G305")];
 
