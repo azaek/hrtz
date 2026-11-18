@@ -16,7 +16,9 @@ name: Release
 # Publishing the draft makes it the latest release, whose latest.json installed copies read
 # (plugins.updater.endpoints in tauri.conf.json). A draft lets a human look before it ships.
 #
-# Run by hand (Actions, Release, Run workflow), it runs the gate alone.
+# On a pull request to main, and run by hand (Actions, Release, Run workflow), it runs the gate
+# alone, so a PR shows whether it passes before it's merged. A fork's PR runs it with a read-only
+# token and no secrets, once the maintainer approves the run.
 #
 # Security, as in HEAD's: the tag's version is checked against a strict X.Y.Z pattern first, then
 # reaches later steps only as an environment variable, never templated into a run: block, so a
@@ -25,14 +27,18 @@ on:
   push:
     tags:
       - "v*"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+# Read-only, except for the build (below).
 permissions:
-  contents: write # create the GitHub release, and commit the stamped release to main
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  # A PR's newer push replaces its older run; a release is never cut short.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # The release is dated with the day in the maintainer's time zone, the day the tag was pushed.
@@ -73,6 +79,8 @@ jobs:
     needs: gate
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
+    permissions:
+      contents: write # create the GitHub release, and commit the stamped release to main
     steps:
       - uses: actions/checkout@v4
         with:
