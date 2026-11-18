@@ -91,6 +91,18 @@ fn g304_rejects_incomplete_backups_and_destructive_operations_without_writes() {
 }
 
 #[test]
+fn g304_check_reads_its_settings_without_its_memory() {
+    let mut r = Rig::connected(g304());
+    let report = r.w.report().unwrap();
+    assert_eq!(report["memoryWhole"], false);
+    assert!(report.get("memory").is_none());
+    // What the family adds still comes: its features and its onboard memory's info.
+    assert!(report["family"]["onboard"]["info"].is_string());
+    // A Superlight's is read whole.
+    assert_eq!(Rig::connected(SimMouse::superlight()).w.report().unwrap()["memoryWhole"], true);
+}
+
+#[test]
 fn g304_host_mode_is_reported_without_taking_over_from_ghub() {
     let mut m = g304();
     m.mode = ob::MODE_HOST;

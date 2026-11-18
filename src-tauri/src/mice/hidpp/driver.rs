@@ -1198,6 +1198,11 @@ impl Driver for Connected {
         self.show(board, live)
     }
 
+    /// Not the G304's: its sectors 3 to 5 refuse reads, so its check goes without its memory.
+    fn reads_whole_memory(&self) -> bool {
+        models::full_backup(self.model_id)
+    }
+
     /// The onboard memory for a backup: getInfo's reply, then every sector in order (`backup.rs`).
     /// Erased sectors read as 0xFF.
     fn read_image(&mut self, board: &Board, progress: bool) -> Result<Vec<u8>> {
