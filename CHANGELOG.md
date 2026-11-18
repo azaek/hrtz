@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Improved
+- The VXE R1 with a PAW3395 sensor is now tested. A check on a real one passed on its 1K receiver: its DPI stages, their colour and the DPI light, lift-off distance, sensor mode, debounce, motion sync, angle snapping, ripple control and the onboard profiles, with each of its six buttons seen. Thanks to krishiv1545 for the check.
+
 ## 0.5.7 — 2026-11-17
 
 ### Improved
