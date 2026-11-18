@@ -1,81 +1,101 @@
-import { useEffect, useRef, useState } from "react";
-import { Input } from "@fluentui/react-components";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Button, Input } from "@fluentui/react-components";
 import { Keyboard16Regular } from "@fluentui/react-icons";
 import { comboLabel, KEY_USAGE, MODIFIER_BIT } from "@/hid";
 
 type Combo = { modifiers: number; keys: number[] };
 
-/** Keys in a combination, modifiers counted once each whichever side was pressed. */
-const count = (c: Combo) => c.keys.length + [0x11, 0x22, 0x44, 0x88].filter((b) => c.modifiers & b).length;
+function physicalCode({ code, key, location }: KeyboardEvent): string {
+  if (code && code !== "Unidentified") return code;
+  if (key === "AltGraph") return "AltRight";
+  if (key === "Alt" || key === "Control" || key === "Shift" || key === "Meta") {
+    return key + (location === 2 ? "Right" : "Left");
+  }
+  if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`;
+  if (/^[0-9]$/.test(key)) return (location === 3 ? "Numpad" : "Digit") + key;
+  return key === " " ? "Space" : key;
+}
 
-/**
- * A key combination field: focus it, press up to three keys together, let go. The combination is
- * saved when every key is up (or when you leave the field mid-press), and the next press starts a
- * new one. Tab still moves on.
- */
-export function KeyRecorder(props: {
-  label: string;
+export function KeyRecorder({ value, autoFocus, disabled, oneKey, onCommit, onCancel }: {
   value: Combo;
   autoFocus?: boolean;
   disabled?: boolean;
-  /** One key besides any modifiers (a Logitech's), not three counting them. */
-  oneKey?: boolean;
-  onCommit: (v: Combo) => void;
-  onLeaveEmpty?: () => void;
+  oneKey: boolean;
+  onCommit: (value: Combo) => void;
+  onCancel?: () => void;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const held = useRef(new Set<string>());
-  // The combination being pressed, in a ref too: keys arrive faster than renders.
-  const pressing = useRef<Combo | null>(null);
-  const [draft, setDraftState] = useState<Combo | null>(null);
-  const setDraft = (c: Combo | null) => ((pressing.current = c), setDraftState(c));
-  const [focused, setFocused] = useState(false);
-  useEffect(() => {
-    if (props.autoFocus) ref.current?.focus();
-  }, [props.autoFocus]);
+  const input = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<Combo | null>(null);
+  const recording = draft !== null && !disabled;
+  const shown = recording ? draft : value;
 
-  const commit = () => {
-    const c = pressing.current;
-    setDraft(null);
-    if (c && count(c)) props.onCommit(c);
+  useEffect(() => {
+    if (disabled) setDraft(null);
+  }, [disabled]);
+
+  const add = (modifier: number, usage: number) => {
+    if (!modifier && !usage) return;
+    setDraft((current) => {
+      if (!current) return current;
+      const next = {
+        modifiers: current.modifiers | modifier,
+        keys: usage && !current.keys.includes(usage) ? [...current.keys, usage] : current.keys,
+      };
+      const modifiers = next.modifiers.toString(2).replace(/0/g, "").length;
+      const fits = oneKey ? modifiers <= 3 && next.keys.length <= 1 : modifiers + next.keys.length <= 3;
+      return fits ? next : current;
+    });
   };
-  const shown = draft ?? props.value;
+
+  const toggle = () => {
+    if (!recording) {
+      setDraft({ modifiers: 0, keys: [] });
+      input.current?.focus();
+      return;
+    }
+    setDraft(null);
+    if (draft.modifiers || draft.keys.length) onCommit(draft);
+    else onCancel?.();
+  };
+
   return (
-    <Input
-      ref={ref}
-      readOnly
-      disabled={props.disabled}
-      aria-label={`${props.label}. Press the keys together, then let go.`}
-      contentBefore={<Keyboard16Regular />}
-      value={count(shown) ? comboLabel(shown.modifiers, shown.keys) : ""}
-      placeholder={focused ? "Press up to three keys" : "Click here, then press keys"}
-      style={{ width: 240 }}
-      onFocus={() => setFocused(true)}
-      onBlur={() => {
-        setFocused(false);
-        held.current.clear();
-        const had = pressing.current;
-        commit();
-        if (!had && !count(props.value)) props.onLeaveEmpty?.();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Tab") return;
-        e.preventDefault();
-        if (e.repeat) return;
-        const start = held.current.size === 0 ? { modifiers: 0, keys: [] } : (pressing.current ?? { modifiers: 0, keys: [] });
-        held.current.add(e.code);
-        const mod = MODIFIER_BIT[e.code];
-        const usage = KEY_USAGE[e.code];
-        let next = start;
-        const fits = (c: Combo) => (props.oneKey ? c.keys.length <= 1 : count(c) <= 3);
-        if (mod && fits({ ...start, modifiers: start.modifiers | mod })) next = { ...start, modifiers: start.modifiers | mod };
-        else if (usage && !start.keys.includes(usage) && fits({ ...start, keys: [...start.keys, usage] })) next = { ...start, keys: [...start.keys, usage] };
-        setDraft(next);
-      }}
-      onKeyUp={(e) => {
-        held.current.delete(e.code);
-        if (held.current.size === 0) commit();
-      }}
-    />
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button autoFocus={autoFocus} disabled={disabled} onClick={toggle}>
+          {recording ? "Stop recording" : "Start recording"}
+        </Button>
+        <Input
+          ref={input}
+          readOnly
+          disabled={disabled}
+          tabIndex={recording ? 0 : -1}
+          aria-label={recording ? "Keys being recorded" : "Assigned keys"}
+          contentBefore={<Keyboard16Regular />}
+          value={shown.modifiers || shown.keys.length ? comboLabel(shown.modifiers, shown.keys) : ""}
+          placeholder={recording ? "Tap each key separately" : "No keys set"}
+          style={{ width: 240 }}
+          onKeyDown={(e) => {
+            if (!recording || (e.key === "Tab" && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (!e.repeat) add(0, KEY_USAGE[physicalCode(e)] ?? 0);
+          }}
+          onKeyUp={(e) => {
+            if (!recording) return;
+            e.preventDefault();
+            e.stopPropagation();
+            // Releasing Shift outside this field after Shift+Tab leaves it out of the binding.
+            const modifier = MODIFIER_BIT[physicalCode(e)];
+            if (modifier) add(modifier, 0);
+          }}
+        />
+        {(recording || autoFocus) && (
+          <Button appearance="subtle" disabled={disabled} onClick={() => { setDraft(null); onCancel?.(); }}>
+            Cancel
+          </Button>
+        )}
+      </div>
+      {recording && <span className="text-xs">Tap keys one at a time. Shift+Tab moves to Stop.</span>}
+    </>
   );
 }

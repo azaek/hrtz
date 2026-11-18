@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Fixed
+- When setting a mouse button to a keyboard shortcut, tap the keys one at a time and save them with Stop recording. Tap and release Alt, then tap Tab to set Alt+Tab without switching windows.
+
 ## 0.5.9 — 2026-11-18
 
 ### Improved

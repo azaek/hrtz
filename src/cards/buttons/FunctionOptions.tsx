@@ -32,10 +32,9 @@ export function FunctionOptions(props: {
   maxDpi: number;
   disabled?: boolean;
   onChange: (a: ButtonAction) => void;
-  /** Focus the key recorder: the Keys tile was just picked. */
-  recordNow?: boolean;
-  /** Left the key recorder without pressing anything. */
-  onLeaveKeys?: () => void;
+  /** The Keys tile was picked and is waiting for a binding. */
+  waitingForKeys?: boolean;
+  onCancelKeys?: () => void;
 }) {
   const a = props.action;
   const off = props.disabled;
@@ -129,15 +128,14 @@ export function FunctionOptions(props: {
       );
     case "keys":
       return a.kind === "keys" ? (
-        <Field label="Keys" hint={cat.oneKey ? "One key, with any modifiers. Saves on release." : "Up to three keys, including modifiers. Saves on release."}>
+        <Field label="Keys" hint={cat.oneKey ? "One key and up to three modifiers." : "Up to three keys, including modifiers."}>
           <KeyRecorder
-            label="Keys"
             value={a}
-            autoFocus={props.recordNow}
+            autoFocus={props.waitingForKeys}
             disabled={off}
             oneKey={cat.oneKey}
             onCommit={(v) => set({ kind: "keys", ...v })}
-            onLeaveEmpty={props.onLeaveKeys}
+            onCancel={props.onCancelKeys}
           />
         </Field>
       ) : null;
