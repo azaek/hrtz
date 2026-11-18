@@ -187,14 +187,6 @@ models, until owners' checks confirm it. Macros aren't in hrtz yet.
 
 ## Help test it
 
-G304/G305 support is experimental: identity, DPI range, report rates, six buttons and the single
-onboard profile were read from a G304, but writes have not been verified on hardware. Existing
-onboard button records and unedited profile bytes are preserved when editing a setting. Full
-backup/restore and factory reset are disabled because its memory layout needs further work.
-Endurance/performance switching, macro editing and G-Shift editing are not implemented; keep
-G HUB for these and its software profiles. This is not yet a complete G HUB replacement.
-The automated support check currently requires a full backup and cannot complete on this model.
-
 hrtz is in beta. If you have one of the mice above, these help most:
 
 - **A model that isn't tested yet:** its card shows an amber **Not tested** badge. Click it (or

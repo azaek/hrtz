@@ -10,12 +10,18 @@
 use crate::mice::model::Supported;
 
 /// LIGHTSPEED receivers: 0xC539 (HERO-era, shipped with the first Superlight and the G Pro
-/// Wireless), 0xC547 (the first Superlight's later one) and 0xC54D (the Superlight 2's). The mouse
-/// answers on one of the receiver's pairing slots.
+/// Wireless), 0xC547 (the first Superlight's later one), 0xC54D (the Superlight 2's) and 0xC53F
+/// (the G304/G305's: G HUB's `receiverPid` 50495 for it). The mouse answers on one of the
+/// receiver's pairing slots.
 pub const RECEIVERS: [u16; 4] = [0xC539, 0xC547, 0xC54D, 0xC53F];
 
-/// G304 and G305 share a wireless model ID. This is not a cabled USB device ID.
-/// Confirmed by a read-only probe of a G304 on its C53F receiver (2026-11-18).
+/// The G304 and G305: one mouse with no cable, so 0x4074 is its wireless ID, not a USB product ID.
+/// G HUB lists it as the G305, with each colour's extended model ID called a G304 or a G305
+/// (`devices_0002.json`). A read-only probe of a G304 on its C53F receiver (PR #26, 2026-11-18):
+/// HID++ on vendor page 0xFF00 (short reports usage 1, long 2); DPI 200 to 12,000 in steps of 50
+/// (0x2201); 125, 250, 500 and 1,000 Hz (0x8060); battery by 0x1000, an AA cell; onboard memory
+/// format 3, one profile, six buttons, 255-byte sectors. It lists six sectors, but reads of 3 to 5
+/// are refused, and sector 2 holds something other than a profile, without a profile's checksum.
 pub const G304: u16 = 0x4074;
 const WIRELESS: [(u16, &str); 1] = [(G304, "G304 / G305")];
 
