@@ -42,12 +42,6 @@ pub fn name(usb_id: u16) -> Option<&'static str> {
     CABLED.iter().chain(WIRELESS.iter()).find(|(pid, _)| *pid == usb_id).map(|(_, n)| *n)
 }
 
-/// The G304 advertises six sectors but rejects reads of sectors 3..5. Its macro sector also
-/// lacks a profile CRC. Do not offer a full restore/reset until that layout is supported.
-pub fn full_backup(model: Option<u16>) -> bool {
-    model != Some(G304)
-}
-
 /// Logitech's power model, from G HUB (`battery.xml`, the notes' GHUB.md): the battery in mWh,
 /// what the sensor and the chip draw, and what reporting draws at each rate, in mW.
 struct Power {

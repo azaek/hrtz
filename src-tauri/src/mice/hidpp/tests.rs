@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
 
+use super::backup;
 use super::fixtures::{self as fx, hex};
 use super::onboard::{self as ob, Plan, Stage};
 use super::protocol::{self as p, Charge, Refusal, feature};
@@ -31,6 +32,10 @@ fn g304() -> SimMouse {
     m.name = "G304 LIGHTSPEED Wireless Gaming Mouse";
     m.info = vec![1, 3, 1, 1, 1, 6, 6, 0, 255, 10, 2, 0, 0, 0, 0, 0];
     m.battery = Battery::Level { percent: 90, status: 0 };
+    m.sectors.retain(|&s, _| s < 2 || s == ob::ROM_FIRST);
+    let mut macros = vec![0xFF; 255];
+    macros[..6].copy_from_slice(&[0x43, 0, 0x1B, 0x44, 0, 0x1B]);
+    m.sectors.insert(2, macros);
     m.sectors.get_mut(&0).unwrap()[4..8].copy_from_slice(&[0xFF, 0xFF, 0, 0]);
     ob::apply_crc(m.sectors.get_mut(&0).unwrap());
     let profile = m.sectors.get_mut(&1).unwrap();
@@ -53,7 +58,7 @@ fn g304_is_wireless_only_and_exposes_its_own_capabilities() {
     let caps = s.capabilities.unwrap();
     assert!(!caps.wired && caps.battery);
     assert_eq!(caps.profiles, Some(1));
-    assert!(!caps.backups && !caps.factory_reset);
+    assert!(caps.backups && caps.factory_reset);
     assert!(caps.rated_hours.is_none(), "no rechargeable Superlight power model for an AA cell");
     assert_eq!(caps.buttons.unwrap()[5].1, "DPI button");
     let dpi = caps.dpi.unwrap();
@@ -81,13 +86,71 @@ fn g304_polling_edit_preserves_buttons_shift_layer_and_other_sectors() {
 }
 
 #[test]
-fn g304_rejects_incomplete_backups_and_destructive_operations_without_writes() {
+fn g304_backup_preserves_legacy_macros_and_does_not_invent_unreadable_sectors() {
     let mut r = Rig::connected(g304());
+    let image = r.w.read_full_image().unwrap();
+    let saved = backup::split(&image).unwrap();
+    assert!(saved.g304);
+    assert_eq!(saved.sectors[2], Some(r.sector(2).as_slice()));
+    assert_eq!(saved.sectors[3..], [None, None, None]);
+    assert!(backup::settings(&image, Some(0), false).unwrap().polling_hz.is_some());
+
+    let mut other = Rig::connected(g304());
+    other.mouse.lock().sectors.insert(3, vec![0xFF; 255]);
+    let mismatched = other.w.read_full_image().unwrap();
     let (from, _) = r.mark();
-    assert!(r.w.read_full_image().is_err());
-    assert!(r.w.factory_reset().is_err());
-    assert!(r.w.restore_image(&[]).is_err());
+    assert!(r.w.restore_image(&mismatched).unwrap_err().to_string().contains("only one"));
+    assert!(r.w.restore_image(&image[..image.len() - 1]).is_err());
+    let mut bad_profile = image;
+    bad_profile[backup::G304_MASK_AT + 1 + 255] ^= 1;
+    assert!(r.w.restore_image(&bad_profile).unwrap_err().to_string().contains("checksum"));
     assert!(!r.profile_calls_since(from).iter().any(|f| [0x30, 0x60, 0x70, 0x80].contains(f)));
+}
+
+#[test]
+fn g304_restore_writes_macros_before_profiles_and_rolls_back_a_failed_write() {
+    let mut r = Rig::connected(g304());
+    let legacy_macro = r.sector(2);
+    let before = r.w.read_full_image().unwrap();
+    r.w.apply_settings(&Settings { polling_hz: Some(500), ..Default::default() }).unwrap();
+    let mut new_macro = legacy_macro.clone();
+    new_macro[2] = 0x1C;
+    new_macro[5] = 0x1C;
+    ob::apply_crc(&mut new_macro);
+    r.mouse.lock().sectors.insert(2, new_macro.clone());
+
+    let current = r.w.read_full_image().unwrap();
+    r.mouse.lock().refuse_write_sector = Some(1);
+    assert!(r.w.restore_image(&before).unwrap_err().to_string().contains("were put back"));
+    assert_eq!(r.w.read_full_image().unwrap(), current);
+    r.mouse.lock().refuse_write_sector = None;
+
+    let (from, _) = r.mark();
+    assert_eq!(r.w.restore_image(&before).unwrap(), 2);
+    let writes: Vec<_> =
+        r.mouse.lock().requests[from..].iter().filter(|p| p[3] & 0xF0 == ob::func::ADDR_WRITE).map(|p| p[5]).collect();
+    assert_eq!(writes, [2, 1]);
+    let mut normalized = legacy_macro;
+    ob::apply_crc(&mut normalized);
+    assert_eq!(r.sector(2), normalized);
+    assert_eq!(r.w.restore_image(&before).unwrap(), 0, "legacy checksum has already been normalized");
+    assert!(r.w.read_full_image().unwrap() != current);
+}
+
+#[test]
+fn g304_factory_reset_preserves_macro_data_and_can_be_undone() {
+    let mut r = Rig::connected(g304());
+    let before = r.w.read_full_image().unwrap();
+    let macros = r.sector(2);
+
+    r.w.factory_reset().unwrap();
+    assert_eq!(r.sector(2), macros);
+    let mut factory = r.sector(ob::ROM_FIRST);
+    ob::apply_crc(&mut factory);
+    assert_eq!(r.sector(1), factory);
+
+    assert_eq!(r.w.restore_image(&before).unwrap(), 1);
+    assert_eq!(r.w.read_full_image().unwrap(), before);
 }
 
 #[test]
@@ -763,8 +826,8 @@ fn a_backup_holds_every_sector_and_a_restore_puts_back_what_changed() {
     let before = r.w.read_full_image().unwrap();
     let img = super::backup::split(&before).unwrap();
     assert_eq!(img.sectors.len(), 16, "getInfo says 16");
-    assert_eq!(img.sectors[1], r.sector(1).as_slice());
-    assert!(super::backup::erased(img.sectors[15]), "never written");
+    assert_eq!(img.sectors[1], Some(r.sector(1).as_slice()));
+    assert!(backup::erased(img.sectors[15].unwrap()), "never written");
     let held = super::backup::settings(&before, Some(0), false).unwrap();
     assert_eq!(held.stages.unwrap()[0].dpi, 1600);
 

@@ -72,6 +72,8 @@ pub struct SimMouse {
     pub unplugged: bool,
     /// Answers memoryWriteEnd but keeps nothing.
     pub forget_writes: bool,
+    #[cfg(test)]
+    pub refuse_write_sector: Option<u16>,
     /// Another program's answer comes first, every time (G HUB, on the same receiver).
     pub chatter: bool,
 }
@@ -115,6 +117,8 @@ impl SimMouse {
             requests: Vec::new(),
             unplugged: false,
             forget_writes: false,
+            #[cfg(test)]
+            refuse_write_sector: None,
             chatter: false,
         }
     }
@@ -366,13 +370,17 @@ impl SimMouse {
                 let offset = u16::from_be_bytes([at(2), at(3)]) as usize;
                 // A sector never written reads erased, up to the count getInfo gives.
                 let erased = vec![0xFF; ob::Info::parse(&self.info).sector_len()];
-                let held = (sector < self.info.get(6).copied().unwrap_or(0) as u16).then_some(&erased);
+                let held = (self.wireless_id != super::models::G304
+                    && sector < self.info.get(6).copied().unwrap_or(0) as u16)
+                    .then_some(&erased);
                 let bytes = self.sectors.get(&sector).or(held).ok_or(0x02)?;
                 // memoryRead refuses a read past the sector's end.
                 bytes.get(offset..offset + ob::CHUNK).map(<[u8]>::to_vec).ok_or(0x02)
             }
             // The factory profiles can't be written.
             func::ADDR_WRITE if sector >= ob::ROM_FIRST => Err(0x02),
+            #[cfg(test)]
+            func::ADDR_WRITE if self.refuse_write_sector == Some(sector) => Err(0x02),
             func::ADDR_WRITE => {
                 self.writing = Some((sector, u16::from_be_bytes([at(4), at(5)]) as usize, Vec::new()));
                 Ok(vec![])
