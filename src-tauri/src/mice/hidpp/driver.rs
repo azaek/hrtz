@@ -513,15 +513,16 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
     let name = device_name(&mut t).ok().flatten();
     // On its cable, a mouse that doesn't say is the product plugged in.
     let usb = id.usb.or((!receiver).then_some(opened.product_id));
+    let model_id = usb.or(id.wireless);
     // The link in use is the one whose ID is what's plugged in; a receiver's is never the mouse's.
     let wired = match (id.usb, id.wireless) {
         (Some(u), _) if u == opened.product_id => true,
         (_, Some(w)) if w == opened.product_id => false,
         _ => index == p::DIRECT,
     };
-    let model = usb.or(id.wireless).unwrap_or(opened.product_id);
+    let model = model_id.unwrap_or(opened.product_id);
     let key = format!("{}/{model:04x}/{}", opened.family, id.unit.as_deref().unwrap_or("0"));
-    let model = usb.and_then(models::name).map(str::to_string).or(name).unwrap_or_else(|| "Logitech mouse".into());
+    let model = model_id.and_then(models::name).map(str::to_string).or(name).unwrap_or_else(|| "Logitech mouse".into());
     let mut battery = false;
     for f in BATTERIES {
         battery |= t.feature(f)? != 0;
@@ -558,6 +559,7 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
         t,
         wired,
         usb,
+        model_id,
         port,
         asleep_since: None,
         stage_index: None,
@@ -606,6 +608,8 @@ struct Connected {
     wired: bool,
     /// Its USB product ID, which says which model it is.
     usb: Option<u16>,
+    /// Stable model identity, including wireless-only mice which have no USB product ID.
+    model_id: Option<u16>,
     /// The USB port its receiver is on, where raw input shows it used.
     port: Option<String>,
     /// When it was found asleep: it isn't asked again until it's used after this.
@@ -859,12 +863,18 @@ impl Connected {
         let (format, profile, index, count) = (o.info.format, o.profile(), o.index(), o.directory.len());
         let mut settings = Settings::default();
         caps.profiles = (count > 0).then_some(count.min(u8::MAX as usize) as u8);
-        caps.backups = ob::writable(format);
-        caps.factory_reset = ob::writable(format) && o.info.rom_count > 0;
+        caps.backups = ob::writable(format) && models::full_backup(self.model_id);
+        caps.factory_reset = caps.backups && o.info.rom_count > 0;
         if ob::writable(format) {
             let (at, room) = buttons::table(format);
             let count = o.info.button_count.min(room as u8);
             caps.buttons = (count > 0).then(|| buttons::names(count));
+            if self.model_id == Some(models::G304)
+                && let Some(names) = caps.buttons.as_mut()
+                && let Some((_, name)) = names.get_mut(5)
+            {
+                *name = "DPI button".into();
+            }
             settings.buttons = (count > 0).then(|| {
                 (0..count as usize).map(|i| buttons::decode(o.bytes.get(at + i * 4..).unwrap_or(&[]))).collect()
             });
@@ -1191,6 +1201,9 @@ impl Driver for Connected {
     /// The onboard memory for a backup: getInfo's reply, then every sector in order (`backup.rs`).
     /// Erased sectors read as 0xFF.
     fn read_image(&mut self, board: &Board, progress: bool) -> Result<Vec<u8>> {
+        if !models::full_backup(self.model_id) {
+            bail!("Full G304/G305 memory backups aren't supported yet; its macro memory needs a different layout.");
+        }
         let fi = self.t.feature(feature::ONBOARD_PROFILES)?;
         if fi == 0 {
             bail!("This mouse keeps no profiles to back up.");
@@ -1215,6 +1228,9 @@ impl Driver for Connected {
     /// read back after. An erased one is left as it is: the mouse checks every write's checksum,
     /// which erased bytes don't carry. Then the mouse runs its profile again, and it's read whole.
     fn write_image(&mut self, board: &Board, current: &[u8], target: &[u8]) -> Result<usize> {
+        if !models::full_backup(self.model_id) {
+            bail!("G304/G305 restores aren't supported yet. Nothing was changed.");
+        }
         let (now, then) = (backup::split(current)?, backup::split(target)?);
         if now.head != then.head {
             bail!("This backup is from a mouse whose memory is laid out differently.");
@@ -1243,6 +1259,9 @@ impl Driver for Connected {
     /// past the ROM's count) written over each profile it lists, then the first one selected. The
     /// factory profiles are read and checked before anything is written.
     fn factory_reset(&mut self, board: &Board) -> Result<()> {
+        if !models::full_backup(self.model_id) {
+            bail!("G304/G305 factory reset isn't supported yet. Nothing was changed.");
+        }
         let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;
         let (fi, len, roms, format, directory) =
             (o.feature, o.info.sector_len(), o.info.rom_count, o.info.format, o.directory.clone());

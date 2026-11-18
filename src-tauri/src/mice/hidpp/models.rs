@@ -3,7 +3,7 @@
 // src/drivers/vendors.ts. Translated to Rust and modified for hrtz, 2026-10-18. Copyright (C) the
 // OpenMouse contributors. AGPL-3.0-or-later.
 
-//! Logitech's mice hrtz runs: the Superlights, on their LIGHTSPEED receivers or their cables.
+//! Logitech's mice hrtz runs: Superlights and the wireless-only G304/G305.
 //! Other mice that speak HID++ come one at a time, with an owner to try them, so only these are
 //! claimed: a keyboard or headset on the same protocol is left alone.
 
@@ -12,7 +12,12 @@ use crate::mice::model::Supported;
 /// LIGHTSPEED receivers: 0xC539 (HERO-era, shipped with the first Superlight and the G Pro
 /// Wireless), 0xC547 (the first Superlight's later one) and 0xC54D (the Superlight 2's). The mouse
 /// answers on one of the receiver's pairing slots.
-pub const RECEIVERS: [u16; 3] = [0xC539, 0xC547, 0xC54D];
+pub const RECEIVERS: [u16; 4] = [0xC539, 0xC547, 0xC54D, 0xC53F];
+
+/// G304 and G305 share a wireless model ID. This is not a cabled USB device ID.
+/// Confirmed by a read-only probe of a G304 on its C53F receiver (2026-11-18).
+pub const G304: u16 = 0x4074;
+const WIRELESS: [(u16, &str); 1] = [(G304, "G304 / G305")];
 
 /// The mice on their own cables, which answer as themselves, with their names.
 pub const CABLED: [(u16, &str); 3] =
@@ -28,7 +33,13 @@ pub fn is_receiver(product_id: u16) -> bool {
 
 /// A mouse's name, by its USB ID (which it reports through either link).
 pub fn name(usb_id: u16) -> Option<&'static str> {
-    CABLED.iter().find(|(pid, _)| *pid == usb_id).map(|(_, n)| *n)
+    CABLED.iter().chain(WIRELESS.iter()).find(|(pid, _)| *pid == usb_id).map(|(_, n)| *n)
+}
+
+/// The G304 advertises six sectors but rejects reads of sectors 3..5. Its macro sector also
+/// lacks a profile CRC. Do not offer a full restore/reset until that layout is supported.
+pub fn full_backup(model: Option<u16>) -> bool {
+    model != Some(G304)
 }
 
 /// Logitech's power model, from G HUB (`battery.xml`, the notes' GHUB.md): the battery in mWh,
@@ -66,6 +77,7 @@ const TESTED: [u16; 1] = [0xC094];
 pub fn supported() -> Vec<Supported> {
     CABLED
         .iter()
+        .chain(WIRELESS.iter())
         .map(|(pid, name)| Supported {
             family: "hidpp",
             brand: "Logitech",

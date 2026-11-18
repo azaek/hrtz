@@ -19,6 +19,9 @@ use crate::mice::{Board, Driver, Family, Finder, Link};
 /// How the mouse reports its battery.
 #[derive(Clone, Copy, Debug)]
 pub enum Battery {
+    /// 0x1000, used by the G304's replaceable AA battery.
+    #[cfg_attr(not(test), expect(dead_code, reason = "used by the G304 regression tests"))]
+    Level { percent: u8, status: u8 },
     /// 0x1004: a percentage and a charging status.
     Unified { percent: u8, status: u8 },
     /// 0x1001: a voltage and flags (0x80 charging). The Superlights don't; the tests try it.
@@ -151,6 +154,7 @@ impl SimMouse {
     /// The features, each at its index.
     fn features(&self) -> Vec<u16> {
         let battery = match self.battery {
+            Battery::Level { .. } => feature::BATTERY_STATUS,
             Battery::Unified { .. } => feature::UNIFIED_BATTERY,
             Battery::Voltage { .. } => feature::BATTERY_VOLTAGE,
         };
@@ -203,6 +207,7 @@ impl SimMouse {
     /// The battery changed, and the mouse says so.
     pub fn battery_event(&mut self) {
         let fi = match self.battery {
+            Battery::Level { .. } => self.index_of(feature::BATTERY_STATUS),
             Battery::Unified { .. } => self.index_of(feature::UNIFIED_BATTERY),
             Battery::Voltage { .. } => self.index_of(feature::BATTERY_VOLTAGE),
         };
@@ -266,7 +271,8 @@ impl SimMouse {
                 let [u0, u1] = self.usb_id.to_be_bytes();
                 let mut v = vec![4];
                 v.extend_from_slice(&self.unit);
-                v.extend_from_slice(&[0, 0x0C, w0, w1, u0, u1, 0, 0, self.colour, 0]);
+                let links = if self.usb_id == 0 { 0x04 } else { 0x0C };
+                v.extend_from_slice(&[0, links, w0, w1, u0, u1, 0, 0, self.colour, 0]);
                 Ok(v)
             }
             // The bootloader first, then something unnamed, the main application, the hardware.
@@ -282,6 +288,10 @@ impl SimMouse {
                 Battery::Unified { percent, status } => Ok(vec![percent, 0x08, status, (status != 0) as u8]),
                 _ => Err(0x07),
             },
+            (feature::BATTERY_STATUS, 0x00) => match self.battery {
+                Battery::Level { percent, status } => Ok(vec![percent, 50, status]),
+                _ => Err(0x07),
+            },
             (feature::BATTERY_VOLTAGE, 0x00) => match self.battery {
                 Battery::Voltage { mv, flags } => {
                     let [hi, lo] = mv.to_be_bytes();
@@ -290,7 +300,11 @@ impl SimMouse {
                 _ => Err(0x07),
             },
             // 100 to 25,600 in steps of 50, as a range.
-            (feature::ADJUSTABLE_DPI, 0x10) => Ok(vec![0, 0x00, 0x64, 0xE0, 0x32, 0x64, 0x00, 0, 0]),
+            (feature::ADJUSTABLE_DPI, 0x10) => Ok(if self.wireless_id == super::models::G304 {
+                vec![0, 0x00, 0xC8, 0xE0, 0x32, 0x2E, 0xE0, 0, 0]
+            } else {
+                vec![0, 0x00, 0x64, 0xE0, 0x32, 0x64, 0x00, 0, 0]
+            }),
             (feature::ADJUSTABLE_DPI, 0x20) => {
                 let [hi, lo] = self.live_dpi().to_be_bytes();
                 Ok(vec![0, hi, lo, 0x03, 0x20])

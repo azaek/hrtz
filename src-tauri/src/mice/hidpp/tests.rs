@@ -21,6 +21,85 @@ use crate::mice::{DeviceEvent, DeviceState, Notify, Worker};
 
 // ---- the wire ---------------------------------------------------------------------------------
 
+/// Synthetic profile contents; identity, memory descriptor, battery method and sensor range
+/// match the read-only G304 capture. No owner identity or custom bindings are included.
+fn g304() -> SimMouse {
+    let mut m = SimMouse::superlight();
+    m.product_id = 0xC53F;
+    m.usb_id = 0;
+    m.wireless_id = super::models::G304;
+    m.name = "G304 LIGHTSPEED Wireless Gaming Mouse";
+    m.info = vec![1, 3, 1, 1, 1, 6, 6, 0, 255, 10, 2, 0, 0, 0, 0, 0];
+    m.battery = Battery::Level { percent: 90, status: 0 };
+    m.sectors.get_mut(&0).unwrap()[4..8].copy_from_slice(&[0xFF, 0xFF, 0, 0]);
+    ob::apply_crc(m.sectors.get_mut(&0).unwrap());
+    let profile = m.sectors.get_mut(&1).unwrap();
+    profile[0x34..0x38].copy_from_slice(&[0x90, 0x05, 0, 0]);
+    // Unrecognised vendor action and alternate layer must survive unrelated edits.
+    profile[0x2C..0x30].copy_from_slice(&[0x90, 0xFE, 0x12, 0x34]);
+    profile[0x60..0xA0].fill(0xA5);
+    ob::apply_crc(profile);
+    m
+}
+
+#[test]
+fn g304_is_wireless_only_and_exposes_its_own_capabilities() {
+    assert!(super::models::claims(0xC53F));
+    assert!(!super::models::claims(0x4074), "wireless identity is not a cabled USB PID");
+    let r = Rig::connected(g304());
+    let s = r.state();
+    assert_eq!(s.model.as_deref(), Some("G304 / G305"));
+    assert_eq!(s.key.as_deref(), Some("hidpp/4074/1a2b3c4d"));
+    let caps = s.capabilities.unwrap();
+    assert!(!caps.wired && caps.battery);
+    assert_eq!(caps.profiles, Some(1));
+    assert!(!caps.backups && !caps.factory_reset);
+    assert!(caps.rated_hours.is_none(), "no rechargeable Superlight power model for an AA cell");
+    assert_eq!(caps.buttons.unwrap()[5].1, "DPI button");
+    let dpi = caps.dpi.unwrap();
+    assert_eq!((dpi.min, dpi.max, dpi.step, dpi.max_stages), (200, 12000, 50, 5));
+    assert_eq!(caps.polling.unwrap().rates, [125, 250, 500, 1000]);
+    assert_eq!(s.battery.unwrap().level, 90);
+    assert!(!r.profile_calls_since(0).iter().any(|f| [0x10, 0x30, 0x60, 0x70, 0x80, 0xC0].contains(f)));
+}
+
+#[test]
+fn g304_polling_edit_preserves_buttons_shift_layer_and_other_sectors() {
+    let mut r = Rig::connected(g304());
+    let before = r.mouse.lock().sectors.clone();
+    r.w.apply_settings(&Settings { polling_hz: Some(500), ..Default::default() }).unwrap();
+    let after = r.mouse.lock().sectors.clone();
+    for (sector, bytes) in &before {
+        if *sector == 1 {
+            assert_eq!(&after[sector][1..253], &bytes[1..253]);
+            assert_eq!(after[sector][0], 2);
+            assert!(ob::crc_ok(&after[sector]));
+        } else {
+            assert_eq!(&after[sector], bytes);
+        }
+    }
+}
+
+#[test]
+fn g304_rejects_incomplete_backups_and_destructive_operations_without_writes() {
+    let mut r = Rig::connected(g304());
+    let (from, _) = r.mark();
+    assert!(r.w.read_full_image().is_err());
+    assert!(r.w.factory_reset().is_err());
+    assert!(r.w.restore_image(&[]).is_err());
+    assert!(!r.profile_calls_since(from).iter().any(|f| [0x30, 0x60, 0x70, 0x80].contains(f)));
+}
+
+#[test]
+fn g304_host_mode_is_reported_without_taking_over_from_ghub() {
+    let mut m = g304();
+    m.mode = ob::MODE_HOST;
+    m.current = 0;
+    let r = Rig::connected(m);
+    assert!(r.state().host_mode);
+    assert!(!r.profile_calls_since(0).contains(&0x10));
+}
+
 #[test]
 fn requests_carry_a_nonzero_software_id_in_the_low_nibble() {
     assert_eq!(p::with_software_id(0x00), 0x05);
