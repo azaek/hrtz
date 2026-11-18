@@ -105,8 +105,12 @@ function WorksWith() {
   return (
     <div className={s.works}>
       {brands.map((brand) => {
-        // One per name: ATK gives some one name for several model IDs.
-        const models = supported.filter((m) => m.brand === brand).filter((m, i, all) => all.findIndex((x) => x.model === m.model) === i);
+        // One per name: ATK gives some one name for several model IDs, and a Z2 answers 2 or 11.
+        // It's tested where a check on one of them has passed, as the README lists it.
+        const all = supported.filter((m) => m.brand === brand);
+        const models = all
+          .filter((m, i) => all.findIndex((x) => x.model === m.model) === i)
+          .map((m) => ({ ...m, tested: all.some((x) => x.model === m.model && x.tested) }));
         const tested = models.filter((m) => m.tested).length;
         return (
           <div key={brand}>

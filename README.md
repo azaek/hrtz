@@ -10,7 +10,7 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 |---|---|
 | Zaopin Z1 PRO MAX | Tested |
 | Zaopin ZI PRO | Not tested yet |
-| Zaopin Z2 | Not tested yet |
+| Zaopin Z2 | Tested |
 | Zaopin Z2 MAX | Not tested yet |
 | Zaopin Z2 mini | Not tested yet |
 | Zaopin Z2 mini MAX | Not tested yet |
@@ -213,6 +213,7 @@ Thanks to everyone who has tested a mouse:
 - [SAPNXTDOOR](https://github.com/SAPNXTDOOR): VXE R1 PRO MAX (PAW3395)
 - [derekjamesedu](https://github.com/derekjamesedu): Zaopin Z2
 - [krishiv1545](https://github.com/krishiv1545): VXE R1 (PAW3395)
+- [elist-exe](https://github.com/elist-exe): Zaopin Z2
 
 ## What it does
 
