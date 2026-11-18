@@ -9,26 +9,40 @@ import {
   ArrowUpLeft16Regular,
   ArrowUpRight16Regular,
 } from "@fluentui/react-icons";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { CONTROL_HEIGHT } from "./field";
 
 /** An edge or corner of the screen. */
 export type Anchor = "top-left" | "top" | "top-right" | "left" | "right" | "bottom-left" | "bottom" | "bottom-right";
 
-type Cell = { value: Anchor; label: string; icon: ReactElement };
+type Cell = { value: Anchor; icon: ReactElement };
 
 /** The grid row by row. The centre is null: nothing anchors there. */
 const CELLS: (Cell | null)[] = [
-  { value: "top-left", label: "Top left", icon: <ArrowUpLeft16Regular /> },
-  { value: "top", label: "Top", icon: <ArrowUp16Regular /> },
-  { value: "top-right", label: "Top right", icon: <ArrowUpRight16Regular /> },
-  { value: "left", label: "Left", icon: <ArrowLeft16Regular /> },
+  { value: "top-left", icon: <ArrowUpLeft16Regular /> },
+  { value: "top", icon: <ArrowUp16Regular /> },
+  { value: "top-right", icon: <ArrowUpRight16Regular /> },
+  { value: "left", icon: <ArrowLeft16Regular /> },
   null,
-  { value: "right", label: "Right", icon: <ArrowRight16Regular /> },
-  { value: "bottom-left", label: "Bottom left", icon: <ArrowDownLeft16Regular /> },
-  { value: "bottom", label: "Bottom", icon: <ArrowDown16Regular /> },
-  { value: "bottom-right", label: "Bottom right", icon: <ArrowDownRight16Regular /> },
+  { value: "right", icon: <ArrowRight16Regular /> },
+  { value: "bottom-left", icon: <ArrowDownLeft16Regular /> },
+  { value: "bottom", icon: <ArrowDown16Regular /> },
+  { value: "bottom-right", icon: <ArrowDownRight16Regular /> },
 ];
+
+/** An edge or corner, to read: "Left" as the side of the screen (not the mouse button). */
+const sideName = (a: Anchor) =>
+  ({
+    "top-left": t("Top left"),
+    top: t("Top", { context: "side" }),
+    "top-right": t("Top right"),
+    left: t("Left", { context: "side" }),
+    right: t("Right", { context: "side" }),
+    "bottom-left": t("Bottom left"),
+    bottom: t("Bottom", { context: "side" }),
+    "bottom-right": t("Bottom right"),
+  })[a];
 
 const STEP: Record<string, [number, number]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
 
@@ -79,8 +93,8 @@ export function AnchorPicker(props: { label: string; value: Anchor; onChange: (v
             data-selected={on}
             aria-pressed={on}
             tabIndex={c.value === stop ? 0 : -1}
-            aria-label={c.label}
-            title={c.label}
+            aria-label={sideName(c.value)}
+            title={sideName(c.value)}
             disabled={props.disabled}
             onClick={() => !on && props.onChange(c.value)}
           >

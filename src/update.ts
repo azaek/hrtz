@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { api, on } from "./api";
+import { t } from "./i18n";
 import { toast } from "./store";
 
 /** Where hrtz lives. */
@@ -107,7 +108,7 @@ export function useUpdate() {
     } catch (e) {
       // A click deserves an answer: say it failed, and keep the download for another try.
       setState({ status: "ready", version: found.version });
-      throw new Error(`Couldn't install ${found.version}: ${reasonOf(e)}`);
+      throw new Error(t("Couldn't install {{version}}: {{reason}}", { version: found.version, reason: reasonOf(e) }));
     }
   };
 

@@ -14,6 +14,7 @@ import {
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api, type BackupMeta } from "@/api";
 import { Group, SettingCard } from "@/components";
+import { num, t } from "@/i18n";
 import { backupFits, familyOf } from "@/models";
 import { afterMenu, CardList, CardListRow, CardNote, MoreMenu, ProgressLine, UndoNote, type MoreMenuItem } from "@/kit";
 import { run, useStore } from "@/store";
@@ -65,7 +66,7 @@ export function BackupsPanel() {
 
   const backUp = async () => {
     setRestored(null);
-    const m = await showing("yours", "Backing up", b.backUpNow);
+    const m = await showing("yours", t("Backing up"), b.backUpNow);
     if (m) setNaming(m.id);
   };
 
@@ -75,30 +76,30 @@ export function BackupsPanel() {
     const buttons = device?.capabilities?.buttons;
     const then = await api.backupSettings(m.id).catch(() => null);
     const name = nameOf(m);
-    const r = await showing(card, `Restoring ${name}`, () => run(() => api.restoreBackup(m.id)));
+    const r = await showing(card, t("Restoring {{name}}", { name }), () => run(() => api.restoreBackup(m.id)));
     if (!r) return;
     await b.refresh();
-    if (r.written === 0) return setRestored({ card, text: `The mouse already matches ${name}.`, saved: null });
+    if (r.written === 0) return setRestored({ card, text: t("The mouse already matches {{name}}.", { name }), saved: null });
     const c = before && then ? changes(before, then, buttons ?? []) : [];
     // A Zaopin's image holds macros and shortcuts too; a Logitech's, its other profiles.
-    const rest = familyOf(device?.key) === "compx" ? "Macros and shortcuts were rewritten." : "Its other profiles were rewritten.";
-    const what = c.length === 0 ? `Settings already matched. ${rest}` : c.length === 1 ? `${c[0][0]}: ${c[0][1]} → ${c[0][2]}.` : `${c.length} settings changed.`;
-    setRestored({ card, text: `Restored ${name}. ${what}`, saved: r.saved });
+    const rest = familyOf(device?.key) === "compx" ? t("Macros and shortcuts were rewritten.") : t("Its other profiles were rewritten.");
+    const what = c.length === 0 ? `${t("Settings already matched.")} ${rest}` : c.length === 1 ? `${c[0][0]}: ${c[0][1]} → ${c[0][2]}.` : t("{{count}} settings changed.", { count: c.length, defaultValue_one: "{{count}} setting changed." });
+    setRestored({ card, text: `${t("Restored {{name}}.", { name })} ${what}`, saved: r.saved });
   };
   const undoRestore = async () => {
     const id = restored?.saved;
     const card = restored?.card ?? "yours";
     setRestored(null);
-    if (id && (await showing(card, "Undoing the restore", () => run(() => api.undoRestore(id), "Restore undone"))) !== undefined) await b.refresh();
+    if (id && (await showing(card, t("Undoing the restore"), () => run(() => api.undoRestore(id), t("Restore undone")))) !== undefined) await b.refresh();
   };
 
   const exportOne = async (m: BackupMeta) => {
-    const path = await saveDialog({ defaultPath: m.id, filters: [{ name: "Mouse backup", extensions: ["json"] }] });
-    if (path) await run(() => api.exportBackup(m.id, path), "Backup exported");
+    const path = await saveDialog({ defaultPath: m.id, filters: [{ name: t("Mouse backup"), extensions: ["json"] }] });
+    if (path) await run(() => api.exportBackup(m.id, path), t("Backup exported"));
   };
   const importOne = async () => {
-    const path = await openDialog({ multiple: false, filters: [{ name: "Mouse backup", extensions: ["json"] }] });
-    if (typeof path === "string" && (await run(() => api.importBackup(path), "Backup imported"))) await b.refresh();
+    const path = await openDialog({ multiple: false, filters: [{ name: t("Mouse backup"), extensions: ["json"] }] });
+    if (typeof path === "string" && (await run(() => api.importBackup(path), t("Backup imported")))) await b.refresh();
   };
   const remove = (m: BackupMeta) => {
     setRestored(null);
@@ -113,11 +114,11 @@ export function BackupsPanel() {
   const row = (m: BackupMeta, card: Card) => {
     const menu: MoreMenuItem[] = [
       m.auto
-        ? { label: "Name and keep", icon: <Bookmark16Regular />, onClick: () => afterMenu(() => setNaming(m.id)) }
-        : { label: "Rename", icon: <Rename16Regular />, onClick: () => afterMenu(() => setNaming(m.id)) },
-      { label: "Export…", icon: <ArrowDownload16Regular />, onClick: () => exportOne(m) },
+        ? { label: t("Name and keep"), icon: <Bookmark16Regular />, onClick: () => afterMenu(() => setNaming(m.id)) }
+        : { label: t("Rename"), icon: <Rename16Regular />, onClick: () => afterMenu(() => setNaming(m.id)) },
+      { label: t("Export…"), icon: <ArrowDownload16Regular />, onClick: () => exportOne(m) },
       "divider",
-      { label: "Delete", icon: <Delete16Regular />, onClick: () => remove(m) },
+      { label: t("Delete"), icon: <Delete16Regular />, onClick: () => remove(m) },
     ];
     return (
       <CardListRow key={m.id} style={{ minHeight: 56 }}>
@@ -130,9 +131,9 @@ export function BackupsPanel() {
           <Caption1 style={{ ...muted, ...truncate }}>{lineOf(m, model)}</Caption1>
         </span>
         <Button disabled={!can} onClick={() => restore(m, card)}>
-          Restore
+          {t("Restore")}
         </Button>
-        <MoreMenu label={`${nameOf(m)} actions`} items={menu} />
+        <MoreMenu label={t("{{name}} actions", { name: nameOf(m) })} items={menu} />
       </CardListRow>
     );
   };
@@ -146,56 +147,56 @@ export function BackupsPanel() {
 
   /** The line under a card: Undo for what was just done there, else a hint. */
   const footer = (card: Card, hint: string) => {
-    if (b.gone && !!b.gone.auto === (card === "auto")) return <UndoNote onUndo={b.undo}>Deleted {nameOf(b.gone)}.</UndoNote>;
+    if (b.gone && !!b.gone.auto === (card === "auto")) return <UndoNote onUndo={b.undo}>{t("Deleted {{name}}.", { name: nameOf(b.gone) })}</UndoNote>;
     if (restored?.card === card) return restored.saved ? <UndoNote onUndo={undoRestore}>{restored.text}</UndoNote> : <CardNote note={{ text: restored.text }} />;
-    if (card === "yours" && !online) return <CardNote note={{ text: device?.connected ? "Wake the mouse to back up or restore." : "Connect the receiver to back up or restore." }} />;
+    if (card === "yours" && !online) return <CardNote note={{ text: device?.connected ? t("Wake the mouse to back up or restore.") : t("Connect the receiver to back up or restore.") }} />;
     return <CardNote hint={hint} />;
   };
 
   return (
-    <Group title="Backups">
+    <Group title={t("Backups")}>
       <SettingCard
         stacked
         icon={<History20Regular />}
-        title="Your backups"
-        description="Kept until you delete them."
+        title={t("Your backups")}
+        description={t("Kept until you delete them.")}
         below={
-          <CardList footer={footer("yours", "Restoring writes only what changed.")}>
+          <CardList footer={footer("yours", t("Restoring writes only what changed."))}>
             {working?.card === "yours" && workingRow}
             {yours.map((m) => row(m, "yours"))}
             {list && yours.length === 0 && (
               <CardListRow>
-                <Caption1 style={muted}>No backups yet. Back up now to save your current setup.</Caption1>
+                <Caption1 style={muted}>{t("No backups yet. Back up now to save your current setup.")}</Caption1>
               </CardListRow>
             )}
           </CardList>
         }
       >
         <MoreMenu
-          label="More backup actions"
+          label={t("More backup actions")}
           items={[
-            { label: "Import a backup…", icon: <ArrowUpload16Regular />, onClick: importOne },
-            { label: "Open the backups folder", icon: <FolderOpen16Regular />, onClick: () => void api.openBackupsFolder() },
+            { label: t("Import a backup…"), icon: <ArrowUpload16Regular />, onClick: importOne },
+            { label: t("Open the backups folder"), icon: <FolderOpen16Regular />, onClick: () => void api.openBackupsFolder() },
           ]}
         />
         <Button icon={<Save16Regular />} disabled={!can} onClick={backUp}>
-          Back up now
+          {t("Back up now")}
         </Button>
       </SettingCard>
       <SettingCard
         stacked
         icon={<ShieldCheckmark20Regular />}
-        title="Automatic backups"
-        description="Saved before a restore or factory reset, and when a mouse first connects. The last 10 are kept."
+        title={t("Automatic backups")}
+        description={t("Saved before a restore or factory reset, and when a mouse first connects. The last 10 are kept.")}
         below={
           <CardList
-            footer={auto.length || b.gone?.auto || restored?.card === "auto" ? footer("auto", "Name a backup to keep it permanently.") : undefined}
+            footer={auto.length || b.gone?.auto || restored?.card === "auto" ? footer("auto", t("Name a backup to keep it permanently.")) : undefined}
           >
             {working?.card === "auto" && workingRow}
             {auto.map((m) => row(m, "auto"))}
             {list && auto.length === 0 && (
               <CardListRow>
-                <Caption1 style={muted}>None yet. One is saved before anything overwrites the mouse.</Caption1>
+                <Caption1 style={muted}>{t("None yet. One is saved before anything overwrites the mouse.")}</Caption1>
               </CardListRow>
             )}
           </CardList>
@@ -210,7 +211,7 @@ function WorkingNote({ text, value }: { text: string; value: number }) {
   return (
     <div role="status" className="flex flex-1 flex-col gap-2 py-1 text-xs text-muted-foreground">
       <span className="tabular-nums">
-        {text} · {Math.round(value * 100)}%
+        {text} · {t("{{percent}}%", { percent: num(Math.round(value * 100)) })}
       </span>
       <ProgressLine value={value} label={text} />
     </div>
@@ -231,8 +232,8 @@ function NameField({ b, onSave, onDone }: { b: BackupMeta; onSave: (name: string
     <Input
       autoFocus
       defaultValue={b.note}
-      placeholder={b.auto ? "Name to keep" : shortWhen(b.created)}
-      aria-label="Backup name"
+      placeholder={b.auto ? t("Name to keep") : shortWhen(b.created)}
+      aria-label={t("Backup name")}
       style={{ width: "100%", maxWidth: 280 }}
       onFocus={(e) => e.currentTarget.select()}
       onBlur={(e) => save(e.currentTarget.value)}

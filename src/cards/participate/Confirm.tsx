@@ -1,14 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { Body1, Button, Field, Input, Link, Radio, RadioGroup, Textarea } from "@fluentui/react-components";
 import type { Way } from "@/api";
+import { num, t } from "@/i18n";
 import { StepCard } from "@/kit";
 import { MouseHead } from "./parts";
-import { partLabel, readingOf, shownOf, type Confirmed, type Part } from "./report";
+import { partLabel, readingOf, SCREEN, shownOf, type Confirmed, type Part } from "./report";
 
 const soft = { color: "var(--colorNeutralForeground2)" };
 
 /** A setting as read: each way it could be, where there's more than one. */
-const said = (ways: Way[]) => ways.map((w, i) => (i ? w.text.toLowerCase() : w.text)).join(", or ");
+const said = (ways: Way[]) => ways.map((w, i) => (i ? w.text.toLowerCase() : w.text)).join(t(", or "));
 
 /** The answers so far, starting from the ones given before. */
 function useAnswers(part: Part) {
@@ -36,7 +37,7 @@ type Answers = ReturnType<typeof useAnswers>;
 /** What its own app shows instead, asked when none of hrtz's readings was right. */
 function StagesAre({ a }: { a: Answers }) {
   return (
-    <Field label="What does its own app show?" style={{ width: "100%" }}>
+    <Field label={t("What does its own app show?")} style={{ width: "100%" }}>
       <Input value={a.stagesAre} maxLength={80} placeholder="400, 800, 1600, 3200" onChange={(_, d) => a.setStagesAre(d.value)} />
     </Field>
   );
@@ -44,8 +45,8 @@ function StagesAre({ a }: { a: Answers }) {
 
 function WhatsDifferent({ a }: { a: Answers }) {
   return (
-    <Field label="What's different?" style={{ width: "100%" }}>
-      <Textarea value={a.note} maxLength={300} placeholder="Debounce is 2 ms, not 4" onChange={(_, d) => a.setNote(d.value)} />
+    <Field label={t("What's different?")} style={{ width: "100%" }}>
+      <Textarea value={a.note} maxLength={300} placeholder={t("Debounce is 2 ms, not 4")} onChange={(_, d) => a.setNote(d.value)} />
     </Field>
   );
 }
@@ -54,10 +55,10 @@ function WhatsDifferent({ a }: { a: Answers }) {
 function More({ a }: { a: Answers }) {
   return (
     <div className="grid w-full grid-cols-2 gap-3">
-      <Field label="Highest DPI its own app offers">
+      <Field label={t("Highest DPI its own app offers")}>
         <Input value={a.topDpi} maxLength={12} placeholder="26000" onChange={(_, d) => a.setTopDpi(d.value)} />
       </Field>
-      <Field label="Its sensor, if you know it">
+      <Field label={t("Its sensor, if you know it")}>
         <Input value={a.sensor} maxLength={40} placeholder="PAW3395" onChange={(_, d) => a.setSensor(d.value)} />
       </Field>
     </div>
@@ -90,26 +91,26 @@ function Steps({ part, onDone }: { part: Part; onDone: (c: Confirmed) => void })
   const one = a.ways.length === 1;
   const answered = step === "stages" ? !!a.pick : step === "rest" ? !!a.rest : true;
 
-  const title = step === "stages" ? (one ? "Are these your DPI stages?" : "Which of these are your DPI stages?") : step === "rest" ? "Is the rest right?" : "Two things hrtz can't read";
+  const title = step === "stages" ? (one ? t("Are these your DPI stages?") : t("Which of these are your DPI stages?")) : step === "rest" ? t("Is the rest right?") : t("Two things hrtz can't read");
   const detail =
     step === "stages"
       ? one
-        ? "As its own app shows them."
-        : "Its memory reads more than one way. Pick the one its own app shows."
+        ? t("As its own app shows them.")
+        : t("Its memory reads more than one way. Pick the one its own app shows.")
       : step === "rest"
-        ? "As its own app shows them."
-        : "Leave either empty if you're not sure.";
+        ? t("As its own app shows them.")
+        : t("Leave either empty if you're not sure.");
 
   return (
-    <StepCard label={`Question ${at + 1} of ${steps.length}`} title={title} detail={detail}>
+    <StepCard label={t("Question {{n}} of {{total}}", { n: num(at + 1), total: num(steps.length) })} title={title} detail={detail}>
       {step === "stages" && (
         <>
           <RadioGroup value={a.pick ?? ""} onChange={(_, d) => a.setPick(d.value)}>
             {a.ways.map((w) => (
               <Radio key={w.piece} value={w.piece} label={w.text} />
             ))}
-            <Radio value="none" label={one ? "No, they're different" : "None of these"} />
-            <Radio value="unsure" label="I'm not sure" />
+            <Radio value="none" label={one ? t("No, they're different") : t("None of these")} />
+            <Radio value="unsure" label={t("I'm not sure")} />
           </RadioGroup>
           {a.pick === "none" && <StagesAre a={a} />}
         </>
@@ -118,9 +119,9 @@ function Steps({ part, onDone }: { part: Part; onDone: (c: Confirmed) => void })
         <>
           <Rows rows={a.shown.map((s) => [s.name, said(s.ways)])} />
           <RadioGroup layout="horizontal" value={a.rest ?? ""} onChange={(_, d) => a.setRest(d.value as Confirmed["rest"])}>
-            <Radio value="right" label="Yes" />
-            <Radio value="wrong" label="Not all of it" />
-            <Radio value="unsure" label="I'm not sure" />
+            <Radio value="right" label={t("Yes")} />
+            <Radio value="wrong" label={t("Not all of it")} />
+            <Radio value="unsure" label={t("I'm not sure")} />
           </RadioGroup>
           {a.rest === "wrong" && <WhatsDifferent a={a} />}
         </>
@@ -130,12 +131,12 @@ function Steps({ part, onDone }: { part: Part; onDone: (c: Confirmed) => void })
         <span>
           {at > 0 && (
             <Link as="button" onClick={() => setAt(at - 1)}>
-              Previous question
+              {t("Previous question")}
             </Link>
           )}
         </span>
         <Button appearance="primary" disabled={!answered} onClick={() => (last ? onDone(a.answers()) : setAt(at + 1))}>
-          {last ? "Done" : "Next"}
+          {last ? t("Done") : t("Next")}
         </Button>
       </div>
     </StepCard>
@@ -152,11 +153,11 @@ function Steps({ part, onDone }: { part: Part; onDone: (c: Confirmed) => void })
 export function Confirm({ part, onDone }: { part: Part; onDone: (c: Confirmed) => void }) {
   return (
     <div className="tw flex w-full flex-col items-center gap-3 text-center">
-      <MouseHead artKey={part.key} variant={part.variant} name={part.name} caption={partLabel(part)} />
+      <MouseHead artKey={part.key} variant={part.variant} name={part.name} caption={partLabel(part, SCREEN)} />
       <Body1 style={soft}>
         {part.known
-          ? "hrtz doesn't set this model's DPI yet, as its sensor can keep it more than one way. Your answer tells us which."
-          : "hrtz read these from the mouse's memory. Your answers are what lets us add it without asking you again."}
+          ? t("hrtz doesn't set this model's DPI yet, as its sensor can keep it more than one way. Your answer tells us which.")
+          : t("hrtz read these from the mouse's memory. Your answers are what lets us add it without asking you again.")}
       </Body1>
       <div className="w-full text-left">
         <Steps part={part} onDone={onDone} />

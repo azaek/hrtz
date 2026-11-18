@@ -6,7 +6,8 @@ import { api, message, on, type BackupMeta, type DeviceState } from "./api";
 import { Emblem } from "./brand";
 import { Notice } from "./components";
 import { MousePicture, MousePlaceholder } from "./MousePicture";
-import { linkName } from "./links";
+import { num, t } from "./i18n";
+import { linkLabel } from "./links";
 import { artOf, familyOf, isZaopin, ofModel } from "./models";
 import { endFlow, goStep, pickMouse, savePrefs, setInspecting, toast, useStore, type Step } from "./store";
 import { TitleBar } from "./TitleBar";
@@ -120,8 +121,8 @@ function WorksWith() {
                 <div className={s.workRow}>
                   <MousePicture width={40} />
                   <span className={s.workText}>
-                    <Body1>{models.length} models</Body1>
-                    <Caption1 className={s.muted}>{tested ? `${tested} tested` : "Not tested yet"}</Caption1>
+                    <Body1>{t("{{count}} models", { count: models.length, defaultValue_one: "{{count}} model" })}</Body1>
+                    <Caption1 className={s.muted}>{tested ? t("{{count}} tested", { count: tested }) : t("Not tested yet")}</Caption1>
                   </span>
                 </div>
               ) : (
@@ -130,7 +131,7 @@ function WorksWith() {
                     <MousePicture image={artOf(m.key)?.image} width={40} />
                     <span className={s.workText}>
                       <Body1>{m.model}</Body1>
-                      <Caption1 className={s.muted}>{m.tested ? "Tested" : "Not tested yet"}</Caption1>
+                      <Caption1 className={s.muted}>{m.tested ? t("Tested") : t("Not tested yet")}</Caption1>
                     </span>
                   </div>
                 ))
@@ -145,7 +146,7 @@ function WorksWith() {
 
 /** "8K receiver · 27% battery · firmware 2.17". */
 const details = (d: DeviceState) =>
-  [linkName(d), d.battery ? `${d.battery.level}% battery` : null, d.firmware ? `firmware ${d.firmware}` : null].filter(Boolean).join(" · ");
+  [linkLabel(d), d.battery ? t("{{percent}}% battery", { percent: num(d.battery.level) }) : null, d.firmware ? t("firmware {{version}}", { version: d.firmware }) : null].filter(Boolean).join(" · ");
 
 type Shown = { hero: ReactNode; title: string; body: ReactNode; primary: { label: string; onClick: () => void; disabled?: boolean } | null; back: ReactNode };
 
@@ -205,8 +206,8 @@ export function Onboarding() {
     if (found[0]?.key) pickMouse(found[0].key);
     endFlow();
   };
-  const back = (to: Step) => <Button onClick={() => goStep(to)}>Back</Button>;
-  const cancel = <Button onClick={endFlow}>Cancel</Button>;
+  const back = (to: Step) => <Button onClick={() => goStep(to)}>{t("Back")}</Button>;
+  const cancel = <Button onClick={endFlow}>{t("Cancel")}</Button>;
   const askForIt = () => setInspecting(true);
 
   let shown: Shown;
@@ -214,45 +215,45 @@ export function Onboarding() {
     case "welcome":
       shown = {
         hero: <Emblem height={72} />,
-        title: "Welcome to hrtz",
-        body: <Body1 className={s.muted}>A free, open-source app for gaming mice. Settings are stored on the mouse, so they work without the app.</Body1>,
-        primary: { label: "Get started", onClick: () => goStep(found.length ? "found" : "connect") },
+        title: t("Welcome to hrtz"),
+        body: <Body1 className={s.muted}>{t("A free, open-source app for gaming mice. Settings are stored on the mouse, so they work without the app.")}</Body1>,
+        primary: { label: t("Get started"), onClick: () => goStep(found.length ? "found" : "connect") },
         back: null,
       };
       break;
     case "connect":
       shown = {
         hero: <Searching />,
-        title: first ? "Connect your mouse" : "Connect a new mouse",
+        title: first ? t("Connect your mouse") : t("Connect a new mouse"),
         body: (
           <>
-            <Body1 className={s.muted}>Plug in its receiver or cable, and turn it on. hrtz finds it automatically.</Body1>
+            <Body1 className={s.muted}>{t("Plug in its receiver or cable, and turn it on. hrtz finds it automatically.")}</Body1>
             <div className={s.status}>
               <Spinner size="extra-tiny" />
-              <Caption1>Looking for a mouse</Caption1>
+              <Caption1>{t("Looking for a mouse")}</Caption1>
             </div>
             <Link as="button" onClick={() => setShowWorks((x) => !x)}>
-              {showWorks ? "Hide the list" : "See which mice work"}
+              {showWorks ? t("Hide the list") : t("See which mice work")}
             </Link>
             {showWorks && (
               <>
                 <WorksWith />
                 <Caption1 className={s.muted}>
-                  Don't see yours?{" "}
+                  {t("Don't see yours?")}{" "}
                   <Link as="button" onClick={askForIt}>
-                    Request support
+                    {t("Request support")}
                   </Link>
                 </Caption1>
               </>
             )}
           </>
         ),
-        primary: { label: "Continue", onClick: () => {}, disabled: true },
+        primary: { label: t("Continue"), onClick: () => {}, disabled: true },
         back: first ? (
           <>
             {back("welcome")}
             <Link as="button" onClick={() => goStep("prefs")}>
-              Skip for now
+              {t("Skip for now")}
             </Link>
           </>
         ) : (
@@ -284,7 +285,7 @@ export function Onboarding() {
             ))}
           </div>
         ),
-        title: one ? `Found your ${one.model}` : `Found ${found.length} mice`,
+        title: one ? t("Found your {{model}}", { model: one.model }) : t("Found {{count}} mice", { count: found.length, defaultValue_one: "Found {{count}} mouse" }),
         body: (
           <>
             {found.map((d) => (
@@ -295,38 +296,41 @@ export function Onboarding() {
             ))}
             {untested.length > 0 && (
               <Caption1 className={s.muted}>
-                {untested.map((d) => d.model).join(" and ")} {untested.length > 1 ? "haven't" : "hasn't"} been tested yet. You can help: its Not tested badge opens a 2-minute check that sends what works
-                and what doesn't.
+                {t("{{models}} haven't been tested yet. You can help: its Not tested badge opens a 2-minute check that sends what works and what doesn't.", {
+                  count: untested.length,
+                  models: untested.map((d) => d.model).join(` ${t("and")} `),
+                  defaultValue_one: "{{models}} hasn't been tested yet. You can help: its Not tested badge opens a 2-minute check that sends what works and what doesn't.",
+                })}
               </Caption1>
             )}
             {zaopinApp ? (
               <div className={s.stretch}>
-                <Notice tone="warning" icon={<Warning16Filled />} title="Quit Zaopin's app">
-                  It uses the same channel as hrtz and overwrites its changes. Quit it from its tray icon.
+                <Notice tone="warning" icon={<Warning16Filled />} title={t("Quit Zaopin's app")}>
+                  {t("It uses the same channel as hrtz and overwrites its changes. Quit it from its tray icon.")}
                 </Notice>
               </div>
             ) : ghub ? (
               <div className={s.stretch}>
-                <Notice tone="warning" icon={<Warning16Filled />} title="Quit G HUB">
+                <Notice tone="warning" icon={<Warning16Filled />} title={t("Quit G HUB")}>
                   {ghubDrives
-                    ? "It's controlling the mouse, so changes made in hrtz wait until it lets go. Quit it from its tray icon."
-                    : "It changes the same profiles on the mouse as hrtz, and the last change wins. Quit it from its tray icon."}
+                    ? t("It's controlling the mouse, so changes made in hrtz wait until it lets go. Quit it from its tray icon.")
+                    : t("It changes the same profiles on the mouse as hrtz, and the last change wins. Quit it from its tray icon.")}
                 </Notice>
               </div>
             ) : waiting ? (
               <div className={s.status}>
                 <Spinner size="extra-tiny" />
-                <Caption1>Backing up its current settings</Caption1>
+                <Caption1>{t("Backing up its current settings")}</Caption1>
               </div>
             ) : backing ? (
               <div className={s.status}>
                 <Checkmark16Regular className={s.done} />
-                <Caption1>Current settings backed up. Restore them anytime from Settings.</Caption1>
+                <Caption1>{t("Current settings backed up. Restore them anytime from Settings.")}</Caption1>
               </div>
             ) : null}
           </>
         ),
-        primary: first ? { label: "Continue", onClick: () => goStep("prefs") } : { label: "Done", onClick: done },
+        primary: first ? { label: t("Continue"), onClick: () => goStep("prefs") } : { label: t("Done"), onClick: done },
         back: first ? null : cancel,
       };
       break;
@@ -334,30 +338,30 @@ export function Onboarding() {
     case "prefs":
       shown = {
         hero: null,
-        title: "A few preferences",
+        title: t("A few preferences"),
         body: (
           <>
-            <Body1 className={s.muted}>You can change these later in Settings.</Body1>
+            <Body1 className={s.muted}>{t("You can change these later in Settings.")}</Body1>
             <div className={s.options}>
               <label className={s.option}>
                 <span className={s.optionText}>
-                  <Body1>Start with Windows</Body1>
-                  <Caption1 className={s.muted}>Runs in the tray for battery history, per-app profiles and mousepad tracking.</Caption1>
+                  <Body1>{t("Start with Windows")}</Body1>
+                  <Caption1 className={s.muted}>{t("Runs in the tray for battery history, per-app profiles and mousepad tracking.")}</Caption1>
                 </span>
-                <Switch checked={startup} onChange={(_, d) => setStartup(d.checked)} aria-label="Start with Windows" />
+                <Switch checked={startup} onChange={(_, d) => setStartup(d.checked)} aria-label={t("Start with Windows")} />
               </label>
               <label className={s.option}>
                 <span className={s.optionText}>
-                  <Body1>Low battery alert</Body1>
-                  <Caption1 className={s.muted}>A Windows notification at {prefs?.lowBatteryPercent ?? 15}% battery.</Caption1>
+                  <Body1>{t("Low battery alert")}</Body1>
+                  <Caption1 className={s.muted}>{t("A Windows notification at {{percent}}% battery.", { percent: num(prefs?.lowBatteryPercent ?? 15) })}</Caption1>
                 </span>
-                <Switch checked={alerts} onChange={(_, d) => setAlerts(d.checked)} aria-label="Low battery alert" />
+                <Switch checked={alerts} onChange={(_, d) => setAlerts(d.checked)} aria-label={t("Low battery alert")} />
               </label>
             </div>
-            <Caption1 className={s.muted}>Closing the window keeps hrtz in the tray. Quit from the tray icon.</Caption1>
+            <Caption1 className={s.muted}>{t("Closing the window keeps hrtz in the tray. Quit from the tray icon.")}</Caption1>
           </>
         ),
-        primary: { label: "Finish", onClick: () => void finish() },
+        primary: { label: t("Finish"), onClick: () => void finish() },
         back: back(found.length ? "found" : "connect"),
       };
       break;
@@ -380,7 +384,7 @@ export function Onboarding() {
         <div className={s.footer}>
           <div className={s.footerSide}>{shown.back}</div>
           {first ? (
-            <div className={s.dots} role="img" aria-label={`Step ${now + 1} of ${steps.length}`}>
+            <div className={s.dots} role="img" aria-label={t("Step {{step}} of {{total}}", { step: now + 1, total: steps.length })}>
               {steps.map((x, i) => (
                 <span key={x} className={mergeClasses(s.dot, i === now && s.dotOn)} />
               ))}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type ActivityDay, type ClickDay } from "@/api";
+import i18n, { num, t } from "@/i18n";
 
 // Your week: the last seven days of the activity log and the click log, against the seven before.
 
@@ -77,43 +78,48 @@ export function useWeek(): Week | null {
   return week;
 }
 
-const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+const fmt = (n: number) => num(Math.round(n));
 
 /** "4.2 km", "830 m". */
-export const distance = (cm: number) => (cm >= 100_000 ? `${(cm / 100_000).toFixed(cm >= 1_000_000 ? 0 : 1)} km` : `${fmt(cm / 100)} m`);
+export const distance = (cm: number) => {
+  if (cm < 100_000) return t("{{n}} m", { n: fmt(cm / 100) });
+  const digits = cm >= 1_000_000 ? 0 : 1;
+  return t("{{n}} km", { n: num(cm / 100_000, { minimumFractionDigits: digits, maximumFractionDigits: digits }) });
+};
 
 /** "6 h 20 min", "45 min". */
 export const timeText = (s: number) => {
   const m = Math.round(s / 60);
-  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+  return m >= 60 ? t("{{h}} h {{min}} min", { h: num(Math.floor(m / 60)), min: num(m % 60) }) : t("{{n}} min", { n: num(m) });
 };
 
 /** How far that is, in something you can picture: football pitches of 105 m. */
 export const pitches = (cm: number) => {
   const n = Math.round(cm / 10_500);
-  return n >= 2 ? `about ${fmt(n)} football pitches end to end` : "about one football pitch";
+  return n >= 2 ? t("about {{n}} football pitches end to end", { count: n, n: fmt(n) }) : t("about one football pitch");
 };
 
 /** "18% more than the week before", or nothing to compare with. */
 export function versus(cm: number, prev: number): string | null {
   if (prev < 1_000) return null;
   const change = (cm - prev) / prev;
-  if (Math.abs(change) < 0.05) return "about the same as the week before";
-  return `${Math.round(Math.abs(change) * 100)}% ${change > 0 ? "more" : "less"} than the week before`;
+  if (Math.abs(change) < 0.05) return t("about the same as the week before");
+  const percent = num(Math.round(Math.abs(change) * 100));
+  return change > 0 ? t("{{percent}}% more than the week before", { percent }) : t("{{percent}}% less than the week before", { percent });
 }
 
-/** "Tuesday", from a log date. */
-export const dayName = (date: string) => {
+/** "Tuesday" (or "Tue", short), from a log date. */
+export const dayName = (date: string, weekday: "long" | "short" = "long") => {
   const [y, m, d] = date.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long" });
+  return new Date(y, m - 1, d).toLocaleDateString(i18n.language, { weekday });
 };
 
 /** The week in a line to paste anywhere. */
 export function summaryText(w: Week, name: (exe: string) => string): string {
-  const parts = [`${distance(w.cm)}`, `${timeText(w.movingS)} moving`];
-  if (w.topMps > 0) parts.push(`fastest ${w.topMps.toFixed(1)} m/s`);
+  const parts = [`${distance(w.cm)}`, t("{{time}} moving", { time: timeText(w.movingS) })];
+  if (w.topMps > 0) parts.push(t("fastest {{speed}} m/s", { speed: num(w.topMps, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }));
   const turns = w.games.find((g) => g.turns >= 1);
-  if (turns) parts.push(`${fmt(turns.turns)} full turns in ${name(turns.exe)}`);
-  if (w.clicks) parts.push(`${fmt(w.clicks)} clicks`);
-  return `My mouse this week: ${parts.join(", ")}. (hrtz)`;
+  if (turns) parts.push(t("{{n}} full turns in {{game}}", { count: Math.round(turns.turns), n: fmt(turns.turns), game: name(turns.exe) }));
+  if (w.clicks) parts.push(t("{{n}} clicks", { count: w.clicks, n: fmt(w.clicks) }));
+  return t("My mouse this week: {{summary}}. (hrtz)", { summary: parts.join(", ") });
 }

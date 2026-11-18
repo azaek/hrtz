@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Caption1, Link } from "@fluentui/react-components";
 import type { CaptureScreen } from "@/api";
 import { Choice } from "@/components";
+import { t } from "@/i18n";
 import { StepCard } from "@/kit";
 import { hzText } from "@/rates";
 import { commit, toast, useStore } from "@/store";
@@ -14,25 +15,34 @@ const soft = { color: "var(--colorNeutralForeground2)" };
 
 /** Game mode's screen for a part of a round: the arena for a run (and before it), else the words. */
 function screenFor(v: View): CaptureScreen {
-  const of = `Round ${v.round + 1} of ${ROUNDS}`;
-  const which = v.run === 0 ? "First run" : "Second run";
+  const of = t("Round {{round}} of {{rounds}}", { round: v.round + 1, rounds: ROUNDS });
+  const first = v.run === 0;
   const blank = { title: "", detail: "", figure: "", figureLabel: "", progress: v.round / ROUNDS, progressLabel: "" };
   if (v.phase === "ready" || v.phase === "run") {
-    const label = v.phase === "ready" ? `${of} · ${which} in a moment` : `${of} · ${which}: keep the crosshair on the dot`;
-    return { ...blank, arena: { running: v.phase === "run", seed: v.seed, label } };
+    const which =
+      v.phase === "ready"
+        ? first
+          ? t("First run in a moment")
+          : t("Second run in a moment")
+        : first
+          ? t("First run: keep the crosshair on the dot")
+          : t("Second run: keep the crosshair on the dot");
+    return { ...blank, arena: { running: v.phase === "run", seed: v.seed, label: `${of} · ${which}` } };
   }
   if (v.phase === "answer" || !v.reveal) {
-    return { ...blank, title: v.pair.question, detail: "Left click for the first run, right click for the second.", progressLabel: `${of} · if you can't tell, go with your gut` };
+    return { ...blank, title: v.pair.question, detail: t("Left click for the first run, right click for the second."), progressLabel: `${of} · ${t("if you can't tell, go with your gut")}` };
   }
   const r = v.reveal;
   const last = v.round + 1 >= ROUNDS;
+  const runs = { asked: v.pair.asked, other: v.pair.other };
   return {
-    title: r.right ? "Right" : "Not this time",
-    detail: `The ${r.askedFirst ? "first" : "second"} run had ${v.pair.asked}, the ${r.askedFirst ? "second" : "first"} ${v.pair.other}.`,
-    figure: `${r.score} of ${r.done}`,
-    figureLabel: "right so far",
+    // "Right" as in correct, apart from the button and the side of the screen.
+    title: r.right ? t("Right", { context: "answer" }) : t("Not this time"),
+    detail: r.askedFirst ? t("The first run had {{asked}}, the second {{other}}.", runs) : t("The second run had {{asked}}, the first {{other}}.", runs),
+    figure: t("{{n}} of {{total}}", { n: r.score, total: r.done }),
+    figureLabel: t("right so far"),
     progress: r.done / ROUNDS,
-    progressLabel: last ? "Click for your result" : r.done >= FEWEST ? "Click for the next round, or Esc to finish here" : "Click for the next round",
+    progressLabel: last ? t("Click for your result") : r.done >= FEWEST ? t("Click for the next round, or Esc to finish here") : t("Click for the next round"),
   };
 }
 
@@ -51,75 +61,76 @@ export function BlindTest({ onResult }: TestProps) {
   const pairs = pairsFor(device?.capabilities, device?.settings);
   const [pick, setPick] = useState<Pair["id"]>(() => pairs[0]?.id ?? "polling");
   const pair = pairs.find((p) => p.id === pick) ?? pairs[0];
-  const t = useBlindTest();
+  const test = useBlindTest();
   const cap = useCapture();
   // The pointer held, as a game holds it, while the screen is up.
-  useHold(t.running);
+  useHold(test.running);
   const [stopped, setStopped] = useState(false);
-  useReport(onResult, t.result ? blindSummary(t.result) : null);
+  useReport(onResult, test.result ? blindSummary(test.result) : null);
 
   // The screen follows the test, and goes when it ends.
   useEffect(() => {
-    if (t.view) cap.update(screenFor(t.view));
+    if (test.view) cap.update(screenFor(test.view));
     else cap.close();
-  }, [t.view]);
+  }, [test.view]);
   // Esc, or another window in front, stops it: five rounds or more still make a result.
   useEffect(() => {
-    if (cap.closed && cap.closed !== "done" && t.running) {
+    if (cap.closed && cap.closed !== "done" && test.running) {
       setStopped(true);
-      t.stop();
+      test.stop();
     }
   }, [cap.closed]);
 
   if (!pair) {
-    return <StepCard label="Blind test" title="Nothing to compare on this mouse" detail="It needs a mouse with two polling rates, or motion sync." />;
+    return <StepCard label={t("Blind test")} title={t("Nothing to compare on this mouse")} detail={t("It needs a mouse with two polling rates, or motion sync.")} />;
   }
 
   const begin = (p: Pair) => {
     setStopped(false);
     setPick(p.id);
-    t.start(p);
+    test.start(p);
   };
   // Opened first, so the screen is up before the first run is set.
   const start = (p: Pair) => {
-    cap.start({ title: "", detail: "", figure: "", figureLabel: "", progress: 0, progressLabel: "", arena: { running: false, seed: 0, label: `Round 1 of ${ROUNDS} · First run in a moment` } });
+    const label = `${t("Round {{round}} of {{rounds}}", { round: 1, rounds: ROUNDS })} · ${t("First run in a moment")}`;
+    cap.start({ title: "", detail: "", figure: "", figureLabel: "", progress: 0, progressLabel: "", arena: { running: false, seed: 0, label } });
     begin(p);
   };
   // Alone on the left of the button row: beside a status line too, it had no room and wrapped
   // (the user's screenshot). The stopped note goes on top instead.
   const choose =
     pairs.length > 1 ? (
-      <Choice label="What to test" value={pair.id} options={pairs.map((p) => ({ value: p.id, label: p.name }))} onChange={(id) => setPick(id)} />
+      <Choice label={t("What to test")} value={pair.id} options={pairs.map((p) => ({ value: p.id, label: p.name }))} onChange={(id) => setPick(id)} />
     ) : null;
 
-  if (t.running) {
+  if (test.running) {
     return (
       <StepCard
-        label={t.view ? `Round ${t.view.round + 1} of ${ROUNDS}` : "Blind test"}
-        title={pair.id === "polling" ? `${pair.asked} or ${pair.other}?` : "Motion sync on or off?"}
-        status={<span style={soft}>Running full screen. Press Esc to stop.</span>}
+        label={test.view ? t("Round {{round}} of {{rounds}}", { round: test.view.round + 1, rounds: ROUNDS }) : t("Blind test")}
+        title={pair.id === "polling" ? t("{{asked}} or {{other}}?", { asked: pair.asked, other: pair.other }) : t("Motion sync on or off?")}
+        status={<span style={soft}>{t("Running full screen. Press Esc to stop.")}</span>}
         actions={
-          <Link as="button" onClick={() => (setStopped(true), t.stop())}>
-            Stop
+          <Link as="button" onClick={() => (setStopped(true), test.stop())}>
+            {t("Stop")}
           </Link>
         }
       />
     );
   }
 
-  return t.result ? (
-    <Outcome r={t.result} again={() => start(pair)} online={online} other={pairs.find((p) => p.id !== pair.id) ?? null} tryOther={start} />
+  return test.result ? (
+    <Outcome r={test.result} again={() => start(pair)} online={online} other={pairs.find((p) => p.id !== pair.id) ?? null} tryOther={start} />
   ) : (
     // Only what to do now: the pane above says what the test is, and its footer what it changes
     // (the user: "it looks too busy on card").
     <StepCard
-      label={stopped ? "Stopped. Five rounds or more make a result." : `${ROUNDS} rounds · about 2 minutes`}
-      title={pair.id === "polling" ? `${pair.asked} or ${pair.other}?` : "Motion sync on or off?"}
-      detail={`Keep the crosshair on the dot, twice, then click for the run that had ${pair.asked}.`}
+      label={stopped ? t("Stopped. Five rounds or more make a result.") : t("{{count}} rounds · about 2 minutes", { count: ROUNDS })}
+      title={pair.id === "polling" ? t("{{asked}} or {{other}}?", { asked: pair.asked, other: pair.other }) : t("Motion sync on or off?")}
+      detail={t("Keep the crosshair on the dot, twice, then click for the run that had {{asked}}.", { asked: pair.asked })}
       status={choose}
       actions={
         <Button appearance="primary" disabled={!online} onClick={() => start(pair)}>
-          Start
+          {t("Start")}
         </Button>
       }
     />
@@ -134,54 +145,65 @@ function Outcome({ r, again, online, other, tryOther }: { r: Result; again: () =
   const s = device?.settings;
   const pct = Math.round(Math.abs(r.closer) * 100);
   const title =
-    r.right >= 8 ? `You can feel ${r.pair.feel}` : r.right >= 6 ? `Hard to say: ${r.right} of ${r.rounds} right` : `You couldn't tell ${r.pair.asked} from ${r.pair.other}`;
+    r.right >= 8
+      ? t("You can feel {{feel}}", { feel: r.pair.feel })
+      : r.right >= 6
+        ? t("Hard to say: {{right}} of {{rounds}} right", { right: r.right, rounds: r.rounds })
+        : t("You couldn't tell {{asked}} from {{other}}", { asked: r.pair.asked, other: r.pair.other });
   // The chance only says something for more right than half: 2 of 5 is what guessing gets.
   const odds =
     r.right * 2 > r.rounds
-      ? `Guessing gets that many or more ${r.chance < 0.01 ? "less than 1%" : `${Math.round(r.chance * 100)}%`} of the time.`
-      : "That's about what guessing gets.";
-  const tracking = r.consistent && pct >= 1 ? `Followed ${pct}% closer with ${r.closer > 0 ? r.pair.asked : r.pair.other}` : "Followed as closely with either";
+      ? r.chance < 0.01
+        ? t("Guessing gets that many or more less than 1% of the time.")
+        : t("Guessing gets that many or more {{percent}}% of the time.", { percent: Math.round(r.chance * 100) })
+      : t("That's about what guessing gets.");
+  const tracking =
+    r.consistent && pct >= 1 ? t("Followed {{percent}}% closer with {{setting}}", { percent: pct, setting: r.closer > 0 ? r.pair.asked : r.pair.other }) : t("Followed as closely with either");
   const screen =
-    r.refreshHz && r.pair.id === "polling" ? (r.refreshHz <= 75 ? `${r.refreshHz} Hz, where a faster polling rate is hard to see` : `${r.refreshHz} Hz`) : "";
+    r.refreshHz && r.pair.id === "polling"
+      ? r.refreshHz <= 75
+        ? t("{{hz}} Hz, where a faster polling rate is hard to see", { hz: r.refreshHz })
+        : t("{{hz}} Hz", { hz: r.refreshHz })
+      : "";
   // Can't feel the faster rate on a wireless mouse: the slower one lasts longer on a charge.
   const low = r.pair.low;
   const saver = r.right <= 7 && low && s?.pollingHz && s.pollingHz > low && !device?.capabilities?.wired && device?.capabilities?.battery;
   const copy = () =>
     void navigator.clipboard.writeText(shareText(r)).then(
-      () => toast("Result copied"),
+      () => toast(t("Result copied")),
       () => {},
     );
   return (
     <StepCard
-      label="Result"
+      label={t("Result")}
       title={title}
-      detail={`${r.right} of ${r.rounds} right. ${odds}`}
+      detail={`${t("{{right}} of {{rounds}} right.", { right: r.right, rounds: r.rounds })} ${odds}`}
       status={
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link as="button" onClick={copy}>
-            Copy result
+            {t("Copy result")}
           </Link>
           {other && (
             <Link as="button" disabled={!online} onClick={() => tryOther(other)}>
-              Test {other.name.toLowerCase()}
+              {other.id === "polling" ? t("Test polling rate") : t("Test motion sync")}
             </Link>
           )}
         </span>
       }
       actions={
         <Button appearance="primary" disabled={!online} onClick={again}>
-          Test again
+          {t("Test again")}
         </Button>
       }
     >
       <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-        <Fact name="The dot">{tracking}</Fact>
-        {screen && <Fact name="Your screen">{screen}</Fact>}
+        <Fact name={t("The dot")}>{tracking}</Fact>
+        {screen && <Fact name={t("Your screen")}>{screen}</Fact>}
         {saver && (
-          <Fact name="Battery">
-            {`${hzText(low)} lasts longer on a charge. `}
+          <Fact name={t("Battery")}>
+            {`${t("{{rate}} lasts longer on a charge.", { rate: hzText(low) })} `}
             <Link inline as="button" disabled={!online} onClick={() => s && void commit({ ...s, pollingHz: low })}>
-              Use {hzText(low)}
+              {t("Use {{rate}}", { rate: hzText(low) })}
             </Link>
           </Fact>
         )}

@@ -15,6 +15,7 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import { LATEST, RELEASES } from "./changelog";
+import { t } from "./i18n";
 
 /** The last version the "What's new" window was opened for. */
 const SEEN_KEY = "hrtz.seenVersion";
@@ -83,10 +84,10 @@ export function WhatsNew() {
       <Dialog open={open} onOpenChange={(_, d) => setOpen(d.open)}>
         <DialogSurface className={s.surface}>
           <DialogBody>
-            <DialogTitle>What's new</DialogTitle>
+            <DialogTitle>{t("What's new")}</DialogTitle>
             <DialogContent className={s.body}>
               {RELEASES.map((r) => (
-                <section key={r.version} className={s.release} aria-label={`Version ${r.version}`}>
+                <section key={r.version} className={s.release} aria-label={t("Version {{version}}", { version: r.version })}>
                   <div className={s.head}>
                     <Subtitle2>{r.version}</Subtitle2>
                     <Caption1 className={s.muted}>{r.date}</Caption1>
@@ -112,7 +113,7 @@ export function WhatsNew() {
             </DialogContent>
             <DialogActions>
               <Button appearance="primary" onClick={() => setOpen(false)}>
-                Close
+                {t("Close")}
               </Button>
             </DialogActions>
           </DialogBody>

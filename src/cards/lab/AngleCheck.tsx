@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Link } from "@fluentui/react-components";
 import { currentDpi, type CaptureScreen, type SensorAngle } from "@/api";
+import { t } from "@/i18n";
 import { StepCard } from "@/kit";
 import { commit, useStore } from "@/store";
 import { SWIPES, SWIPE_CM, angleSummary, angleText, inEffect, useAngleCheck, verdict } from "./angle";
@@ -13,12 +14,12 @@ const warn = { color: "var(--colorPaletteMarigoldForeground1)" };
 
 /** Game mode's screen: what to do, and how many swipes are in. */
 const screenFor = (n: number): CaptureScreen => ({
-  title: "Swipe side to side",
-  detail: "Hold the mouse as you do in a game, and swipe the way that feels level to you.",
-  figure: `${n} of ${SWIPES}`,
-  figureLabel: "swipes",
+  title: t("Swipe side to side"),
+  detail: t("Hold the mouse as you do in a game, and swipe the way that feels level to you."),
+  figure: t("{{n}} of {{total}}", { n, total: SWIPES }),
+  figureLabel: t("swipes"),
   progress: n / SWIPES,
-  progressLabel: `Sideways swipes of ${SWIPE_CM} cm or more count`,
+  progressLabel: t("Sideways swipes of {{cm}} cm or more count", { cm: SWIPE_CM }),
 });
 
 // The angle a mouse had before the last one set here, for Undo. Kept for the session.
@@ -40,10 +41,10 @@ export function AngleCheck({ onResult }: TestProps) {
   // The mouse's own sensor angle, where it has one and it could be read.
   const held = max !== undefined ? settings?.sensorAngle : undefined;
   const now = inEffect(held);
-  const t = useAngleCheck(dpi);
+  const check = useAngleCheck(dpi);
   const cap = useCapture();
-  useHold(t.running);
-  const m = t.measured;
+  useHold(check.running);
+  const m = check.measured;
   // A reading made for another mouse isn't this one's.
   const v = m.mouse === mouse ? verdict(m, held ? max : undefined, now) : null;
   // Undo is offered for the angle set from this result, until the next run.
@@ -52,31 +53,31 @@ export function AngleCheck({ onResult }: TestProps) {
 
   // The screen follows the swipes, and goes when the check ends.
   useEffect(() => {
-    if (t.running) cap.update(screenFor(m.swipes.length));
+    if (check.running) cap.update(screenFor(m.swipes.length));
     else cap.close();
-  }, [t.running, m.swipes.length]);
+  }, [check.running, m.swipes.length]);
   // Esc, or another window in front, stops the check.
   useEffect(() => {
-    if (cap.closed && cap.closed !== "done" && t.running) t.stop();
+    if (cap.closed && cap.closed !== "done" && check.running) check.stop();
   }, [cap.closed]);
 
   const start = () => {
     setUndo(false);
     cap.start(screenFor(0));
-    t.start(now, mouse);
+    check.start(now, mouse);
   };
 
-  if (t.running) {
+  if (check.running) {
     return (
       <StepCard
-        label={`${m.swipes.length} of ${SWIPES} swipes`}
-        title="Swipe side to side"
-        detail="Hold the mouse as you do in a game, and swipe the way that feels level to you."
+        label={t("{{n}} of {{total}} swipes", { n: m.swipes.length, total: SWIPES })}
+        title={t("Swipe side to side")}
+        detail={t("Hold the mouse as you do in a game, and swipe the way that feels level to you.")}
         art={<Motion kind="sweep" />}
-        status={<span style={soft}>Running full screen. Press Esc to stop.</span>}
+        status={<span style={soft}>{t("Running full screen. Press Esc to stop.")}</span>}
         actions={
-          <Link as="button" onClick={t.stop}>
-            Stop
+          <Link as="button" onClick={check.stop}>
+            {t("Stop")}
           </Link>
         }
       />
@@ -84,17 +85,17 @@ export function AngleCheck({ onResult }: TestProps) {
   }
 
   if (!v) {
-    const stopped = cap.closed === "esc" ? "Stopped." : cap.closed === "away" ? "Stopped because another window took focus." : null;
+    const stopped = cap.closed === "esc" ? t("Stopped.") : cap.closed === "away" ? t("Stopped because another window took focus.") : null;
     return (
       <StepCard
-        label="About 20 seconds"
-        title="Find the sensor angle for your grip"
-        detail={`Hold the mouse as you do in a game and swipe side to side ${SWIPES} times, the way that feels level to you. hrtz measures how far your swipes tilt.`}
+        label={t("About 20 seconds")}
+        title={t("Find the sensor angle for your grip")}
+        detail={t("Hold the mouse as you do in a game and swipe side to side {{count}} times, the way that feels level to you. hrtz measures how far your swipes tilt.", { count: SWIPES })}
         art={<Motion kind="sweep" />}
         status={stopped ? <span style={muted}>{stopped}</span> : undefined}
         actions={
           <Button appearance="primary" disabled={!online} onClick={start}>
-            Start
+            {t("Start")}
           </Button>
         }
       />
@@ -104,26 +105,26 @@ export function AngleCheck({ onResult }: TestProps) {
   const set = v.set;
   const can = set !== null && !!settings && !!held;
   const by = Math.abs(v.turn);
-  const slope = `Swiping right, the pointer ${v.tilt > 0 ? "drops" : "climbs"} ${angleText(by)}.`;
-  const at = m.applied ? ` Measured with the sensor angle at ${angleText(m.applied)}.` : "";
+  const slope = v.tilt > 0 ? t("Swiping right, the pointer drops {{angle}}.", { angle: angleText(by) }) : t("Swiping right, the pointer climbs {{angle}}.", { angle: angleText(by) });
+  const at = m.applied ? ` ${t("Measured with the sensor angle at {{angle}}.", { angle: angleText(m.applied) })}` : "";
   const title = v.level
     ? m.applied
-      ? "Your sensor angle suits your grip"
-      : "Your swipes run level"
+      ? t("Your sensor angle suits your grip")
+      : t("Your swipes run level")
     : can
       ? v.isSet
-        ? `Sensor angle set to ${angleText(set)}`
-        : `Your grip needs a sensor angle of ${angleText(set)}`
-      : `Your swipes tilt ${angleText(by)}`;
+        ? t("Sensor angle set to {{angle}}", { angle: angleText(set) })
+        : t("Your grip needs a sensor angle of {{angle}}", { angle: angleText(set) })
+      : t("Your swipes tilt {{angle}}", { angle: angleText(by) });
   const detail = v.level
     ? m.applied
-      ? `Your swipes ran level with the sensor angle at ${angleText(m.applied)}.`
-      : "Your grip needs no sensor angle."
+      ? t("Your swipes ran level with the sensor angle at {{angle}}.", { angle: angleText(m.applied) })
+      : t("Your grip needs no sensor angle.")
     : can
       ? v.isSet
-        ? `It levels swipes that tilted ${angleText(by)}.`
-        : `${slope}${at}${set !== v.want ? ` It would take ${angleText(v.want)}, past what this mouse has.` : ""}`
-      : `${slope} This mouse has no sensor angle setting to level it.`;
+        ? t("It levels swipes that tilted {{angle}}.", { angle: angleText(by) })
+        : `${slope}${at}${set !== v.want ? ` ${t("It would take {{angle}}, past what this mouse has.", { angle: angleText(v.want) })}` : ""}`
+      : `${slope} ${t("This mouse has no sensor angle setting to level it.")}`;
   const apply = () => {
     if (!can) return;
     before = { mouse, angle: held };
@@ -137,25 +138,25 @@ export function AngleCheck({ onResult }: TestProps) {
   };
   const again = (
     <Button appearance={can && !v.level && !v.isSet ? "secondary" : "primary"} disabled={!online} onClick={start}>
-      Check again
+      {t("Check again")}
     </Button>
   );
 
   return (
     <StepCard
-      label="Result"
+      label={t("Result")}
       title={title}
       detail={detail}
       status={
         can && v.isSet && undo && before?.mouse === mouse ? (
           <span style={soft}>
-            Check again to see that your swipes run level.{" "}
+            {t("Check again to see that your swipes run level.")}{" "}
             <Link as="button" onClick={putBack}>
-              Undo
+              {t("Undo")}
             </Link>
           </span>
         ) : v.rough ? (
-          <span style={warn}>Your swipes varied by ±{Math.round(v.spread)}°, so this is a rough reading.</span>
+          <span style={warn}>{t("Your swipes varied by ±{{degrees}}°, so this is a rough reading.", { degrees: Math.round(v.spread) })}</span>
         ) : undefined
       }
       actions={
@@ -163,7 +164,7 @@ export function AngleCheck({ onResult }: TestProps) {
           {again}
           {can && !v.level && !v.isSet && (
             <Button appearance="primary" disabled={!online} onClick={apply}>
-              Set to {angleText(set)}
+              {t("Set to {{angle}}", { angle: angleText(set) })}
             </Button>
           )}
         </>

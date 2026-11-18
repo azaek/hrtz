@@ -22,7 +22,9 @@ import { topRate, type DeviceState, type KnownMouse } from "./api";
 import { BatteryIcon } from "./BatteryIcon";
 import { MousePicture } from "./MousePicture";
 import { seenAt } from "./format";
-import { linkName } from "./links";
+import { num, t } from "./i18n";
+import { linkLabel } from "./links";
+import { hzText } from "./rates";
 import { artOf, supportOf } from "./models";
 import { asleepOnPort, forgetMouse, pickMouse, restoreMouse, setInspecting, startFlow, toast, useMouse, useStore } from "./store";
 import { FLYOUT_PADDING } from "./kit";
@@ -101,14 +103,14 @@ const useStyles = makeStyles({
 
 /** "Connected · 8K receiver", or why it isn't. */
 function linkText(d: DeviceState | null, lastSeen: number | undefined): [string, "ok" | "warn" | "off"] {
-  if (!d) return ["Plug in a receiver or cable", "off"];
-  if (!d.connected) return [lastSeen ? `Not connected · ${seenAt(lastSeen)}` : "Not connected", "off"];
-  if (!d.online) return ["Asleep · move to wake", "warn"];
-  return [`Connected · ${linkName(d)}`, "ok"];
+  if (!d) return [t("Plug in a receiver or cable"), "off"];
+  if (!d.connected) return [lastSeen ? `${t("Not connected")} · ${seenAt(lastSeen)}` : t("Not connected"), "off"];
+  if (!d.online) return [t("Asleep · move to wake"), "warn"];
+  return [`${t("Connected")} · ${linkLabel(d)}`, "ok"];
 }
 
 /** 8000 → "8K", 500 → "500 Hz": how the rate reads on a badge. */
-const rateBadge = (hz: number) => (hz >= 1000 ? `${hz / 1000}K` : `${hz} Hz`);
+const rateBadge = (hz: number) => (hz >= 1000 ? `${num(hz / 1000)}K` : hzText(hz));
 
 /** The polling rate the mouse is set to (as far as its connection carries), and whether the
  *  battery saver lowered it. */
@@ -120,8 +122,8 @@ function RateBadge({ d }: { d: DeviceState }) {
   const hz = Math.min(set, topRate(d.capabilities) ?? set);
   const saving = restore !== null && restore !== hz;
   const label = saving
-    ? `Lowered to ${hz.toLocaleString("en-US")} Hz by battery saver. Back to ${restore.toLocaleString("en-US")} Hz when charged.`
-    : `Polling at ${hz.toLocaleString("en-US")} Hz`;
+    ? t("Lowered to {{rate}} by battery saver. Back to {{restore}} when charged.", { rate: hzText(hz), restore: hzText(restore) })
+    : t("Polling at {{rate}}", { rate: hzText(hz) });
   return (
     <Badge
       className={mergeClasses(s.rate, !saving && s.rateIdle)}
@@ -145,12 +147,12 @@ function UntestedBadge({ d }: { d: DeviceState | null }) {
   if (support !== "untested" && support !== "unknown") return null;
   const label =
     support === "untested"
-      ? "hrtz hasn't been tried on this model yet. Check it and send the report."
-      : "hrtz doesn't know this model yet. Check it and request support.";
+      ? t("hrtz hasn't been tried on this model yet. Check it and send the report.")
+      : t("hrtz doesn't know this model yet. Check it and request support.");
   return (
     <button className={s.untested} title={label} aria-label={label} onClick={() => setInspecting(true, d!.key)}>
       <Badge appearance="tint" shape="rounded" color="warning">
-        {support === "untested" ? "Not tested" : "Not supported yet"}
+        {support === "untested" ? t("Not tested") : t("Not supported yet")}
       </Badge>
     </button>
   );
@@ -171,7 +173,7 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
       <div className={s.device}>
         <div className={s.modelRow}>
           <span className={s.name}>
-            <Body1Strong className={s.model}>{d?.model ?? "No mouse connected"}</Body1Strong>
+            <Body1Strong className={s.model}>{d?.model ?? t("No mouse connected")}</Body1Strong>
             <ChevronUpDown16Regular className={s.chevron} />
           </span>
           {d?.connected && <RateBadge d={d} />}
@@ -185,19 +187,23 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
             <div className={s.batteryLine}>
               <Body1
                 className={s.batteryNumber}
-                title={b.charging ? `Estimated. The mouse reads ${b.rawLevel}% while charging, which runs high.` : undefined}
+                title={b.charging ? t("Estimated. The mouse reads {{percent}}% while charging, which runs high.", { percent: num(b.rawLevel) }) : undefined}
               >
-                <strong>{b.level}%</strong> battery
+                <strong>{num(b.level)}%</strong> {t("battery")}
               </Body1>
               <BatteryIcon level={b.level} charging={b.charging} className={s.batteryIcon} />
             </div>
             <ProgressBar
               value={b.level / 100}
               color={b.charging ? "brand" : b.level <= lowAt ? "error" : b.level <= lowAt * 2 ? "warning" : "success"}
-              aria-label="Battery level"
+              aria-label={t("Battery level")}
             />
             <Caption1 className={s.muted}>
-              {[b.charging ? "Charging" : null, b.millivolts > 0 ? `${(b.millivolts / 1000).toFixed(2)} V` : null, d.firmware ? `firmware ${d.firmware}` : null]
+              {[
+                b.charging ? t("Charging") : null,
+                b.millivolts > 0 ? t("{{volts}} V", { volts: num(b.millivolts / 1000, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }) : null,
+                d.firmware ? t("firmware {{version}}", { version: d.firmware }) : null,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </Caption1>
@@ -210,9 +216,9 @@ function MouseCard({ d, ...rest }: { d: DeviceState | null } & ComponentProps<"d
 
 /** One line under a mouse's name in the list: battery and connection, or when it was last seen. */
 function brief(m: KnownMouse, live: DeviceState | undefined, inUse: boolean): string {
-  if (!live?.connected) return `Not connected · ${seenAt(m.lastSeen)}`;
-  if (!live.online) return "Asleep";
-  const parts = [live.battery ? `${live.battery.level}%` : null, linkName(live), inUse ? "in use" : null];
+  if (!live?.connected) return `${t("Not connected")} · ${seenAt(m.lastSeen)}`;
+  if (!live.online) return t("Asleep");
+  const parts = [live.battery ? `${num(live.battery.level)}%` : null, linkLabel(live), inUse ? t("in use") : null];
   return parts.filter(Boolean).join(" · ");
 }
 
@@ -230,7 +236,7 @@ export function Switcher() {
   const quiet = useStore((st) => st.status.quietPorts);
   const remove = async (key: string) => {
     const gone = await forgetMouse(key);
-    if (gone) toast(`Removed ${gone.model}.`, "info", { label: "Undo", run: () => void restoreMouse(gone) });
+    if (gone) toast(t("Removed {{model}}.", { model: gone.model }), "info", { label: t("Undo"), run: () => void restoreMouse(gone) });
   };
   return (
     <Menu
@@ -240,7 +246,7 @@ export function Switcher() {
     >
       <div className={s.cardWrap}>
         <MenuTrigger disableButtonEnhancement>
-          <MouseCard d={device} aria-label="Switch mouse" />
+          <MouseCard d={device} aria-label={t("Switch mouse")} />
         </MenuTrigger>
         <UntestedBadge d={device} />
       </div>
@@ -258,7 +264,7 @@ export function Switcher() {
                     <span className={s.rowText}>
                       <Body1 className={s.model}>{m.model}</Body1>
                       <Caption1 className={mergeClasses(s.muted, s.model)}>
-                        {asleep ? "Asleep" : brief(m, devices[m.key], inUse === m.key && mice.length > 1)}
+                        {asleep ? t("Asleep") : brief(m, devices[m.key], inUse === m.key && mice.length > 1)}
                       </Caption1>
                     </span>
                   </span>
@@ -271,12 +277,12 @@ export function Switcher() {
                   {row}
                   <Menu>
                     <MenuTrigger disableButtonEnhancement>
-                      <MenuItem aria-label={`${m.model} actions`} submenuIndicator={<MoreHorizontal16Regular />} />
+                      <MenuItem aria-label={t("{{name}} actions", { name: m.model })} submenuIndicator={<MoreHorizontal16Regular />} />
                     </MenuTrigger>
                     <MenuPopover>
                       <MenuList>
                         <MenuItem icon={<Delete16Regular />} onClick={() => void remove(m.key)}>
-                          Remove
+                          {t("Remove")}
                         </MenuItem>
                       </MenuList>
                     </MenuPopover>
@@ -287,7 +293,7 @@ export function Switcher() {
           </div>
           {mice.length > 0 && <MenuDivider />}
           <MenuItem icon={<Add16Regular />} onClick={() => startFlow("add")}>
-            Connect a new mouse
+            {t("Connect a new mouse")}
           </MenuItem>
         </MenuList>
       </MenuPopover>

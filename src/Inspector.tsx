@@ -5,6 +5,7 @@ import { Confirm } from "./cards/participate/Confirm";
 import { MouseCheck } from "./cards/participate/MouseCheck";
 import { asks, idOf, idsOf, nameOf, statusOf, windowsPart, type Part } from "./cards/participate/report";
 import { ReportView } from "./cards/participate/ReportView";
+import { t } from "./i18n";
 import { artOf, supportOf } from "./models";
 import { MousePicture, MousePlaceholder } from "./MousePicture";
 import { pickMouse, setInspecting, toast, useStore } from "./store";
@@ -154,7 +155,7 @@ export function Inspector() {
   const again = (part: Part) => {
     const m = mice?.find((x) => idOf(x) === part.id);
     if (m) check(m, false);
-    else toast("It isn't plugged in any more. Plug it back in to check it again.", "error");
+    else toast(t("It isn't plugged in any more. Plug it back in to check it again."), "error");
   };
 
   // Opened for a mouse: it's picked as soon as it's listed, once (Back then shows the list).
@@ -210,22 +211,22 @@ export function Inspector() {
               <>
                 <MousePlaceholder width={150} />
                 <Title1 as="h1" className={s.title}>
-                  {adding ? "Check its other connection" : "Inspect a mouse"}
+                  {adding ? t("Check its other connection") : t("Inspect a mouse")}
                 </Title1>
                 <Body1 className={s.muted}>
                   {adding
-                    ? "Plug in the mouse's receiver or its cable, then pick it here. Its check goes into the same report."
-                    : "Is your mouse not supported or not tested yet? Check it here and send us the report. It's what lets us add your mouse."}
+                    ? t("Plug in the mouse's receiver or its cable, then pick it here. Its check goes into the same report.")
+                    : t("Is your mouse not supported or not tested yet? Check it here and send us the report. It's what lets us add your mouse.")}
                 </Body1>
                 {mice === null ? (
                   <div className={s.status}>
                     <Spinner size="extra-tiny" />
-                    <Caption1>Looking for mice</Caption1>
+                    <Caption1>{t("Looking for mice")}</Caption1>
                   </div>
                 ) : mice.length === 0 ? (
-                  <Caption1 className={s.muted}>No mouse found. Plug in its receiver or cable.</Caption1>
+                  <Caption1 className={s.muted}>{t("No mouse found. Plug in its receiver or cable.")}</Caption1>
                 ) : (
-                  <div className={s.list} role="list" aria-label="Mice and receivers">
+                  <div className={s.list} role="list" aria-label={t("Mice and receivers")}>
                     {mice.map((m) => {
                       const support = supportOf(m.key, supported);
                       const inReport = adding && parts.some((p) => p.id === idOf(m));
@@ -237,20 +238,20 @@ export function Inspector() {
                           <span className={s.rowText}>
                             <Body1>{nameOf(m)}</Body1>
                             <Caption1 className={s.muted}>
-                              {idsOf(m)} · {inReport ? "In this report" : statusOf(m, support)}
+                              {idsOf(m)} · {inReport ? t("In this report") : statusOf(m, support)}
                             </Caption1>
                           </span>
-                          <Button onClick={() => check(m, !adding)}>{inReport ? "Check again" : "Check"}</Button>
+                          <Button onClick={() => check(m, !adding)}>{inReport ? t("Check again") : t("Check")}</Button>
                         </div>
                       );
                     })}
                   </div>
                 )}
-                <Caption1 className={s.muted}>Keyboards can show up here too, since many include a mouse.</Caption1>
+                <Caption1 className={s.muted}>{t("Keyboards can show up here too, since many include a mouse.")}</Caption1>
                 {/* Back from a report leaves it as it was, until another mouse is checked. */}
                 {!adding && parts.length > 0 && (
                   <Link as="button" onClick={() => setView("report")}>
-                    Back to your report
+                    {t("Back to your report")}
                   </Link>
                 )}
               </>
@@ -258,7 +259,7 @@ export function Inspector() {
           </div>
         </div>
         <div className={s.footer}>
-          <Button onClick={back}>Back</Button>
+          <Button onClick={back}>{t("Back")}</Button>
         </div>
       </div>
     </div>

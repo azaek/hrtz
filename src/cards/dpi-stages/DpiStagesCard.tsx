@@ -5,6 +5,7 @@ import { api, type Capabilities, type Settings } from "@/api";
 import { SettingCard } from "@/components";
 import { Button } from "@/components/ui/button";
 import { dpiRange, fmtDpi } from "@/dpi";
+import { t } from "@/i18n";
 import { AccentBadge, CardList, CardListRow, CardNote, ColorMenu, HoverSwap, MoreMenu, UndoNote } from "@/kit";
 import { useStore } from "@/store";
 import { DpiField } from "./DpiField";
@@ -50,25 +51,25 @@ export function DpiStagesCard({ s, caps, coloursLocked }: { s: Settings; caps: C
 
   const footer = e.removed ? (
     <UndoNote onUndo={e.undo}>
-      Removed stage {e.removed.index + 1} ({fmtDpi(e.removed.stage.dpi)})
+      {t("Removed stage {{n}} ({{dpi}})", { n: e.removed.index + 1, dpi: fmtDpi(e.removed.stage.dpi) })}
     </UndoNote>
   ) : (
-    <CardNote note={e.note} hint="Drag a row's ruler or type a value. Hold Shift for fine steps." />
+    <CardNote note={e.note} hint={t("Drag a row's ruler or type a value. Hold Shift for fine steps.")} />
   );
 
   return (
     <SettingCard
       stacked
       icon={<Gauge20Regular />}
-      title="DPI stages"
+      title={t("DPI stages")}
       description={
         caps.dpiButton
           ? count === 1
-            ? "Add a stage to switch DPI with the DPI button."
-            : "The DPI button cycles through these, top to bottom."
+            ? t("Add a stage to switch DPI with the DPI button.")
+            : t("The DPI button cycles through these, top to bottom.")
           : count === 1
-            ? "Add a stage, then switch to it with Use."
-            : "Switch between them with Use."
+            ? t("Add a stage, then switch to it with Use.")
+            : t("Switch between them with Use.")
       }
       below={
         <CardList footer={footer}>
@@ -78,30 +79,30 @@ export function DpiStagesCard({ s, caps, coloursLocked }: { s: Settings; caps: C
               <CardListRow key={x.id} onFocusCapture={() => e.setSelectedId(x.id)} onPointerDown={() => e.setSelectedId(x.id)}>
                 <span className="w-4 text-center text-xs text-muted-foreground tabular-nums">{n}</span>
                 {limits.colors && (
-                  <ColorMenu color={x.color} label={`Stage ${n} light`} palette={LED_PALETTE} disabled={coloursLocked} onChange={(hex) => e.setColour(x.id, hex)} />
+                  <ColorMenu color={x.color} label={t("Stage {{n}} light", { n })} palette={LED_PALETTE} disabled={coloursLocked} onChange={(hex) => e.setColour(x.id, hex)} />
                 )}
-                <DpiField className="w-36" value={x.dpi} range={range} label={`Stage ${n} DPI`} taken={e.taken(x.id)} onChange={(v) => e.setValue(x.id, v)} onNote={e.setNote} />
+                <DpiField className="w-36" value={x.dpi} range={range} label={t("Stage {{n}} DPI", { n })} taken={e.taken(x.id)} onChange={(v) => e.setValue(x.id, v)} onNote={e.setNote} />
                 <HoverSwap
-                  rest={sens ? `eDPI ${fmtDpi(Math.round(x.dpi * sens.sens))} in ${sens.game}` : null}
+                  rest={sens ? t("eDPI {{edpi}} in {{game}}", { edpi: fmtDpi(Math.round(x.dpi * sens.sens)), game: sens.game }) : null}
                   active={(onActive) => (
-                    <Tape value={x.dpi} range={range} taken={e.taken(x.id)} label={`Stage ${n} DPI dial`} onDrag={(v) => e.drag(x.id, v)} onDragEnd={e.dragEnd} onActive={onActive} />
+                    <Tape value={x.dpi} range={range} taken={e.taken(x.id)} label={t("Stage {{n}} DPI dial", { n })} onDrag={(v) => e.drag(x.id, v)} onDragEnd={e.dragEnd} onActive={onActive} />
                   )}
                 />
                 <div className="ml-auto flex items-center gap-1">
                   {x.id === e.activeId ? (
-                    <AccentBadge>In use</AccentBadge>
+                    <AccentBadge>{t("In use")}</AccentBadge>
                   ) : (
                     <Button variant="ghost" className="text-muted-foreground" onClick={() => e.use(x.id)}>
-                      Use
+                      {t("Use")}
                     </Button>
                   )}
                   <MoreMenu
-                    label={`Stage ${n} actions`}
+                    label={t("Stage {{n}} actions", { n })}
                     items={[
-                      { label: "Move up", icon: <ArrowUp16Regular />, disabled: i === 0, onClick: () => e.move(x.id, -1) },
-                      { label: "Move down", icon: <ArrowDown16Regular />, disabled: i === count - 1, onClick: () => e.move(x.id, 1) },
+                      { label: t("Move up"), icon: <ArrowUp16Regular />, disabled: i === 0, onClick: () => e.move(x.id, -1) },
+                      { label: t("Move down"), icon: <ArrowDown16Regular />, disabled: i === count - 1, onClick: () => e.move(x.id, 1) },
                       "divider",
-                      { label: "Remove", icon: <Delete16Regular />, disabled: count < 2, onClick: () => e.remove(x.id) },
+                      { label: t("Remove"), icon: <Delete16Regular />, disabled: count < 2, onClick: () => e.remove(x.id) },
                     ]}
                   />
                 </div>
@@ -113,7 +114,7 @@ export function DpiStagesCard({ s, caps, coloursLocked }: { s: Settings; caps: C
     >
       {count < limits.maxStages && (
         <FluentButton icon={<Add16Regular />} onClick={e.add}>
-          Add stage
+          {t("Add stage")}
         </FluentButton>
       )}
     </SettingCard>

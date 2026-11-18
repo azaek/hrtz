@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Body1Strong, Button, Caption1, Link } from "@fluentui/react-components";
 import { topRate, type CaptureScreen, type ConnStats, type MeterSample } from "@/api";
+import { num, t } from "@/i18n";
 import { StepCard } from "@/kit";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
@@ -12,19 +13,19 @@ const muted = { color: "var(--colorNeutralForeground3)" };
 const soft = { color: "var(--colorNeutralForeground2)" };
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-const HOW = "If your rate isn't stable, lower rates are tried too.";
+const how = () => t("If your rate isn't stable, lower rates are tried too.");
 
 /** Game mode's screen during a check: the rate being measured, the reports a second coming in once
  *  the pointer is held, and how far along. `before` is the run that made it step down. */
 function screenFor(hz: number, waiting: boolean, live: ConnStats | null, rate: number | null, before: ConnRun | null): CaptureScreen {
   const ms = live?.ms ?? 0;
   return {
-    title: waiting && before ? `Setting ${fmt(hz)} Hz…` : "Move the mouse in quick circles",
-    detail: before ? `${fmt(before.setup.hz)} Hz ${stepReason(before)}, so now ${fmt(hz)} Hz. Keep going.` : `Only fast movement counts. ${HOW}`,
+    title: waiting && before ? t("Setting {{hz}} Hz…", { hz: fmt(hz) }) : t("Move the mouse in quick circles"),
+    detail: before ? t("{{reason}}, so now {{hz}} Hz. Keep going.", { reason: stepReason(before), hz: fmt(hz) }) : `${t("Only fast movement counts.")} ${how()}`,
     figure: !waiting && rate ? fmt(rate) : "–",
-    figureLabel: waiting ? "" : rate ? `reports a second at ${fmt(hz)} Hz` : "Start moving",
+    figureLabel: waiting ? "" : rate ? t("reports a second at {{hz}} Hz", { hz: fmt(hz) }) : t("Start moving"),
     progress: waiting ? 0 : ms / RUN_MS,
-    progressLabel: `${fmt(hz)} Hz · ${(ms / 1000).toFixed(1)} of ${RUN_MS / 1000} s counted`,
+    progressLabel: `${t("{{hz}} Hz", { hz: fmt(hz) })} · ${t("{{counted}} of {{total}} s counted", { counted: num(ms / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), total: RUN_MS / 1000 })}`,
   };
 }
 
@@ -71,19 +72,20 @@ export function ConnectionCheck({ onResult }: TestProps) {
     cap.start(screenFor(hz, false, null, null, null));
     c.start();
   };
-  const stopped = cap.closed === "esc" ? "Stopped. Your polling rate is unchanged." : cap.closed === "away" ? "Stopped because another window took focus. Your polling rate is unchanged." : null;
+  const stopped =
+    cap.closed === "esc" ? t("Stopped. Your polling rate is unchanged.") : cap.closed === "away" ? t("Stopped because another window took focus. Your polling rate is unchanged.") : null;
 
   if (c.hz)
     return (
       <StepCard
-        label={before ? `${fmt(before.setup.hz)} Hz ${stepReason(before)}` : `Checking ${fmt(c.hz)} Hz`}
-        title={c.waiting && before ? `Setting ${fmt(c.hz)} Hz…` : "Move the mouse in quick circles"}
-        detail={HOW}
+        label={before ? stepReason(before) : t("Checking {{hz}} Hz", { hz: fmt(c.hz) })}
+        title={c.waiting && before ? t("Setting {{hz}} Hz…", { hz: fmt(c.hz) }) : t("Move the mouse in quick circles")}
+        detail={how()}
         art={<Motion kind="circles" />}
-        status={<span style={soft}>Running full screen. Press Esc to stop.</span>}
+        status={<span style={soft}>{t("Running full screen. Press Esc to stop.")}</span>}
         actions={
           <Link as="button" onClick={c.stop}>
-            Stop
+            {t("Stop")}
           </Link>
         }
       />
@@ -92,39 +94,37 @@ export function ConnectionCheck({ onResult }: TestProps) {
   if (!latest || !v)
     return (
       <StepCard
-        label="About 10 seconds"
-        title="Move the mouse in quick circles"
-        detail={`Measured the way a game reads the mouse. ${HOW}`}
+        label={t("About 10 seconds")}
+        title={t("Move the mouse in quick circles")}
+        detail={`${t("Measured the way a game reads the mouse.")} ${how()}`}
         art={<Motion kind="circles" />}
         status={stopped ? <span style={muted}>{stopped}</span> : undefined}
         actions={
           <Button appearance="primary" disabled={!device.online} onClick={start}>
-            Start
+            {t("Start")}
           </Button>
         }
       />
     );
 
   const first = latest.runs[0];
-  const next = tips(latest, games).filter((t) => !skipped.includes(t.key))[0];
+  const next = tips(latest, games).filter((x) => !skipped.includes(x.key))[0];
   const switchable = !!device.settings && v.hz !== device.settings.pollingHz;
 
   return (
     <div className="tw flex flex-col gap-4">
-      <StepCard label={`Check ${latest.n} · ${setupText(first.setup)}`} title={v.title} detail={v.detail}>
+      <StepCard label={`${t("Check {{n}}", { n: latest.n })} · ${setupText(first.setup)}`} title={v.title} detail={v.detail}>
         {latest.runs.length > 1 ? <RateTable runs={latest.runs} chosen={v.hz} /> : <GapBars stats={first.stats} />}
         {prev && (
-          <Caption1 style={soft}>
-            Against check {prev.n}: {lower(comparison(prev.runs[0], first))}
-          </Caption1>
+          <Caption1 style={soft}>{t("Against check {{n}}: {{comparison}}", { n: prev.n, comparison: lower(comparison(prev.runs[0], first)) })}</Caption1>
         )}
         {next && (
           <div className="flex flex-col gap-2 border-t pt-3">
-            <Body1Strong>{next.game ? "Good to know" : "Next, try this"}</Body1Strong>
+            <Body1Strong>{next.game ? t("Good to know") : t("Next, try this")}</Body1Strong>
             <Caption1 style={soft}>{next.text}</Caption1>
             <div>
               <Link as="button" onClick={() => setSkipped((s) => [...s, next.key])}>
-                Show another tip
+                {t("Show another tip")}
               </Link>
             </div>
           </div>
@@ -134,11 +134,11 @@ export function ConnectionCheck({ onResult }: TestProps) {
           <div className="flex items-center gap-3">
             {switchable && (
               <Button appearance="primary" disabled={!device.online} onClick={() => void commit({ ...device.settings!, pollingHz: v.hz })}>
-                Use {fmt(v.hz)} Hz
+                {t("Use {{hz}} Hz", { hz: fmt(v.hz) })}
               </Button>
             )}
             <Button appearance={switchable ? "secondary" : "primary"} disabled={!device.online} onClick={start}>
-              Check again
+              {t("Check again")}
             </Button>
           </div>
         </div>
@@ -146,14 +146,16 @@ export function ConnectionCheck({ onResult }: TestProps) {
       <div className="flex items-baseline justify-between gap-3">
         <Caption1 style={muted}>
           {checks.length > 1
-            ? `Earlier: ${checks
-                .slice(0, -1)
-                .map((k) => `check ${k.n}, ${setupText(k.runs[0].setup)}: ${verdict(k).value}`)
-                .join("; ")}.`
+            ? t("Earlier: {{checks}}.", {
+                checks: checks
+                  .slice(0, -1)
+                  .map((k) => t("check {{n}}, {{setup}}: {{result}}", { n: k.n, setup: setupText(k.runs[0].setup), result: verdict(k).value }))
+                  .join("; "),
+              })
             : ""}
         </Caption1>
         <Link as="button" onClick={clearChecks}>
-          Start over
+          {t("Start over")}
         </Link>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, on, type CaptureInput, type Capabilities, type Settings } from "@/api";
+import { t } from "@/i18n";
 import { hzText } from "@/rates";
 import { commit, useStore } from "@/store";
 import type { TestResult } from "./result";
@@ -39,7 +40,8 @@ export type Pair = {
 };
 
 /** What this mouse can be blind-tested on: its fastest polling rate against 1,000 Hz (or half the
- *  fastest, on a mouse that tops out at 1,000), and motion sync where it has it. */
+ *  fastest, on a mouse that tops out at 1,000), and motion sync where it has it. Their words are
+ *  read where they're shown, so a result kept from before reads in the language shown now. */
 export function pairsFor(caps: Capabilities | null | undefined, s: Settings | null | undefined): Pair[] {
   const out: Pair[] = [];
   const rates = caps?.polling?.rates ?? [];
@@ -48,11 +50,21 @@ export function pairsFor(caps: Capabilities | null | undefined, s: Settings | nu
     const low = top >= 2000 && rates.includes(1000) ? 1000 : rates.includes(top / 2) ? top / 2 : rates[rates.length - 2];
     out.push({
       id: "polling",
-      name: "Polling rate",
-      asked: hzText(top),
-      other: hzText(low),
-      feel: hzText(top),
-      question: `Which was ${hzText(top)}?`,
+      get name() {
+        return t("Polling rate");
+      },
+      get asked() {
+        return hzText(top);
+      },
+      get other() {
+        return hzText(low);
+      },
+      get feel() {
+        return hzText(top);
+      },
+      get question() {
+        return t("Which was {{rate}}?", { rate: hzText(top) });
+      },
       low,
       with: (x, a) => ({ ...x, pollingHz: a ? top : low }),
     });
@@ -60,11 +72,21 @@ export function pairsFor(caps: Capabilities | null | undefined, s: Settings | nu
   if (caps?.motionSync && s?.motionSync !== undefined) {
     out.push({
       id: "motionSync",
-      name: "Motion sync",
-      asked: "motion sync on",
-      other: "motion sync off",
-      feel: "motion sync",
-      question: "Which had motion sync on?",
+      get name() {
+        return t("Motion sync");
+      },
+      get asked() {
+        return t("motion sync on");
+      },
+      get other() {
+        return t("motion sync off");
+      },
+      get feel() {
+        return t("motion sync");
+      },
+      get question() {
+        return t("Which had motion sync on?");
+      },
       with: (x, a) => ({ ...x, motionSync: a }),
     });
   }
@@ -109,14 +131,18 @@ export type Result = {
 
 /** What a result says, in a few words, for the Lab's list. */
 export function blindSummary(r: Result): TestResult {
-  const value = `${r.right} of ${r.rounds} right`;
-  if (r.right >= 8) return { value, detail: `can feel ${r.pair.feel}`, tone: "good" };
-  return { value, detail: r.chance < 0.2 ? `${r.pair.feel}: maybe` : `${r.pair.feel}: can't tell`, tone: "neutral" };
+  const value = t("{{right}} of {{rounds}} right", { right: r.right, rounds: r.rounds });
+  if (r.right >= 8) return { value, detail: t("can feel {{feel}}", { feel: r.pair.feel }), tone: "good" };
+  return { value, detail: r.chance < 0.2 ? t("{{feel}}: maybe", { feel: r.pair.feel }) : t("{{feel}}: can't tell", { feel: r.pair.feel }), tone: "neutral" };
 }
 
 /** The result in a line to paste anywhere. */
-export const shareText = (r: Result) =>
-  `${r.right} of ${r.rounds} right telling ${r.pair.asked} from ${r.pair.other} in hrtz's blind test` + (r.right >= 8 ? ". I can feel it." : ".");
+export const shareText = (r: Result) => {
+  const v = { right: r.right, rounds: r.rounds, asked: r.pair.asked, other: r.pair.other };
+  return r.right >= 8
+    ? t("{{right}} of {{rounds}} right telling {{asked}} from {{other}} in hrtz's blind test. I can feel it.", v)
+    : t("{{right}} of {{rounds}} right telling {{asked}} from {{other}} in hrtz's blind test.", v);
+};
 
 // The last result, kept for the session.
 let kept: Result | null = null;

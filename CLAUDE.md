@@ -109,6 +109,16 @@ Don't guess at a card: build the directions in a lab, a `lab-*.html` page that s
 
 A lab can show its directions inside the real app: `src/lab/Frame.tsx` renders `App` at the window's size with one page swapped (`App`'s `pages` and `start` props), the picker and a panel. It runs on `src/lab/fake/backend.ts`, which answers the app's commands and sends its events from `src/lab/data/` (this PC's settings, backups and games, written by the ignored `dump_lab_*` Rust tests; git-ignored, since it holds personal paths). Keep the stand-in's commands in step with `src/api.ts`.
 
+## Text and translations
+
+The app is translated (`src/i18n.ts`, i18next). Every line of text the user sees goes through `t()`, and its key is the English itself: `t("Polling rate")`.
+- Values go in as placeholders, never by joining pieces: `t("At {{dpi}} DPI", { dpi: num(dpi) })`. Numbers shown go through `num()`, and dates through `dateLocale()`.
+- A count takes `count` and the singular: `t("{{count}} presses", { count, defaultValue_one: "{{count}} press" })`.
+- `t()` runs where the text is shown, never when a module loads. A table of labels is a function that calls `t()`, or marks each label with `msg()` and calls `t(label)` where it's shown.
+- What we read stays English: the mouse check's report, its issue and its URL. Helpers that name a setting take a `Speech` for that (`actionLabel(a, english)`).
+- After changing text, run `pnpm strings`. It gathers the keys into `src/locales`, where `uk.json` and `ru.json` fill them in (`src/locales/README.md` is the translators' guide).
+- Rust's text (the tray, notifications, the pop-up) uses `i18n::tr` on the same files. Each key there is listed in `src/locales/backend.ts`, and a test fails until it is.
+
 ## Commits
 
 Never add a `Co-Authored-By` line, or any other credit to an AI, in a commit or PR.

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Body1, Caption1 } from "@fluentui/react-components";
 import { ArrowCounterclockwise16Regular } from "@fluentui/react-icons";
 import type { Capabilities, Settings } from "@/api";
+import { t } from "@/i18n";
 import { CardNote, MoreMenu, Pane, PaneFooter, PaneHeader, TileChoice, UndoNote } from "@/kit";
 import type { ModelArt } from "@/models";
 import { FunctionOptions } from "./FunctionOptions";
-import { CATALOGS, DPI_BUTTON, firstOf, FUNCTIONS, functionOf, shortLabel } from "./functions";
+import { CATALOGS, DPI_BUTTON, firstOf, functionOf, functions, shortLabel } from "./functions";
 import { Chip, MouseArt } from "./MouseArt";
 import { useButtons } from "./useButtons";
 
@@ -52,8 +53,8 @@ export function ButtonsPanel({
     <UndoNote onUndo={e.revert}>{e.undo.text}</UndoNote>
   ) : (
     <CardNote
-      note={e.note ?? (online ? null : { text: "The mouse is asleep. Move it to wake it." })}
-      hint="Select a button in the list or on the picture. Changes save to the mouse instantly."
+      note={e.note ?? (online ? null : { text: t("The mouse is asleep. Move it to wake it.") })}
+      hint={t("Select a button in the list or on the picture. Changes save to the mouse instantly.")}
     />
   );
 
@@ -63,12 +64,12 @@ export function ButtonsPanel({
         {/* The buttons. */}
         <Pane>
           <PaneHeader
-            title="What each button does"
-            description="Saved on the mouse."
+            title={t("What each button does")}
+            description={t("Saved on the mouse.")}
             actions={
               <MoreMenu
-                label="Buttons"
-                items={[{ label: "Restore default buttons", icon: <ArrowCounterclockwise16Regular />, disabled: e.isDefault || off, onClick: e.restore }]}
+                label={t("Buttons")}
+                items={[{ label: t("Restore default buttons"), icon: <ArrowCounterclockwise16Regular />, disabled: e.isDefault || off, onClick: e.restore }]}
               />
             }
           />
@@ -78,7 +79,7 @@ export function ButtonsPanel({
                 <MouseArt art={art} buttons={physical} width={212} lit={lit ?? sel} onLight={setLit} onPick={pick} />
               </div>
             )}
-            <div role="list" aria-label="Buttons" className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div role="list" aria-label={t("Buttons")} className="flex min-w-0 flex-1 flex-col gap-0.5">
               {physical.map(([i, nm], k) => (
                 <button
                   key={i}
@@ -95,7 +96,7 @@ export function ButtonsPanel({
                   <span className="flex min-w-0 flex-col">
                     <Body1>{nm}</Body1>
                     <Caption1 className="truncate" style={muted}>
-                      {i === DPI_BUTTON ? `Underneath · ${shortLabel(actions[i])}` : shortLabel(actions[i])}
+                      {i === DPI_BUTTON ? `${t("Underneath")} · ${shortLabel(actions[i])}` : shortLabel(actions[i])}
                     </Caption1>
                   </span>
                 </button>
@@ -105,19 +106,19 @@ export function ButtonsPanel({
         </Pane>
 
         {/* The one picked. */}
-        <Pane aria-label={`${name} button`}>
+        <Pane aria-label={t("{{name}} button", { name })}>
           <PaneHeader
             strong
             lead={<Chip n={n} lit />}
             title={name}
-            description={onlyLeft ? "Your only left click, so it can't be reassigned." : shortLabel(actions[sel])}
+            description={onlyLeft ? t("Your only left click, so it can't be reassigned.") : shortLabel(actions[sel])}
           />
           <div className="px-4">
             <TileChoice
-              label={`What ${name} does`}
+              label={t("What {{name}} does", { name })}
               value={functionOf(shown)}
               disabled={off}
-              options={FUNCTIONS.filter((f) => catalog.fns.includes(f.value)).map((f) => ({ ...f, disabled: onlyLeft && f.value !== "mouse" }))}
+              options={functions().filter((f) => catalog.fns.includes(f.value)).map((f) => ({ ...f, disabled: onlyLeft && f.value !== "mouse" }))}
               onChange={(fn) => e.set(sel, firstOf(fn, catalog))}
             />
           </div>

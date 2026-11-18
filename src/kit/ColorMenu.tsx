@@ -1,5 +1,6 @@
 import { Menu, MenuGroup, MenuGroupHeader, MenuItemRadio, MenuList, MenuPopover, MenuTrigger } from "@fluentui/react-components";
 import { cn } from "@/lib/utils";
+import { t } from "@/i18n";
 import { IconButton } from "./IconButton";
 
 export type Swatch = { name: string; hex: string };
@@ -9,7 +10,11 @@ export function Dot({ color, className }: { color: string; className?: string })
   return <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/25 ring-inset", className)} style={{ backgroundColor: color }} />;
 }
 
-export const swatchName = (palette: Swatch[], hex: string) => palette.find((p) => p.hex === hex.toUpperCase())?.name ?? hex.toUpperCase();
+/** A colour's name, in the language shown (a palette's names are `msg()` keys); its hex if unnamed. */
+export const swatchName = (palette: Swatch[], hex: string) => {
+  const name = palette.find((p) => p.hex === hex.toUpperCase())?.name;
+  return name ? t(name) : hex.toUpperCase();
+};
 
 /**
  * Pick one colour from `palette`: a 32px Fluent button showing the colour, and a Fluent menu of
@@ -40,7 +45,7 @@ export function ColorMenu({
             <MenuGroupHeader>{label}</MenuGroupHeader>
             {palette.map((p) => (
               <MenuItemRadio key={p.hex} name="colour" value={p.hex} icon={<Dot color={p.hex} className="size-3" />}>
-                {p.name}
+                {t(p.name)}
               </MenuItemRadio>
             ))}
           </MenuGroup>

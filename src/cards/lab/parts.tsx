@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Caption1, Caption1Strong } from "@fluentui/react-components";
 import { api, lodName, on, type CaptureClosed, type CaptureScreen, type ConnStats, type Lod, type MeterSample } from "@/api";
+import { num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import { GAP_BINS, fill, fmt, got, perMinute, type ConnRun } from "./connection";
 import { leakPerLift, stallsPerMinute, type LodResult } from "./liftoff";
@@ -17,7 +18,7 @@ export function GapBars({ stats }: { stats: ConnStats }) {
   const top = Math.max(1, ...stats.gaps);
   const h = (n: number) => (n ? 4 + (Math.log10(n + 1) / Math.log10(top + 1)) * 36 : 0);
   return (
-    <figure className="tw m-0 flex flex-col gap-1" aria-label="Gaps by polls missed in a row">
+    <figure className="tw m-0 flex flex-col gap-1" aria-label={t("Gaps by polls missed in a row")}>
       <div className="grid grid-cols-6 items-end gap-1.5" style={{ height: 56 }}>
         {stats.gaps.map((n, i) => (
           <div key={i} className="flex flex-col items-center justify-end gap-0.5">
@@ -39,7 +40,7 @@ export function GapBars({ stats }: { stats: ConnStats }) {
         ))}
       </div>
       <figcaption className="text-[11px]" style={muted}>
-        Gaps by polls missed in a row
+        {t("Gaps by polls missed in a row")}
       </figcaption>
     </figure>
   );
@@ -51,7 +52,7 @@ export function RateTable({ runs, chosen }: { runs: ConnRun[]; chosen: number })
   const right = { textAlign: "right" } as const;
   return (
     <div className="tw grid items-center gap-x-4 gap-y-1.5 tabular-nums" style={{ gridTemplateColumns: "auto repeat(3, minmax(0, 1fr))" }}>
-      {["Rate", "Reports a second", "Stutters", "Polls filled"].map((h, i) => (
+      {[t("Rate"), t("Reports a second"), t("Stutters"), t("Polls filled")].map((h, i) => (
         <Caption1 key={h} style={{ ...muted, ...(i ? right : {}) }}>
           {h}
         </Caption1>
@@ -60,10 +61,10 @@ export function RateTable({ runs, chosen }: { runs: ConnRun[]; chosen: number })
         const stutters = perMinute(r.stats);
         return (
           <Fragment key={r.setup.hz}>
-            <Caption1Strong style={r.setup.hz === chosen ? good : undefined}>{fmt(r.setup.hz)} Hz</Caption1Strong>
+            <Caption1Strong style={r.setup.hz === chosen ? good : undefined}>{t("{{hz}} Hz", { hz: fmt(r.setup.hz) })}</Caption1Strong>
             <Caption1 style={right}>{fmt(got(r))}</Caption1>
-            <Caption1 style={{ ...right, ...(stutters >= 2 ? warn : {}) }}>{stutters < 0.05 ? "none" : `${stutters >= 10 ? fmt(stutters) : stutters.toFixed(1)} a minute`}</Caption1>
-            <Caption1 style={right}>{Math.round(fill(r.stats) * 100)}%</Caption1>
+            <Caption1 style={{ ...right, ...(stutters >= 2 ? warn : {}) }}>{stutters < 0.05 ? t("none") : t("{{n}} a minute", { n: stutters >= 10 ? fmt(stutters) : num(stutters, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</Caption1>
+            <Caption1 style={right}>{t("{{percent}}%", { percent: Math.round(fill(r.stats) * 100) })}</Caption1>
           </Fragment>
         );
       })}
@@ -199,7 +200,7 @@ export function LodTable({ tried, dpi, chosen }: { tried: LodResult[]; dpi: numb
   const right = { textAlign: "right" } as const;
   return (
     <div className="tw grid items-center gap-x-4 gap-y-1.5 tabular-nums" style={{ gridTemplateColumns: "auto repeat(2, minmax(0, 1fr))" }}>
-      {["Lift-off", "Lost track", "Moved per lift"].map((h, i) => (
+      {[t("Lift-off"), t("Lost track"), t("Moved per lift")].map((h, i) => (
         <Caption1 key={h} style={{ ...muted, ...(i ? right : {}) }}>
           {h}
         </Caption1>
@@ -209,7 +210,7 @@ export function LodTable({ tried, dpi, chosen }: { tried: LodResult[]; dpi: numb
         return (
           <Fragment key={r.lod}>
             <Caption1Strong style={chosen === r.lod ? good : undefined}>{lodName(r.lod)}</Caption1Strong>
-            <Caption1 style={{ ...right, ...(stalls >= 1 ? warn : {}) }}>{stalls < 0.05 ? "never" : `${stalls.toFixed(1)} a minute`}</Caption1>
+            <Caption1 style={{ ...right, ...(stalls >= 1 ? warn : {}) }}>{stalls < 0.05 ? t("never") : t("{{n}} a minute", { n: num(stalls, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</Caption1>
             <Caption1 style={right}>{mm(leakPerLift(r, dpi))}</Caption1>
           </Fragment>
         );

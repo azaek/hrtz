@@ -1,6 +1,7 @@
 import { currentDpi, type Capabilities, type ProfileSnapshot, type Settings } from "@/api";
 import { DEFAULT_ACTIONS, sameAction } from "@/cards/buttons/functions";
 import { fmtDpi } from "@/dpi";
+import { msg, t } from "@/i18n";
 import { hzText } from "@/rates";
 
 /** What a profile holds, for the Profiles page. */
@@ -23,10 +24,10 @@ export function summaryOf(i: number, inUse: number | null, live: Settings | null
 
 /** "1,600 DPI · 8,000 Hz · 2 buttons changed", or "Not seen yet". */
 export function summaryText(s: Summary | null) {
-  if (!s) return "Not seen yet";
-  const buttons = s.buttonsChanged ? ` · ${s.buttonsChanged} button${s.buttonsChanged > 1 ? "s" : ""} changed` : "";
-  return `${fmtDpi(s.dpi)} DPI · ${hzText(s.hz)}${buttons}`;
+  if (!s) return t("Not seen yet");
+  const buttons = s.buttonsChanged ? ` · ${t("{{count}} buttons changed", { count: s.buttonsChanged, defaultValue_one: "{{count}} button changed" })}` : "";
+  return `${t("{{dpi}} DPI", { dpi: fmtDpi(s.dpi) })} · ${hzText(s.hz)}${buttons}`;
 }
 
-/** Why a profile has no summary. */
-export const UNSEEN = "Switch to this profile once to see its settings. The mouse only reports the active profile.";
+/** Why a profile has no summary, shown with `t()`. */
+export const UNSEEN = msg("Switch to this profile once to see its settings. The mouse only reports the active profile.");

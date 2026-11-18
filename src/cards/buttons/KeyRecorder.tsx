@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Input } from "@fluentui/react-components";
 import { Keyboard16Regular } from "@fluentui/react-icons";
 import { comboLabel, KEY_USAGE, MODIFIER_BIT } from "@/hid";
+import { t } from "@/i18n";
 
 type Combo = { modifiers: number; keys: number[] };
 
@@ -45,10 +46,10 @@ export function KeyRecorder(props: {
       ref={ref}
       readOnly
       disabled={props.disabled}
-      aria-label={`${props.label}. Press the keys together, then let go.`}
+      aria-label={t("{{label}}. Press the keys together, then let go.", { label: props.label })}
       contentBefore={<Keyboard16Regular />}
       value={count(shown) ? comboLabel(shown.modifiers, shown.keys) : ""}
-      placeholder={focused ? "Press up to three keys" : "Click here, then press keys"}
+      placeholder={focused ? t("Press up to three keys") : t("Click here, then press keys")}
       style={{ width: 240 }}
       onFocus={() => setFocused(true)}
       onBlur={() => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type AppRule, type KnownMouse } from "@/api";
+import { t } from "@/i18n";
 import { saveMousePrefs } from "@/store";
 import type { PickedApp } from "./AppPicker";
 
@@ -38,7 +39,7 @@ export function useRules(mouse: KnownMouse) {
   };
   const move = (r: AppRule, profile: number) => save(prefs.rules.map((x) => (x.exe === r.exe ? { ...x, profile } : x)));
   const remove = (r: AppRule) => {
-    setUndo({ text: `Removed ${appName(r)}`, prev: prefs.rules });
+    setUndo({ text: t("Removed {{name}}", { name: appName(r) }), prev: prefs.rules });
     clearTimeout(timer.current ?? 0);
     timer.current = window.setTimeout(() => setUndo(null), UNDO_MS);
     save(prefs.rules.filter((x) => x.exe !== r.exe));

@@ -5,6 +5,7 @@ pub mod clicks;
 pub mod diag;
 pub mod games;
 pub mod hud;
+pub mod i18n;
 pub mod inspect;
 pub mod installed;
 pub mod mice;
@@ -244,13 +245,13 @@ fn update_ready(app: AppHandle, ctx: State<'_, Arc<Ctx>>, version: String) {
     let _ = app
         .notification()
         .builder()
-        .title(format!("hrtz {version} is ready"))
-        .body("Choose Restart to update in the tray menu or the sidebar.")
+        .title(i18n::tr_with("hrtz {{version}} is ready", &[("version", &version)]))
+        .body(i18n::tr("Choose Restart to update in the tray menu or the sidebar."))
         .show();
     if first
         && let Some(menu) = ctx.tray_menu.lock().as_ref()
         && let (Ok(item), Ok(sep)) = (
-            MenuItem::with_id(&app, "update", "Restart to update", true, None::<&str>),
+            MenuItem::with_id(&app, "update", i18n::tr("Restart to update"), true, None::<&str>),
             PredefinedMenuItem::separator(&app),
         )
     {
@@ -432,7 +433,12 @@ fn set_prefs(app: AppHandle, ctx: State<'_, Arc<Ctx>>, prefs: Prefs) -> CmdResul
     if prefs.signalrgb != ctx.prefs.read().signalrgb {
         ctx.signalrgb.set_on(prefs.signalrgb);
     }
+    let relabel = prefs.language != ctx.prefs.read().language;
     *ctx.prefs.write() = prefs.clone();
+    if relabel {
+        i18n::set_language(prefs.language.as_deref());
+        relabel_tray(&ctx);
+    }
     refresh_tray(&ctx, &ctx.hub.primary_state());
     ctx.hud.prefs(&prefs);
     let _ = app.emit("prefs", prefs);
@@ -962,8 +968,8 @@ fn notify_low_battery(app: &AppHandle, level: u8, model: &str) {
     let _ = app
         .notification()
         .builder()
-        .title(format!("Mouse battery at {level}%"))
-        .body(format!("Charge your {model} soon."))
+        .title(i18n::tr_with("Mouse battery at {{level}}%", &[("level", &level.to_string())]))
+        .body(i18n::tr_with("Charge your {{model}} soon.", &[("model", model)]))
         .show();
 }
 
@@ -971,8 +977,11 @@ fn notify_saver(app: &AppHandle, level: u8, to: u32, from: u32, model: &str) {
     let _ = app
         .notification()
         .builder()
-        .title(format!("Battery saver lowered polling to {}", hud::model::rate(to)))
-        .body(format!("Battery at {level}%. Your {model} returns to {} when charged.", hud::model::rate(from)))
+        .title(i18n::tr_with("Battery saver lowered polling to {{rate}}", &[("rate", &hud::model::rate(to))]))
+        .body(i18n::tr_with(
+            "Battery at {{level}}%. Your {{model}} returns to {{rate}} when charged.",
+            &[("level", &level.to_string()), ("model", model), ("rate", &hud::model::rate(from))],
+        ))
         .show();
 }
 
@@ -1114,7 +1123,7 @@ fn refresh_tray(ctx: &Ctx, s: &DeviceState) {
         }
         let mouse = mouse_prefs(ctx, s);
         for (i, item) in items.iter().enumerate() {
-            let _ = item.set_text(mouse.profile_name(i as u8));
+            let _ = item.set_text(mouse.profile_label(i as u8));
             let _ = item.set_checked(s.profile == Some(i as u8));
             let _ = item.set_enabled(s.online);
         }
@@ -1130,7 +1139,7 @@ fn tooltip_mice(ctx: &Ctx, first: &DeviceState) -> Vec<(DeviceState, Option<Stri
         .into_iter()
         .map(|s| {
             let several = s.capabilities.as_ref().and_then(|c| c.profiles).is_some_and(|n| n > 1);
-            let name = s.profile.filter(|_| several).map(|i| mouse_prefs(ctx, &s).profile_name(i));
+            let name = s.profile.filter(|_| several).map(|i| mouse_prefs(ctx, &s).profile_label(i));
             (s, name)
         })
         .collect()
@@ -1150,7 +1159,7 @@ fn fit_tray_profiles(ctx: &Ctx, tray: &TrayIcon, items: &mut Vec<CheckMenuItem<t
         let Ok(item) = CheckMenuItem::with_id(
             tray.app_handle(),
             format!("profile-{i}"),
-            format!("Profile {}", i + 1),
+            i18n::tr_with("Profile {{n}}", &[("n", &(i + 1).to_string())]),
             false,
             false,
             None::<&str>,
@@ -1176,9 +1185,16 @@ fn tooltip(mice: &[(DeviceState, Option<String>)]) -> String {
             .iter()
             .filter(|(s, _)| s.connected && s.key.is_some())
             .map(|(s, name)| {
-                let model = s.model.clone().unwrap_or_else(|| "Mouse".into());
-                let Some(b) = s.battery.as_ref().filter(|_| s.online) else { return format!("{model}: asleep") };
-                let mut parts = vec![format!("{}%{}", b.level, if b.charging { " charging" } else { "" })];
+                let model = s.model.clone().unwrap_or_else(|| i18n::tr("Mouse"));
+                let Some(b) = s.battery.as_ref().filter(|_| s.online) else {
+                    return i18n::tr_with("{{model}}: asleep", &[("model", &model)]);
+                };
+                let level = b.level.to_string();
+                let mut parts = vec![if b.charging {
+                    i18n::tr_with("{{level}}% charging", &[("level", &level)])
+                } else {
+                    format!("{level}%")
+                }];
                 let settings = s.settings.as_ref();
                 if let Some(hz) = settings.and_then(|x| x.polling_hz) {
                     parts.push(hud::model::rate(hz));
@@ -1192,7 +1208,7 @@ fn tooltip(mice: &[(DeviceState, Option<String>)]) -> String {
                 format!("{model}: {}", parts.join(" · "))
             })
             .collect();
-        if shown.is_empty() { "hrtz: no mouse connected".into() } else { shown.join("\n") }
+        if shown.is_empty() { i18n::tr("hrtz: no mouse connected") } else { shown.join("\n") }
     };
     let fits = |t: &String| t.chars().count() <= 127;
     [lines(true, true), lines(true, false), lines(false, false)]
@@ -1378,15 +1394,19 @@ fn show_osd(app: &AppHandle, ctx: &Ctx, e: &DeviceEvent, prefs: &Prefs, mouse: &
         detail: String,
     }
     let payload = match e {
-        DeviceEvent::Dpi { stage, dpi } => {
-            Osd { kind: "dpi", title: format!("{} DPI", thousands(*dpi)), detail: format!("Stage {}", stage + 1) }
-        }
+        DeviceEvent::Dpi { stage, dpi } => Osd {
+            kind: "dpi",
+            title: format!("{} DPI", thousands(*dpi)),
+            detail: i18n::tr_with("Stage {{stage}}", &[("stage", &(stage + 1).to_string())]),
+        },
         DeviceEvent::Polling { hz } => {
-            Osd { kind: "polling", title: hud::model::rate(*hz), detail: "Polling rate".into() }
+            Osd { kind: "polling", title: hud::model::rate(*hz), detail: i18n::tr("Polling rate") }
         }
-        DeviceEvent::Profile { index } => {
-            Osd { kind: "profile", title: mouse.profile_name(*index), detail: format!("Profile {}", index + 1) }
-        }
+        DeviceEvent::Profile { index } => Osd {
+            kind: "profile",
+            title: mouse.profile_label(*index),
+            detail: i18n::tr_with("Profile {{n}}", &[("n", &(index + 1).to_string())]),
+        },
         DeviceEvent::Progress { .. } | DeviceEvent::Pairing { .. } => return,
     };
     if let Ok(Some(m)) = osd.primary_monitor() {
@@ -1621,14 +1641,28 @@ fn show_main(app: &AppHandle) {
     }
 }
 
+/// The tray menu's own items in the language just picked; `refresh_tray` does the profiles.
+fn relabel_tray(ctx: &Ctx) {
+    let Some(menu) = ctx.tray_menu.lock().clone() else { return };
+    for (id, text) in
+        [("open", i18n::tr("Open hrtz")), ("quit", i18n::tr("Quit")), ("update", i18n::tr("Restart to update"))]
+    {
+        if let Some(item) = menu.get(id).and_then(|i| i.as_menuitem().cloned()) {
+            let _ = item.set_text(text);
+        }
+    }
+}
+
 fn build_tray(app: &AppHandle, ctx: &Ctx) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open hrtz", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", i18n::tr("Open hrtz"), true, None::<&str>)?;
     // The last mouse's names until one connects; `refresh_tray` keeps them current after.
     let names = ctx.known.read().last_seen().map(|m| m.prefs.clone()).unwrap_or_default();
     let profiles: Vec<CheckMenuItem<tauri::Wry>> = (0..4u8)
-        .map(|i| CheckMenuItem::with_id(app, format!("profile-{i}"), names.profile_name(i), false, false, None::<&str>))
+        .map(|i| {
+            CheckMenuItem::with_id(app, format!("profile-{i}"), names.profile_label(i), false, false, None::<&str>)
+        })
         .collect::<tauri::Result<_>>()?;
-    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", i18n::tr("Quit"), true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&open, &sep1];
@@ -1734,6 +1768,7 @@ pub fn run() {
             // What a prefs file from before several mice held for its mouse is kept for the first
             // Zaopin to connect, before the prefs are saved without it.
             let (prefs, legacy) = Prefs::load_with_legacy(&prefs_path);
+            i18n::set_language(prefs.language.as_deref());
             let mut known = KnownMice::load(Some(config_dir.join("mice.json")));
             if let Some(legacy) = legacy {
                 if known.hold_legacy(legacy) {

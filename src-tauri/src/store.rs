@@ -176,6 +176,14 @@ impl MousePrefs {
         self.profile_names.get(index as usize).cloned().unwrap_or_else(|| format!("Profile {}", index + 1))
     }
 
+    /// `profile_name`, to show: one never renamed (kept as "Profile 2", in English, since that's
+    /// what the mouse and the drivers take as no name) in the language shown.
+    pub fn profile_label(&self, index: u8) -> String {
+        let name = self.profile_name(index);
+        let n = (index + 1).to_string();
+        if name == format!("Profile {n}") { crate::i18n::tr_with("Profile {{n}}", &[("n", &n)]) } else { name }
+    }
+
     /// Make room for `count` profiles (the Zaopins have 4, the Superlights 5): a name and a snapshot
     /// slot each. Returns whether anything was added; nothing is taken away.
     pub fn fit_profiles(&mut self, count: u8) -> bool {

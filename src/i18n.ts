@@ -19,13 +19,10 @@ export type Language = (typeof LANGUAGES)[number]["code"];
 /** The language picked in Settings, kept here too, so every window (the OSD's too) starts in it. */
 const KEY = "hrtz.language";
 
-/** The first of Windows' languages that hrtz speaks; English if none. */
+/** Windows' display language (WebView2's `navigator.language`), if hrtz has it; English if not.
+ *  The tray and notifications take the same one (`src-tauri/src/i18n.rs`). */
 export function windowsLanguage(): Language {
-  for (const tag of navigator.languages?.length ? navigator.languages : [navigator.language]) {
-    const hit = LANGUAGES.find((l) => l.code === tag.toLowerCase().split("-")[0]);
-    if (hit) return hit.code;
-  }
-  return "en";
+  return LANGUAGES.find((l) => l.code === navigator.language.toLowerCase().split("-")[0])?.code ?? "en";
 }
 
 /** The language to show for a choice in Settings: null (or one hrtz no longer has) is Windows'. */
@@ -86,5 +83,29 @@ export const msg = <S extends string>(text: S): S => text;
 
 /** A number as the language writes it: 1,600 in English, 1 600 in Ukrainian and Russian. */
 export const num = (n: number, options?: Intl.NumberFormatOptions) => n.toLocaleString(i18n.language, options);
+
+/** Where a date or time follows Windows' regional format ("15 Oct" in English in India): that
+ *  format while Windows is in the language shown, else the language's usual one. */
+export const dateLocale = () => (navigator.language.toLowerCase().split("-")[0] === i18n.language ? navigator.language : i18n.language);
+
+/** A line from its English, which is its key, and the values it holds: `t`'s shape. */
+export type Say = (key: string, values?: Record<string, unknown>) => string;
+
+/**
+ * How a helper that names something says it: on screen in the language shown (`screen`, the
+ * default), or in English (`english`) for what we read, the mouse check's report and its issue.
+ */
+export interface Speech {
+  t: Say;
+  num: (n: number, options?: Intl.NumberFormatOptions) => string;
+}
+export const screen: Speech = { t: (key, values) => t(key, values), num };
+/** `t` in English, by itself: the key with its values filled in (and `defaultValue_one` for a
+ *  count of one), so the report's English never depends on the language files. */
+export const english: Speech = {
+  t: (key, values = {}) =>
+    (values.count === 1 && typeof values.defaultValue_one === "string" ? values.defaultValue_one : key).replace(/{{(\w+)}}/g, (m, k: string) => (k in values ? String(values[k]) : m)),
+  num: (n, options) => n.toLocaleString("en-US", options),
+};
 
 export default i18n;

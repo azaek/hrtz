@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Caption1, makeStyles, tokens } from "@fluentui/react-components";
 import type { BatteryEntry } from "@/api";
+import { dateLocale, num, t } from "@/i18n";
 import { hzText, rateColor } from "@/rates";
 import { DAY } from "./format";
 
@@ -88,7 +89,7 @@ export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: 
       g.globalAlpha = 1;
       if (level % 50 === 0) {
         g.fillStyle = muted;
-        g.fillText(`${level}%`, LEFT - 6, y(level));
+        g.fillText(t("{{percent}}%", { percent: num(level) }), LEFT - 6, y(level));
       }
     }
 
@@ -136,10 +137,10 @@ export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: 
       const d = new Date(t * 1000);
       const text =
         step < DAY
-          ? d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+          ? d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" })
           : step === DAY
-            ? d.toLocaleDateString(undefined, { weekday: "short" })
-            : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+            ? d.toLocaleDateString(dateLocale(), { weekday: "short" })
+            : d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
       g.fillText(text, x(t), bandY + BAND + 6);
     }
 
@@ -158,7 +159,7 @@ export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: 
   }, [shown, width, from, now, hover]);
 
   if (!drawn) {
-    return <Caption1 className={s.muted}>No history yet. The level appears here as you use the mouse.</Caption1>;
+    return <Caption1 className={s.muted}>{t("No history yet. The level appears here as you use the mouse.")}</Caption1>;
   }
 
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -177,9 +178,9 @@ export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: 
   const rates = [...new Set(shown.filter((r) => r.awake).map((r) => r.hz))].sort((a, b) => a - b);
   const tip = hover
     ? [
-        new Date(hover.row.t * 1000).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }),
-        `${hover.row.level}%`,
-        hover.row.charging ? "charging" : hover.row.awake ? hzText(hover.row.hz) : "asleep",
+        new Date(hover.row.t * 1000).toLocaleString(dateLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" }),
+        t("{{percent}}%", { percent: num(hover.row.level) }),
+        hover.row.charging ? t("charging") : hover.row.awake ? hzText(hover.row.hz) : t("asleep"),
       ].join(" · ")
     : "";
   const lowest = Math.min(...shown.map((r) => r.level));
@@ -192,7 +193,7 @@ export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: 
           ref={canvas}
           className={s.canvas}
           role="img"
-          aria-label={`Battery level over the period shown, lowest ${lowest}%${charged ? ", with charging" : ""}`}
+          aria-label={charged ? t("Battery level over the period shown, lowest {{percent}}%, with charging", { percent: num(lowest) }) : t("Battery level over the period shown, lowest {{percent}}%", { percent: num(lowest) })}
           onMouseMove={onMove}
           onMouseLeave={() => setHover(null)}
         />
@@ -205,12 +206,12 @@ export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: 
       <div className={s.legend}>
         <span className={s.key}>
           <span className={s.swatch} style={{ background: tokens.colorPaletteGreenForeground1, opacity: 0.4 }} aria-hidden />
-          <Caption1>Charging</Caption1>
+          <Caption1>{t("Charging")}</Caption1>
         </span>
         {rates.map((hz) => (
           <span key={hz} className={s.key}>
             <span className={s.swatch} style={{ background: rateColor(hz) }} aria-hidden />
-            <Caption1>Awake at {hzText(hz)}</Caption1>
+            <Caption1>{t("Awake at {{rate}}", { rate: hzText(hz) })}</Caption1>
           </span>
         ))}
       </div>

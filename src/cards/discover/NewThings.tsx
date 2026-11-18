@@ -5,6 +5,7 @@ import { Group, SettingCard } from "@/components";
 import { openTest } from "@/cards/lab/tests";
 import { pairsFor } from "@/cards/lab/blind";
 import { distance, useWeek } from "@/cards/week/week";
+import { t } from "@/i18n";
 import { goTo, useStore } from "@/store";
 import { NewBadge } from "@/kit";
 import { useGames } from "@/cards/games/GamesCard";
@@ -35,33 +36,33 @@ export function NewThings() {
   };
   return (
     <Group
-      title="New in hrtz"
+      title={t("New in hrtz")}
       action={
         <Link as="button" onClick={hide}>
-          Hide these
+          {t("Hide these")}
         </Link>
       }
     >
       {pair && (
-        <SettingCard icon={<EyeOff20Regular />} title={title(`Can you feel ${pair.feel}?`, "blindtest")} description="A blind test: hrtz switches it without telling you, and you guess. About 2 minutes.">
-          <Button onClick={() => openTest("blind")}>Take the test</Button>
+        <SettingCard icon={<EyeOff20Regular />} title={title(t("Can you feel {{feel}}?", { feel: pair.feel }), "blindtest")} description={t("A blind test: hrtz switches it without telling you, and you guess. About 2 minutes.")}>
+          <Button onClick={() => openTest("blind")}>{t("Take the test")}</Button>
         </SettingCard>
       )}
       <SettingCard
         icon={<CalendarLtr20Regular />}
-        title={title("Your week with the mouse", "week")}
-        description={week && week.cm > 0 ? `${distance(week.cm)} this week, your fastest flick, clicks and games.` : "Distance, your fastest flick, clicks and games, counted as you play."}
+        title={title(t("Your week with the mouse"), "week")}
+        description={week && week.cm > 0 ? t("{{distance}} this week, your fastest flick, clicks and games.", { distance: distance(week.cm) }) : t("Distance, your fastest flick, clicks and games, counted as you play.")}
       >
-        <Button onClick={() => goTo("week")}>See your week</Button>
+        <Button onClick={() => goTo("week")}>{t("See your week")}</Button>
       </SettingCard>
       {/* Only once a game's settings are read: the card it opens shows only then. */}
       {games.length > 0 && (
         <SettingCard
           icon={<TargetArrow20Regular />}
-          title={title("Sensitivity in your games", "gamesens")}
-          description={`One feel in ${games.map((g) => g.game).join(", ")}: hrtz reads each game's settings and says what to set.`}
+          title={title(t("Sensitivity in your games"), "gamesens")}
+          description={t("One feel in {{games}}: hrtz reads each game's settings and says what to set.", { games: games.map((g) => g.game).join(", ") })}
         >
-          <Button onClick={() => document.getElementById("games-card")?.scrollIntoView({ behavior: "smooth", block: "center" })}>Show</Button>
+          <Button onClick={() => document.getElementById("games-card")?.scrollIntoView({ behavior: "smooth", block: "center" })}>{t("Show")}</Button>
         </SettingCard>
       )}
     </Group>

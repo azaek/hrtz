@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Body1, Button, Caption1, Spinner } from "@fluentui/react-components";
 import { api, message, type TrialChange } from "@/api";
+import { msg, num, t } from "@/i18n";
 import { pickMouse, toast } from "@/store";
 import { pollingOf, type Part, type Tried } from "./report";
 import { useMeasure } from "./useMeasure";
 
 const muted = { color: "var(--colorNeutralForeground3)" };
-const fmt = (n: number) => n.toLocaleString("en-US");
 
 /** How long the new rate is counted for, and how long that's waited for at most: hrtz puts a
  *  change back by itself after 45 s, which this must stay well under. */
@@ -14,7 +14,7 @@ const COUNT_MS = 3000;
 const WITHIN_MS = 20_000;
 
 /** What's under way, said while it is. */
-const DOING = { changing: "Changing its polling rate", measuring: "Follow the full screen", restoring: "Putting it back" };
+const doing = () => ({ changing: t("Changing its polling rate"), measuring: t("Follow the full screen"), restoring: t("Putting it back") });
 
 /**
  * One change tried on a mouse whose model hrtz doesn't know, when its owner asks: its polling rate
@@ -28,7 +28,7 @@ const DOING = { changing: "Changing its polling rate", measuring: "Follow the fu
  */
 export function Trial({ part, onTried }: { part: Part; onTried: (t: Tried) => void }) {
   const m = useMeasure();
-  const [stage, setStage] = useState<keyof typeof DOING | null>(null);
+  const [stage, setStage] = useState<keyof ReturnType<typeof doing> | null>(null);
   /** Puts back what was changed, while something is. */
   const undo = useRef<(() => Promise<boolean>) | null>(null);
   const alive = useRef(true);
@@ -55,20 +55,21 @@ export function Trial({ part, onTried }: { part: Part; onTried: (t: Tried) => vo
     }
     if (part.key) pickMouse(part.key);
     const now = (await api.states()).find((d) => d.key === part.key);
-    if (!now?.online) throw new Error("The mouse is asleep. Move it, then try again.");
+    if (!now?.online) throw new Error(t("The mouse is asleep. Move it, then try again."));
     const was = now.settings;
     const from = was?.pollingHz;
     // 500 Hz, or 1,000 from 500: else any other rate it has.
     const rates = now.capabilities?.polling?.rates ?? [];
     const to = [from === 500 ? 1000 : 500, ...rates].find((hz) => hz !== from && rates.includes(hz));
-    if (!was || !from || !to) throw new Error("hrtz can't change this mouse's polling rate.");
+    if (!was || !from || !to) throw new Error(t("hrtz can't change this mouse's polling rate."));
     // Only its polling rate goes back: what else changed meanwhile (its DPI button) stays.
     undo.current = async () => {
       const held = (await api.states()).find((d) => d.key === part.key)?.settings ?? was;
       return (await api.applySettings({ ...held, pollingHz: from })).pollingHz === from;
     };
     const after = await api.applySettings({ ...was, pollingHz: to });
-    return { what: "Polling rate", from, to, kept: after.pollingHz === to };
+    // English, as the report keeps it; the screen says it with `t`.
+    return { what: msg("Polling rate"), from, to, kept: after.pollingHz === to };
   };
 
   /** Put back what was changed, once. */
@@ -96,7 +97,7 @@ export function Trial({ part, onTried }: { part: Part; onTried: (t: Tried) => vo
     setStage("measuring");
     const counted = await m.measure(
       COUNT_MS,
-      { title: "Keep moving the mouse in quick circles", detail: `Counting its reports at ${fmt(made.to)} Hz. Then it goes back to ${fmt(made.from)}.` },
+      { title: t("Keep moving the mouse in quick circles"), detail: t("Counting its reports at {{hz}} Hz. Then it goes back to {{from}}.", { hz: num(made.to), from: num(made.from) }) },
       WITHIN_MS,
     );
     if (!alive.current) return void putBack();
@@ -112,19 +113,19 @@ export function Trial({ part, onTried }: { part: Part; onTried: (t: Tried) => vo
   return (
     <div className="flex w-full items-center justify-between gap-4 rounded-[var(--borderRadiusMedium)] border px-4 py-3 text-left">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <Body1>Try one change?</Body1>
+        <Body1>{t("Try one change?")}</Body1>
         <Caption1 style={muted}>
-          hrtz sets its polling rate to {fmt(to)} Hz, counts its reports while you move it, and puts it back. It shows a setting can be changed, so we don't have to ask you later.
+          {t("hrtz sets its polling rate to {{hz}} Hz, counts its reports while you move it, and puts it back. It shows a setting can be changed, so we don't have to ask you later.", { hz: num(to) })}
         </Caption1>
       </div>
       {stage ? (
         <span className="flex shrink-0 items-center gap-2" style={muted}>
           <Spinner size="extra-tiny" />
-          <Caption1>{DOING[stage]}</Caption1>
+          <Caption1>{doing()[stage]}</Caption1>
         </span>
       ) : (
         <Button style={{ flexShrink: 0 }} onClick={() => void run()}>
-          Try a change
+          {t("Try a change")}
         </Button>
       )}
     </div>

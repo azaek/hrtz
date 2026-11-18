@@ -11,7 +11,7 @@ export default defineConfig({
     defaultNS: false,
     keySeparator: false,
     nsSeparator: false,
-    functions: ["t", "msg"],
+    functions: ["t", "*.t", "msg"],
     primaryLanguage: "en",
     extractFromComments: false,
     removeUnusedKeys: true,

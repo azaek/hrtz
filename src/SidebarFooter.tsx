@@ -1,6 +1,7 @@
 import { Button, makeStyles, Spinner, tokens } from "@fluentui/react-components";
 import { ArrowClockwise16Regular, ArrowSync16Regular, Checkmark16Regular, Warning16Regular } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { num, t } from "@/i18n";
 import { IconButton } from "@/kit";
 import { toast } from "@/store";
 import { REPO_URL, useUpdate } from "./update";
@@ -53,18 +54,24 @@ export function SidebarFooter() {
 
   const [label, icon, title] =
     state.status === "checking"
-      ? ["Checking…", <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
+      ? [t("Checking…"), <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
       : state.status === "current"
-        ? ["Up to date", <Checkmark16Regular />, undefined]
+        ? [t("Up to date"), <Checkmark16Regular />, undefined]
         : state.status === "failed"
-          ? ["Couldn't check", <Warning16Regular />, state.reason]
+          ? [t("Couldn't check"), <Warning16Regular />, state.reason]
           : state.status === "downloading"
-            ? [`Downloading ${state.version}${state.total ? ` · ${Math.round((state.received / state.total) * 100)}%` : "…"}`, <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
+            ? [
+                state.total
+                  ? t("Downloading {{version}} · {{percent}}%", { version: state.version, percent: num(Math.round((state.received / state.total) * 100)) })
+                  : t("Downloading {{version}}…", { version: state.version }),
+                <Spinner size="extra-tiny" spinner={{ className: s.spin }} />,
+                undefined,
+              ]
             : state.status === "ready"
-              ? ["Restart to update", <ArrowClockwise16Regular />, `Installs ${state.version} and restarts hrtz`]
+              ? [t("Restart to update"), <ArrowClockwise16Regular />, t("Installs {{version}} and restarts hrtz", { version: state.version })]
               : state.status === "installing"
-                ? ["Updating…", <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
-                : ["Check for updates", <ArrowSync16Regular />, undefined];
+                ? [t("Updating…"), <Spinner size="extra-tiny" spinner={{ className: s.spin }} />, undefined]
+                : [t("Check for updates"), <ArrowSync16Regular />, undefined];
   const waiting = state.status === "checking" || state.status === "downloading" || state.status === "installing";
 
   return (
@@ -80,7 +87,7 @@ export function SidebarFooter() {
         {label}
         {state.status === "ready" && <span aria-hidden className={s.dot} />}
       </Button>
-      <IconButton appearance="subtle" icon={<GitHubMark />} label="hrtz on GitHub" onClick={() => open(REPO_URL)} />
+      <IconButton appearance="subtle" icon={<GitHubMark />} label={t("hrtz on GitHub")} onClick={() => open(REPO_URL)} />
     </div>
   );
 }

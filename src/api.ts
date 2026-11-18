@@ -1,15 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { screen, type Speech } from "./i18n";
 
 /** A lift-off distance, as the mouse lists it: "0.7mm", "1mm", "1.3mm". */
 export type Lod = `${number}mm`;
-/** It, to read: "0.7 mm". */
-export const lodName = (lod: Lod) => lod.replace("mm", " mm");
+/** It, to read: "0.7 mm" (in English with `english`, for the report). */
+export const lodName = (lod: Lod, s: Speech = screen) => s.t("{{mm}} mm", { mm: s.num(parseFloat(lod)) });
 export type SensorMode = "lp" | "hp" | "corded";
 /** A sensor mode, to read. The top one is "Maximum" where it's chosen (an ATK's), and "Corded"
  *  where the mouse enters it by itself (a Zaopin's, on its cable). */
-export const sensorModeName = (mode: SensorMode, byChoice = false) =>
-  mode === "lp" ? "Low power" : mode === "hp" ? "High performance" : byChoice ? "Maximum" : "Corded";
+export const sensorModeName = (mode: SensorMode, byChoice = false, s: Speech = screen) =>
+  mode === "lp" ? s.t("Low power") : mode === "hp" ? s.t("High performance") : byChoice ? s.t("Maximum") : s.t("Corded");
 /** The sensor's direction, turned to suit how the mouse is held: by how many degrees, and whether
  *  the turn is applied. The mouse keeps both. */
 export interface SensorAngle {
@@ -17,7 +18,7 @@ export interface SensorAngle {
   degrees: number;
 }
 /** It, to read: "5°", or "5° (off)". */
-export const sensorAngleName = (a: SensorAngle) => `${a.degrees}°${a.on ? "" : " (off)"}`;
+export const sensorAngleName = (a: SensorAngle, s: Speech = screen) => (a.on ? `${s.num(a.degrees)}°` : s.t("{{degrees}}° (off)", { degrees: s.num(a.degrees) }));
 export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 
 export type ButtonAction =

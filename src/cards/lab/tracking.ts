@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api, type MeterSample, type Stroke } from "@/api";
+import { num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import type { TestResult } from "./result";
 
@@ -32,8 +33,8 @@ const SENSOR_MPS = 19;
 export const mmOf = (counts: number, dpi: number) => (counts / dpi) * 25.4;
 export const cmOf = (counts: number, dpi: number) => (counts / dpi) * 2.54;
 export const mpsOf = (countsPerS: number, dpi: number) => (countsPerS / dpi) * 0.0254;
-export const mm = (n: number) => `${n < 1 ? n.toFixed(2).replace(/0$/, "") : n.toFixed(1)} mm`;
-export const mps = (n: number) => `${n.toFixed(1)} m/s`;
+export const mm = (n: number) => t("{{mm}} mm", { mm: num(n, { minimumFractionDigits: 1, maximumFractionDigits: n < 1 ? 2 : 1 }) });
+export const mps = (n: number) => t("{{speed}} m/s", { speed: num(n, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) });
 
 // ---- Holding still ----------------------------------------------------------------------------------
 
@@ -43,13 +44,13 @@ export type StillResult = { travel: number; net: number; reports: number };
 /** What a still check says: nothing, the sensor drifting, or jitter under a resting hand. */
 export function stillFinding(part: StillPart, r: StillResult, dpi: number): { tone: "good" | "warn" | "neutral"; text: string } {
   const moved = mmOf(r.travel, dpi);
-  if (r.travel <= 2) return { tone: "good", text: part === "off" ? "No drift." : "Held still under your hand." };
-  if (part === "off") return { tone: "warn", text: `Drifted ${mm(moved)} in 10 s. Check for hair or dust on the sensor, or a reflective surface.` };
+  if (r.travel <= 2) return { tone: "good", text: part === "off" ? t("No drift.") : t("Held still under your hand.") };
+  if (part === "off") return { tone: "warn", text: t("Drifted {{distance}} in 10 s. Check for hair or dust on the sensor, or a reflective surface.", { distance: mm(moved) }) };
   // Under a hand, movement that goes nowhere is the sensor jittering; movement that goes somewhere is the hand.
   const wander = mmOf(r.net, dpi);
   return wander < moved / 4 && moved > 0.3
-    ? { tone: "warn", text: `Jittered ${mm(moved)} under your hand in 10 s.` }
-    : { tone: "neutral", text: `Moved ${mm(moved)}, from your hand rather than the sensor.` };
+    ? { tone: "warn", text: t("Jittered {{distance}} under your hand in 10 s.", { distance: mm(moved) }) }
+    : { tone: "neutral", text: t("Moved {{distance}}, from your hand rather than the sensor.", { distance: mm(moved) }) };
 }
 
 // ---- At speed ---------------------------------------------------------------------------------------
@@ -89,22 +90,37 @@ export function speedFindings(swipes: Swipe[]) {
 
 /** The speed check in a sentence. */
 export function speedText(f: ReturnType<typeof speedFindings>, count: number): { tone: "good" | "warn" | "neutral"; text: string } {
-  if (count < 4) return { tone: "neutral", text: `${count} of 4 swipes. Faster each time.` };
+  if (count < 4) return { tone: "neutral", text: t("{{n}} of 4 swipes. Faster each time.", { n: count }) };
   const first = f.trouble[0];
   if (first) {
-    const at = mps(first.speed);
-    const what =
+    // What went wrong, after the speed it was clean to when there is one.
+    const v = {
+      top: f.top ? mps(f.top) : "",
+      speed: mps(first.speed),
+      percent: Math.round((first.short ?? 0) * 100),
+      ms: num(first.dropoutMs, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      rated: SENSOR_MPS,
+    };
+    const text =
       first.issue === "short"
-        ? `came up ${Math.round((first.short ?? 0) * 100)}% short at ${at}, losing count`
+        ? f.top
+          ? t("Clean up to {{top}}, then it came up {{percent}}% short at {{speed}}, losing count.", v)
+          : t("It came up {{percent}}% short at {{speed}}, losing count.", v)
         : first.issue === "spin"
-          ? `spun out at ${at}, reporting the wrong direction`
+          ? f.top
+            ? t("Clean up to {{top}}, then it spun out at {{speed}}, reporting the wrong direction.", v)
+            : t("It spun out at {{speed}}, reporting the wrong direction.", v)
           : first.issue === "dropout"
-            ? `dropped reports for ${first.dropoutMs.toFixed(1)} ms at ${at}`
-            : `went past the sensor's rated ${SENSOR_MPS} m/s`;
-    return { tone: "warn", text: f.top ? `Clean up to ${mps(f.top)}, then it ${what}.` : `It ${what}.` };
+            ? f.top
+              ? t("Clean up to {{top}}, then it dropped reports for {{ms}} ms at {{speed}}.", v)
+              : t("It dropped reports for {{ms}} ms at {{speed}}.", v)
+            : f.top
+              ? t("Clean up to {{top}}, then it went past the sensor's rated {{rated}} m/s.", v)
+              : t("It went past the sensor's rated {{rated}} m/s.", v);
+    return { tone: "warn", text };
   }
-  if (!f.stops) return { tone: "neutral", text: `Clean up to ${mps(f.top ?? 0)}, with no spin-outs or dropouts. Use two stops to also check the count.` };
-  return { tone: "good", text: `Clean up to ${mps(f.top ?? 0)}. Every swipe kept its count.` };
+  if (!f.stops) return { tone: "neutral", text: t("Clean up to {{top}}, with no spin-outs or dropouts. Use two stops to also check the count.", { top: mps(f.top ?? 0) }) };
+  return { tone: "good", text: t("Clean up to {{top}}. Every swipe kept its count.", { top: mps(f.top ?? 0) }) };
 }
 
 // ---- The check ------------------------------------------------------------------------------------
@@ -207,7 +223,13 @@ export function useTrackingCheck(dpi: number) {
   };
 }
 
-const ISSUE_SHORT: Record<Issue, string> = { spin: "Spun out", dropout: "Dropped reports", short: "Lost count", fast: "Past the sensor's rating" };
+/** Where the swipes went wrong, in a few words: "Spun out at 4.2 m/s". */
+function issueAt(issue: Issue, speed: string) {
+  if (issue === "spin") return t("Spun out at {{speed}}", { speed });
+  if (issue === "dropout") return t("Dropped reports at {{speed}}", { speed });
+  if (issue === "short") return t("Lost count at {{speed}}", { speed });
+  return t("Past the sensor's rating at {{speed}}", { speed });
+}
 
 /** The Lab list's line: how fast it stayed clean, or where it went wrong, and how it held still. */
 export function trackingSummary(results: Partial<Record<StillPart, StillResult>>, swipes: Swipe[], dpi: number): TestResult | null {
@@ -215,9 +237,9 @@ export function trackingSummary(results: Partial<Record<StillPart, StillResult>>
   const rest = results.rest && stillFinding("rest", results.rest, dpi);
   const f = speedFindings(swipes);
   const first = f.trouble[0];
-  const speed = first ? `${ISSUE_SHORT[first.issue!]} at ${mps(first.speed)}` : swipes.length >= 4 && f.top ? `Clean to ${mps(f.top)}` : null;
-  const still = off ? (off.tone === "warn" ? "Drifts at rest" : "Still at rest") : null;
-  const jitter = rest?.tone === "warn" ? "Jitters under a hand" : null;
+  const speed = first ? issueAt(first.issue!, mps(first.speed)) : swipes.length >= 4 && f.top ? t("Clean to {{speed}}", { speed: mps(f.top) }) : null;
+  const still = off ? (off.tone === "warn" ? t("Drifts at rest") : t("Still at rest")) : null;
+  const jitter = rest?.tone === "warn" ? t("Jitters under a hand") : null;
   if (!speed && !still && !jitter) return null;
   const [value, ...rest_] = [speed, still, jitter].filter((x): x is string => !!x);
   return { value, detail: rest_.join(" · "), tone: [off, rest].some((x) => x?.tone === "warn") || !!first ? "warn" : "good" };

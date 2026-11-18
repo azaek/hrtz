@@ -1,4 +1,5 @@
 import type { ButtonAction } from "./api";
+import { msg, screen, t, type Speech } from "./i18n";
 
 /** KeyboardEvent.code → HID keyboard usage. */
 export const KEY_USAGE: Record<string, number> = (() => {
@@ -50,68 +51,93 @@ export function modifierNames(bits: number): string[] {
   return names;
 }
 
-export function comboLabel(modifiers: number, keys: number[]): string {
+export function comboLabel(modifiers: number, keys: number[], s: Speech = screen): string {
   const parts = [...modifierNames(modifiers), ...keys.map((k) => USAGE_NAME[k] ?? `0x${k.toString(16)}`)];
-  return parts.length ? parts.join(" + ") : "No keys set";
+  return parts.length ? parts.join(" + ") : s.t("No keys set");
 }
 
+/** A media key: its name in English (`key`), and read in the language shown (`name`). */
+const media = (usage: number, key: string) => ({
+  usage,
+  key,
+  get name() {
+    return t(key);
+  },
+});
+
 /** Consumer-page usages offered by the vendor app. */
-export const MEDIA: { usage: number; name: string }[] = [
-  { usage: 0x00cd, name: "Play / pause" },
-  { usage: 0x00b5, name: "Next track" },
-  { usage: 0x00b6, name: "Previous track" },
-  { usage: 0x00b7, name: "Stop" },
-  { usage: 0x00e2, name: "Mute" },
-  { usage: 0x00e9, name: "Volume up" },
-  { usage: 0x00ea, name: "Volume down" },
-  { usage: 0x0183, name: "Media player" },
-  { usage: 0x018a, name: "Email" },
-  { usage: 0x0192, name: "Calculator" },
-  { usage: 0x0194, name: "This PC" },
-  { usage: 0x0223, name: "Browser home" },
-  { usage: 0x0221, name: "Search" },
-  { usage: 0x0224, name: "Browser back" },
-  { usage: 0x0225, name: "Browser forward" },
-  { usage: 0x0227, name: "Refresh" },
-  { usage: 0x022a, name: "Favourites" },
+export const MEDIA: { usage: number; key: string; name: string }[] = [
+  media(0x00cd, msg("Play / pause")),
+  media(0x00b5, msg("Next track")),
+  media(0x00b6, msg("Previous track")),
+  media(0x00b7, msg("Stop")),
+  media(0x00e2, msg("Mute")),
+  media(0x00e9, msg("Volume up")),
+  media(0x00ea, msg("Volume down")),
+  media(0x0183, msg("Media player")),
+  media(0x018a, msg("Email")),
+  media(0x0192, msg("Calculator")),
+  media(0x0194, msg("This PC")),
+  media(0x0223, msg("Browser home")),
+  media(0x0221, msg("Search")),
+  media(0x0224, msg("Browser back")),
+  media(0x0225, msg("Browser forward")),
+  media(0x0227, msg("Refresh")),
+  media(0x022a, msg("Favourites")),
 ];
 
-const MOUSE_NAME = { left: "Left click", right: "Right click", middle: "Middle click", back: "Back", forward: "Forward" };
+/** The mouse buttons, to read: "Left" as the button (not the direction). `t(name, { context:
+ *  "button" })` finds these for a name kept in English. */
+export const buttonNames = (s: Speech = screen) => ({
+  left: s.t("Left", { context: "button" }),
+  right: s.t("Right", { context: "button" }),
+  middle: s.t("Middle", { context: "button" }),
+  back: s.t("Back", { context: "button" }),
+  forward: s.t("Forward", { context: "button" }),
+});
 
-export function actionLabel(a: ButtonAction): string {
+const mouseName = (s: Speech) => ({ left: s.t("Left click"), right: s.t("Right click"), middle: s.t("Middle click"), back: buttonNames(s).back, forward: buttonNames(s).forward });
+
+/** What a button does, to read (in English with `english`, for the mouse check's report). */
+export function actionLabel(a: ButtonAction, s: Speech = screen): string {
+  const { t, num } = s;
   switch (a.kind) {
     case "disabled":
-      return "Disabled";
+      return t("Disabled");
     case "mouse":
-      return MOUSE_NAME[a.button];
+      return mouseName(s)[a.button];
     case "dpi":
-      return { cycle: "Cycle DPI stages", up: "DPI up", down: "DPI down", default: "Default DPI stage" }[a.action];
+      return { cycle: t("Cycle DPI stages"), up: t("DPI up"), down: t("DPI down"), default: t("Default DPI stage") }[a.action];
     case "scroll":
-      return { up: "Scroll up", down: "Scroll down", left: "Scroll left", right: "Scroll right" }[a.direction];
+      return { up: t("Scroll up"), down: t("Scroll down"), left: t("Scroll left"), right: t("Scroll right") }[a.direction];
     case "fire":
-      return a.times === 0 ? `Rapid fire every ${a.intervalMs} ms while held` : `Rapid fire ×${a.times}, ${a.intervalMs} ms apart`;
+      return a.times === 0
+        ? t("Rapid fire every {{ms}} ms while held", { ms: num(a.intervalMs) })
+        : t("Rapid fire ×{{times}}, {{ms}} ms apart", { times: num(a.times), ms: num(a.intervalMs) });
     case "pollingSwitch":
-      return "Cycle polling rate";
+      return t("Cycle polling rate");
     case "dpiLock":
-      return `Hold for ${a.dpi} DPI`;
-    case "media":
-      return MEDIA.find((m) => m.usage === a.usage)?.name ?? `Media key 0x${a.usage.toString(16)}`;
+      return t("Hold for {{dpi}} DPI", { dpi: a.dpi });
+    case "media": {
+      const media = MEDIA.find((m) => m.usage === a.usage);
+      return media ? t(media.key) : t("Media key {{code}}", { code: `0x${a.usage.toString(16)}` });
+    }
     case "keys":
-      return comboLabel(a.modifiers, a.keys);
+      return comboLabel(a.modifiers, a.keys, s);
     case "macro":
-      return `Macro ${a.slot + 1}`;
+      return t("Macro {{number}}", { number: a.slot + 1 });
     case "raw":
-      return `Vendor function ${a.code}`;
+      return t("Vendor function {{code}}", { code: a.code });
     case "profile":
-      return { next: "Next profile", previous: "Previous profile", cycle: "Cycle profiles" }[a.action];
+      return { next: t("Next profile"), previous: t("Previous profile"), cycle: t("Cycle profiles") }[a.action];
     case "vendor":
-      return vendorLabel(a.bytes);
+      return vendorLabel(a.bytes, s);
   }
 }
 
 /** A Logitech record hrtz keeps as it is, by what G HUB calls it. */
-function vendorLabel(b: number[]): string {
-  if (b[0] === 0x00) return "Macro";
-  if (b[0] === 0x90) return { 0x07: "DPI Shift", 0x0b: "G-Shift", 0x0c: "Battery level" }[b[1]] ?? "Set in G HUB";
-  return "Set in G HUB";
+function vendorLabel(b: number[], { t }: Speech): string {
+  if (b[0] === 0x00) return t("Macro");
+  if (b[0] === 0x90) return { 0x07: t("DPI Shift"), 0x0b: "G-Shift", 0x0c: t("Battery level") }[b[1]] ?? t("Set in G HUB");
+  return t("Set in G HUB");
 }

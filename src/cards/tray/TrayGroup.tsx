@@ -3,16 +3,17 @@ import { Switch } from "@fluentui/react-components";
 import { Battery820Regular, Desktop20Regular } from "@fluentui/react-icons";
 import { api, type Prefs, type TrayStyle } from "@/api";
 import { Group, SettingCard } from "@/components";
+import { msg, t } from "@/i18n";
 import { NewBadge, TileChoice } from "@/kit";
 import { useSeen } from "@/news";
 import { savePrefs, useStore } from "@/store";
 
-/** The tray icon's styles, as the tiles name them. */
+/** The tray icon's styles, as the tiles name them (shown with `t()`). */
 const TRAY_STYLES: { value: TrayStyle; label: string }[] = [
-  { value: "percent", label: "Percentage" },
-  { value: "battery", label: "Battery" },
-  { value: "logo", label: "Logo" },
-  { value: "logobar", label: "Logo and bar" },
+  { value: "percent", label: msg("Percentage") },
+  { value: "battery", label: msg("Battery") },
+  { value: "logo", label: msg("Logo") },
+  { value: "logobar", label: msg("Logo and bar") },
 ];
 
 /** The tray, on the HUD & Tray page: the battery on the taskbar, and the tray icon's style, each
@@ -41,34 +42,34 @@ export function TrayGroup({ prefs }: { prefs: Prefs }) {
     );
 
   return (
-    <Group title="Tray">
+    <Group title={t("Tray")}>
       <SettingCard
         icon={<Battery820Regular />}
         title={
           <>
-            Battery on the taskbar {news.isNew && <NewBadge ref={news.ref} />}
+            {t("Battery on the taskbar")} {news.isNew && <NewBadge ref={news.ref} />}
           </>
         }
-        description={taskbar ? "Your mouse and its battery beside the tray icons. Click it to open hrtz." : "Needs Windows 11."}
+        description={taskbar ? t("Your mouse and its battery beside the tray icons. Click it to open hrtz.") : t("Needs Windows 11.")}
       >
         <Switch
           checked={taskbar && prefs.taskbarBattery}
           disabled={!taskbar}
           onChange={(_, d) => void savePrefs({ ...prefs, taskbarBattery: d.checked })}
-          aria-label="Battery on the taskbar"
+          aria-label={t("Battery on the taskbar")}
         />
       </SettingCard>
       <SettingCard
         stacked
         icon={<Desktop20Regular />}
-        title="Tray icon"
-        description="Hover it to see each mouse's battery, polling rate, DPI and profile."
+        title={t("Tray icon")}
+        description={t("Hover it to see each mouse's battery, polling rate, DPI and profile.")}
         below={
           <div style={{ marginTop: 12 }}>
             <TileChoice
-              label="Tray icon style"
+              label={t("Tray icon style")}
               value={prefs.trayStyle}
-              options={TRAY_STYLES.map((t) => ({ value: t.value, label: t.label, icon: trayIcon(previews?.[t.value]) }))}
+              options={TRAY_STYLES.map((s) => ({ value: s.value, label: t(s.label), icon: trayIcon(previews?.[s.value]) }))}
               onChange={(trayStyle) => void savePrefs({ ...prefs, trayStyle })}
             />
           </div>

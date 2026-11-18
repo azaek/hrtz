@@ -2,6 +2,7 @@ import { Button } from "@fluentui/react-components";
 import { PersonFeedback20Regular } from "@fluentui/react-icons";
 import type { DeviceState } from "@/api";
 import { SettingCard } from "@/components";
+import { t } from "@/i18n";
 import type { Support } from "@/models";
 import { setInspecting } from "@/store";
 
@@ -13,14 +14,14 @@ export function ParticipateCard({ device, support }: { device: DeviceState; supp
   return (
     <SettingCard
       icon={<PersonFeedback20Regular />}
-      title={support === "untested" ? `Help test your ${device.model}` : "Help add your mouse"}
+      title={support === "untested" ? t("Help test your {{model}}", { model: device.model }) : t("Help add your mouse")}
       description={
         support === "untested"
-          ? "A 2-minute check of what works on this model, saved as a report for GitHub."
-          : "hrtz doesn't know this model yet. A 1-minute check saves what it needs to add it."
+          ? t("A 2-minute check of what works on this model, saved as a report for GitHub.")
+          : t("hrtz doesn't know this model yet. A 1-minute check saves what it needs to add it.")
       }
     >
-      <Button onClick={() => setInspecting(true, device.key)}>Open check</Button>
+      <Button onClick={() => setInspecting(true, device.key)}>{t("Open check")}</Button>
     </SettingCard>
   );
 }
