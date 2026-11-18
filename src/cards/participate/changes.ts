@@ -76,7 +76,10 @@ export function changesFor(s: Settings, caps: Capabilities): Change[] {
       }
     }
   }
-  if (caps.polling && s.pollingHz) {
+  // Only where this connection carries the rate the mouse has set: a Zaopin's cable goes to 1,000 Hz,
+  // and the 4,000 its receiver set couldn't be sent back over it, so the mouse was left at 500 and
+  // every change after it was refused (a Z2, issue #22, 2026-11-17).
+  if (caps.polling && s.pollingHz && caps.polling.rates.includes(s.pollingHz)) {
     // To a rate quick circles can tell from the one set: 500 Hz, or 1,000 from 500.
     const rates = caps.polling.rates;
     const hz = [500, 1000].find((x) => x !== s.pollingHz && rates.includes(x)) ?? other(rates, s.pollingHz);
