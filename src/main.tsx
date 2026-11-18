@@ -39,7 +39,11 @@ function Root() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+// Hot reloading in dev runs this file again (a change to a language file reaches it through
+// i18n.ts). Keep the one root, or each run would start another app in the same window.
+const container = document.getElementById("root") as HTMLElement & { root?: ReactDOM.Root };
+container.root ??= ReactDOM.createRoot(container);
+container.root.render(
   <React.StrictMode>
     <Root />
   </React.StrictMode>,
