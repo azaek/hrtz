@@ -95,7 +95,7 @@ export function ButtonsPanel({
                   <span className="flex min-w-0 flex-col">
                     <Body1>{nm}</Body1>
                     <Caption1 className="truncate" style={muted}>
-                      {i === DPI_BUTTON ? `Underneath · ${shortLabel(actions[i])}` : shortLabel(actions[i])}
+                      {i === DPI_BUTTON && !art?.dpiButtonOnTop ? `Underneath · ${shortLabel(actions[i])}` : shortLabel(actions[i])}
                     </Caption1>
                   </span>
                 </button>

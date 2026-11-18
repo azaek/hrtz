@@ -1,5 +1,10 @@
 # Mouse pictures
 
+`g304-black.png` is derived from the Logitech G304 product photograph supplied by the user.
+Its background and separate receiver were removed using image editing. It is included only to
+identify the connected mouse, is not covered by this project's license, and will be removed
+at the rights holder's request.
+
 `mid1.png` to `mid6.png` are Zaopin's own product renders, one per model. They come from Zaopin's driver app (`res/2Button/dev<N>.png`), with the internal LED's red glow desaturated so the picture matches the mouse. The button positions in `../../models.ts` were measured on them.
 
 `mid9.png` is Zaopin's own render of the Z11, from Zaopin's web app (Control HUB WEB, at controlhub.top/zaopin: its device picture `img/devices/mouse/0709.png`), scaled into the same frame. The button positions in `../../models.ts` were measured on it.

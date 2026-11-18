@@ -11,6 +11,7 @@ import mid6 from "./assets/models/mid6.png";
 import mid9 from "./assets/models/mid9.png";
 import atkR1Black from "./assets/models/atk-r1-black.webp";
 import atkU2PlusBlack from "./assets/models/atk-u2-plus-black.webp";
+import g304Black from "./assets/models/g304-black.png";
 import superlightBlack from "./assets/models/superlight-black.webp";
 import superlightMagenta from "./assets/models/superlight-magenta.webp";
 import superlightWhite from "./assets/models/superlight-white.webp";
@@ -25,6 +26,8 @@ export interface ModelArt {
   hotspots: Record<number, [number, number]>;
   /** How the picture shows it, for its description: "viewed from the left" unless said. */
   view?: string;
+  /** The DPI button is visible on top, rather than underneath the mouse. */
+  dpiButtonOnTop?: boolean;
 }
 
 /** The model (MID) in a Zaopin key: `compx/7-4` (or a simulated `sim/7-4`) is 4. An ATK on the same
@@ -134,6 +137,14 @@ const superlight2 = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2", 
 /** A Logitech's pictures by its USB product ID, then by its colour (the extended model ID). A
  *  colour without its own picture shows the first. */
 const LOGITECH_ART: Record<string, ModelArt[]> = {
+  "4074": [{
+    name: "G304 / G305",
+    image: g304Black,
+    size: [1254, 1254],
+    hotspots: { 0: [555, 345], 1: [753, 312], 2: [671, 348], 3: [450, 657], 4: [449, 493], 5: [723, 498] },
+    view: "viewed from above and the left",
+    dpiButtonOnTop: true,
+  }],
   c094: [superlight(superlightBlack), superlight(superlightWhite), superlight(superlightMagenta)],
   // Assumed in the first Superlight's order (G HUB's data for this one isn't public): to confirm
   // with an owner.

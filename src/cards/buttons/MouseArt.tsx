@@ -25,8 +25,8 @@ export function Chip({ n, lit, onPicture }: { n: number; lit?: boolean; onPictur
 }
 
 /**
- * The vendor's render of this model with a chip on each button it shows (the DPI button is
- * underneath, so it has none). Pointing at a chip lights it; clicking it picks that button.
+ * The vendor's render of this model with a chip on each visible button. A DPI button underneath
+ * has no chip. Pointing at a chip lights it; clicking it picks that button.
  */
 export function MouseArt(props: {
   art: ModelArt;
@@ -42,7 +42,7 @@ export function MouseArt(props: {
     <div className="relative shrink-0" style={{ width: props.width, height: (props.width * h) / w }}>
       <img src={props.art.image} alt={`${props.art.name}, ${props.art.view ?? "viewed from the left"}`} className="pointer-events-none size-full select-none" draggable={false} />
       {props.buttons
-        .filter(([i]) => i !== DPI_BUTTON && props.art.hotspots[i])
+        .filter(([i]) => (i !== DPI_BUTTON || props.art.dpiButtonOnTop) && props.art.hotspots[i])
         .map(([i, name]) => {
           const [x, y] = props.art.hotspots[i];
           return (
