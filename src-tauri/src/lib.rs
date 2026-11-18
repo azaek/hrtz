@@ -1980,27 +1980,29 @@ mod readme {
     fn readme_lists_the_mice_the_app_does() {
         let mut all = crate::mice::compx::models::supported();
         all.extend(crate::mice::hidpp::models::supported());
-        let row = |m: &crate::mice::model::Supported| {
-            let status = if m.tested { "Tested" } else { "Not tested yet" };
-            format!("| {} {} | {status} |\n", m.brand, m.model)
+        // Each name once, in the app's order: two model IDs can be one mouse (the Z2's 2 and 11;
+        // ATK gives some one name for several), and it's tested where a check on one has passed,
+        // as the onboarding lists it.
+        let mut mice: Vec<(&str, &str, bool)> = Vec::new();
+        for m in &all {
+            match mice.iter_mut().find(|(brand, model, _)| *brand == m.brand && *model == m.model) {
+                Some(seen) => seen.2 |= m.tested,
+                None => mice.push((m.brand, m.model, m.tested)),
+            }
+        }
+        let row = |&(brand, model, tested): &(&str, &str, bool)| {
+            let status = if tested { "Tested" } else { "Not tested yet" };
+            format!("| {brand} {model} | {status} |\n")
         };
         // ATK's mice not tested yet, many and from ATK's own list, are folded away below the
-        // others, each name once (ATK gives some one name for several model IDs), by brand and
-        // name. One a check on the real mouse has passed on is listed with the others, after them,
-        // each name once too.
-        // Zaopin's are each listed once too: two model IDs can be one mouse (the Z2's 2 and 11).
-        let atk = |m: &crate::mice::model::Supported| ["ATK", "VXE", "MAD"].contains(&m.brand);
+        // others, by brand and name. One a check on the real mouse has passed on is listed with
+        // the others, after them.
+        let atk = |m: &&(&str, &str, bool)| ["ATK", "VXE", "MAD"].contains(&m.0);
         let mut want = String::from("| Mouse | Status |\n|---|---|\n");
-        let mut listed = std::collections::HashSet::new();
-        all.iter().filter(|m| !atk(m)).map(row).filter(|r| listed.insert(r.clone())).for_each(|r| want.push_str(&r));
-        all.iter()
-            .filter(|m| atk(m) && m.tested)
-            .map(row)
-            .filter(|r| listed.insert(r.clone()))
-            .for_each(|r| want.push_str(&r));
-        let mut atks: Vec<String> = all.iter().filter(|m| atk(m) && !m.tested).map(row).collect();
+        mice.iter().filter(|m| !atk(m)).map(row).for_each(|r| want.push_str(&r));
+        mice.iter().filter(|m| atk(m) && m.2).map(row).for_each(|r| want.push_str(&r));
+        let mut atks: Vec<String> = mice.iter().filter(|m| atk(m) && !m.2).map(row).collect();
         atks.sort();
-        atks.dedup();
         want.push_str(&format!(
             "\n<details>\n<summary>ATK, VXE and MAD mice not tested yet ({})</summary>\n\n| Mouse | Status |\n|---|---|\n{}\n</details>\n",
             atks.len(),
