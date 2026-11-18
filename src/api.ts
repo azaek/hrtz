@@ -268,6 +268,8 @@ export interface Prefs {
   signalrgb: boolean;
   /** The new features whose "New" badge has been seen (`news.ts`). */
   seen: string[];
+  /** The language picked in Settings ("uk"); null follows Windows (`i18n.ts`). */
+  language: string | null;
 }
 
 /** What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch

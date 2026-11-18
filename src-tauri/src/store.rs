@@ -102,6 +102,8 @@ pub struct Prefs {
     pub signalrgb: bool,
     /// The new features whose "New" badge has been seen (the window's `news.ts`).
     pub seen: Vec<String>,
+    /// The language picked in Settings ("uk"); `None` follows Windows (the window's `i18n.ts`).
+    pub language: Option<String>,
 }
 
 /// What hrtz keeps for one mouse: its profiles' names and what they held, the apps that switch
@@ -434,6 +436,7 @@ impl Default for Prefs {
             hud: HudPrefs::default(),
             signalrgb: false,
             seen: Vec::new(),
+            language: None,
         }
     }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Body1, Button, Caption1, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Switch } from "@fluentui/react-components";
+import { Body1, Button, Caption1, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Dropdown, Option, Switch } from "@fluentui/react-components";
 import {
   Alert20Regular,
   ArrowRotateClockwise20Regular,
@@ -8,6 +8,7 @@ import {
   DataUsage20Regular,
   Delete20Regular,
   Info20Regular,
+  LocalLanguage20Regular,
   PlugConnected20Regular,
   Power20Regular,
   Wifi120Regular,
@@ -17,6 +18,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { api, message, on, type KnownMouse, type Prefs } from "@/api";
 import { Group, SettingCard } from "@/components";
 import { UndoNote } from "@/kit";
+import { LANGUAGES, windowsLanguage } from "@/i18n";
 import { linkName } from "@/links";
 import { familyOf, makerOf, supportOf } from "@/models";
 import { reportUrl } from "@/report";
@@ -124,6 +126,7 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         >
           <Switch checked={prefs.osd} onChange={(_, d) => set({ osd: d.checked })} aria-label="DPI and profile pop-up" />
         </SettingCard>
+        <LanguageCard prefs={prefs} set={set} />
       </Group>
 
       <Group title="Mouse">
@@ -266,5 +269,32 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         </DialogSurface>
       </Dialog>
     </>
+  );
+}
+
+/** The language hrtz shows its text in: Windows' unless one is picked. Each is named in itself. */
+function LanguageCard({ prefs, set }: { prefs: Prefs; set: (patch: Partial<Prefs>) => void }) {
+  const picked = LANGUAGES.find((l) => l.code === prefs.language);
+  const windows = LANGUAGES.find((l) => l.code === windowsLanguage())!;
+  const same = `Same as Windows (${windows.name})`;
+  return (
+    <SettingCard icon={<LocalLanguage20Regular />} title="Language" description="The language hrtz shows its text in.">
+      <Dropdown
+        aria-label="Language"
+        style={{ minWidth: 200 }}
+        value={picked?.name ?? same}
+        selectedOptions={[picked?.code ?? "windows"]}
+        onOptionSelect={(_, d) => d.optionValue && set({ language: d.optionValue === "windows" ? null : d.optionValue })}
+      >
+        <Option value="windows" text={same}>
+          {same}
+        </Option>
+        {LANGUAGES.map((l) => (
+          <Option key={l.code} value={l.code} text={l.name}>
+            {l.name}
+          </Option>
+        ))}
+      </Dropdown>
+    </SettingCard>
   );
 }
