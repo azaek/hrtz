@@ -222,6 +222,9 @@ export function summaryLines(c: Checks): Line[] {
         : { ok: true, text: "After the check, its memory is as it was" },
     );
   }
+  if (c.wroteBack) {
+    lines.push(c.wroteBack.ok ? { ok: true, text: "hrtz then wrote its memory back as it was before the check" } : { ok: false, text: `Writing its memory back failed: ${c.wroteBack.error}` });
+  }
   return lines;
 }
 

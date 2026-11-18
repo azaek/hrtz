@@ -833,6 +833,26 @@ fn restoring_writes_the_differences_and_checks_each() {
 }
 
 #[test]
+fn a_rate_the_cable_cant_set_back_goes_back_with_the_memory() {
+    // On its cable with its receiver's 4,000 Hz kept (a Z2, issue #22): the check set 500 Hz, and
+    // 4,000 couldn't be set back over the cable. The memory the check first read can be.
+    let mut r = Rig::connected(SimMouse { device_type: 2, ..Default::default() });
+    let start = r.w.read_full_image_quietly().unwrap();
+    let was = r.settings();
+    assert_eq!(was.polling_hz, Some(4000));
+    let mut next = was.clone();
+    next.polling_hz = Some(500);
+    r.w.apply_settings(&next).unwrap();
+    let e = r.w.apply_settings(&was).unwrap_err().to_string();
+    assert!(e.contains("4000 Hz is not supported"), "{e}");
+
+    assert_eq!(r.w.put_back_image(&start).unwrap(), 1, "the rate's chunk");
+    assert_eq!(r.mouse.lock().image(), &start[..]);
+    assert_eq!(r.settings().polling_hz, Some(4000));
+    assert_eq!(r.w.put_back_image(&start).unwrap(), 0, "nothing more to write");
+}
+
+#[test]
 fn a_restore_the_mouse_doesnt_keep_fails_its_check() {
     let mut r = Rig::connected(SimMouse::default());
     r.mouse.lock().forget_writes = true;
