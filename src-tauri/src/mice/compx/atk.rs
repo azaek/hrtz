@@ -563,8 +563,10 @@ mod tests {
         // One model per CID and MID. Tested: the R1 PRO with a PAW3950 Ultra, whose check passed on
         // its 1K receiver and its cable (hrtz 0.5.2, 2026-11-15); the R1 PRO MAX with a PAW3395,
         // whose check passed on its 4K receiver (hrtz 0.5.5, 2026-11-17, MID 28), with the two other
-        // IDs ATK's app gives that name, sensor, USB ID and every feature (27 and 34).
-        let tested = [(2, 125), (2, 27), (2, 28), (2, 34)];
+        // IDs ATK's app gives that name, sensor, USB ID and every feature (27 and 34); the R1 with a
+        // PAW3395, whose check passed on its 1K receiver (hrtz 0.5.7, 2026-11-18, MID 12), with the
+        // other ID ATK's app gives it (11).
+        let tested = [(2, 125), (2, 27), (2, 28), (2, 34), (2, 11), (2, 12)];
         for (i, a) in MODELS.iter().enumerate() {
             assert!(MODELS[i + 1..].iter().all(|b| (a.cid, a.mid) != (b.cid, b.mid)), "{a:?}");
             assert!(["ATK", "VXE", "MAD"].contains(&a.brand));

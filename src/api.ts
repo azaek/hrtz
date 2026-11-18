@@ -841,6 +841,10 @@ export const api = {
    *  was said around a change the mouse didn't keep, and whether its memory is as it was once
    *  every change is put back. Sends it nothing. */
   mouseTrace: () => invoke<{ said: string[]; memory: string } | null>("mouse_trace", { mouse }),
+  /** The check's last step, where its memory isn't as the check first read it once each setting is
+   *  put back: that memory (`memory`, base64) written back. How many chunks were written. Only on
+   *  a mouse whose whole memory can be written (`backups`). */
+  mousePutBack: (memory: string) => invoke<number>("mouse_put_back", { mouse, memory }),
   /** Write a test report where the tester picked. */
   saveReport: (path: string, text: string) => invoke<void>("save_report", { path, text }),
   /** Saves the mouse as it is first (an automatic backup), unless it already matches. */

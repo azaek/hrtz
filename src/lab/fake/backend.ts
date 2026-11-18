@@ -1060,6 +1060,9 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
     case "mouse_trace":
       // Nothing is sent here, so nothing was said, and there's no memory to hold the end against.
       return null;
+    case "mouse_put_back":
+      // With no memory held (above), never asked; nothing to write if it were.
+      return 0;
     case "mouse_report":
       // As the app reads it: the whole memory (with a progress bar), then the family's facts.
       await progress(4096);

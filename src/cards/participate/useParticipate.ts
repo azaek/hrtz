@@ -41,6 +41,9 @@ export interface Checks {
   /** Its memory once every change was put back, held against how it read at the start: where
    *  they differ ("0x004C"), none if it's as it was. Missing where it couldn't be compared. */
   left?: string[];
+  /** Where `left` found it changed, on a mouse whose whole memory can be written back: that the
+   *  memory the check first read was written back (`ok`), or why it couldn't be. */
+  wroteBack?: { ok: boolean; error?: string };
 }
 
 /** Where two readings of a mouse's memory (base64) differ, as addresses; the first few. */
@@ -195,14 +198,27 @@ export function useParticipate() {
     nextButton(r.at + 1);
   };
 
-  /** Puts back what the run changed: the settings it started with, and the profile. A run that
-   *  writes nothing changes nothing. */
-  const putBack = async () => {
+  /** Puts back what the run changed: the settings it started with, and the profile. Then its
+   *  memory, as hrtz holds it after each checked write, is held against the start's (`left`).
+   *  Where they differ, the memory the check first read is written back, on a mouse that can take
+   *  it whole (`backups`): a setting can fail to go back, as a Z2's 4,000 Hz did over its cable,
+   *  which goes to 1,000, leaving it at 500 (issue #22). A run that writes nothing changes
+   *  nothing. */
+  const putBack = async (): Promise<Pick<Checks, "left" | "wroteBack">> => {
     const r = run.current;
-    if (!r.write) return;
+    if (!r.write) return {};
     if (r.original) await api.applySettings(r.original).catch(() => null);
     const now = (await api.states().catch(() => [])).find((d) => d.key === r.key);
     if (r.profile !== null && now && now.profile !== r.profile) await api.setProfile(r.profile).catch(() => null);
+    const held = r.memory ? await api.mouseTrace().catch(() => null) : null;
+    const left = held?.memory && r.memory ? differs(r.memory, held.memory) : undefined;
+    if (!left?.length || !r.memory || !device?.capabilities?.backups) return left ? { left } : {};
+    try {
+      await api.mousePutBack(r.memory);
+      return { left, wroteBack: { ok: true } };
+    } catch (e) {
+      return { left, wroteBack: { ok: false, error: message(e) } };
+    }
   };
 
   /** Every setting hrtz offers on the mouse, each changed to another value, checked and put back
@@ -260,12 +276,9 @@ export function useParticipate() {
       }
     }
     if (r.stopped) return;
-    await putBack();
-    // Everything back: its memory, as hrtz holds it after each checked write, against the start's.
-    const now = r.memory ? await api.mouseTrace().catch(() => null) : null;
-    const left = now?.memory && r.memory ? differs(r.memory, now.memory) : undefined;
+    const back = await putBack();
     const tried = writes;
-    setChecks((c) => c && { ...c, write: tried[0] ?? null, writes: tried, ...(left && { left }) });
+    setChecks((c) => c && { ...c, write: tried[0] ?? null, writes: tried, ...back });
     setStage("done");
     cap.close();
   };

@@ -580,6 +580,19 @@ impl Worker {
         self.write_image(&current, target)
     }
 
+    /// Writes `target`, the memory the mouse check read at its start, back where putting each
+    /// setting back didn't bring it there: a rate the connection can't set, such as a receiver's
+    /// 4,000 Hz over a cable that goes to 1,000 (a Z2, issue #22). Read again quietly first, then
+    /// only the chunks that differ, each checked after. How many were written: none where it
+    /// already matches.
+    pub fn put_back_image(&mut self, target: &[u8]) -> Result<usize> {
+        let current = self.read_full_image_quietly()?;
+        if current == target {
+            return Ok(0);
+        }
+        self.write_image(&current, target)
+    }
+
     /// Writes `target` over the mouse's memory, which held `current` when just read: only the
     /// chunks that differ, each checked after. Returns how many chunks were written.
     pub fn write_image(&mut self, current: &[u8], target: &[u8]) -> Result<usize> {

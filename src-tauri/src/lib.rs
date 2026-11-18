@@ -583,6 +583,16 @@ async fn mouse_trace(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>) -> CmdResu
     on_device(&ctx, mouse.as_deref(), |w| w.trace()).await
 }
 
+/// The mouse check's last step on mouse `mouse`, where its memory isn't as the check first read it
+/// (`memory`, in base64) once each setting is put back: that memory written back
+/// (`Worker::put_back_image`). How many chunks were written.
+#[tauri::command]
+async fn mouse_put_back(ctx: State<'_, Arc<Ctx>>, mouse: Option<String>, memory: String) -> CmdResult<usize> {
+    use base64::Engine as _;
+    let image = base64::engine::general_purpose::STANDARD.decode(memory).map_err(|e| e.to_string())?;
+    on_device(&ctx, mouse.as_deref(), move |w| w.put_back_image(&image)).await
+}
+
 /// Write a test report where the tester picked.
 #[tauri::command]
 fn save_report(path: String, text: String) -> CmdResult<()> {
@@ -1916,6 +1926,7 @@ pub fn run() {
             restore_mouse,
             mouse_report,
             mouse_trace,
+            mouse_put_back,
             save_report,
             set_mouse_prefs,
             set_prefs,

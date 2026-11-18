@@ -1075,7 +1075,7 @@ pub const MODELS: [Model; 160] = [
         angle_from: None,
         long_range: true,
         battery_h: None,
-        tested: false,
+        tested: true,
     },
     Model {
         cid: 2,
@@ -1090,7 +1090,7 @@ pub const MODELS: [Model; 160] = [
         angle_from: None,
         long_range: true,
         battery_h: None,
-        tested: false,
+        tested: true,
     },
     Model {
         cid: 2,
