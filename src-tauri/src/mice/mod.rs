@@ -198,6 +198,12 @@ pub trait Driver: Send {
         serde_json::Value::Null
     }
 
+    /// Whether hrtz reads all of this model's memory: false for one whose layout it doesn't know
+    /// whole yet, whose test report then goes without it, and which offers no backups.
+    fn reads_whole_memory(&self) -> bool {
+        true
+    }
+
     /// All of the mouse's memory, for a backup; `progress` shows a progress bar.
     fn read_image(&mut self, _board: &Board, _progress: bool) -> Result<Vec<u8>> {
         unsupported()

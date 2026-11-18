@@ -464,12 +464,19 @@ impl Worker {
     }
 
     /// A test report's reading of the mouse: its whole memory (with a progress bar) and what its
-    /// family adds.
+    /// family adds. A model whose memory hrtz doesn't read whole yet goes without it
+    /// (`memoryWhole` false), so its check can still come out clean.
     pub fn report(&mut self) -> Result<serde_json::Value> {
         use base64::Engine as _;
+        if !self.drive(|d, _| Ok(d.reads_whole_memory()))? {
+            self.require_online()?;
+            let more = self.drive(|d, b| d.report(b))?;
+            return Ok(serde_json::json!({ "memoryWhole": false, "family": more }));
+        }
         let image = self.read_image(true)?;
         let more = self.drive(|d, b| d.report(b))?;
         Ok(serde_json::json!({
+            "memoryWhole": true,
             "memorySize": image.len(),
             "memory": base64::engine::general_purpose::STANDARD.encode(&image),
             "family": more,
