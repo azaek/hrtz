@@ -189,7 +189,13 @@ const pickedStages = (p: Part) => readingOf(p, "stages")?.ways.find((w) => w.pie
 /** What the check of a mouse hrtz runs found, a line each. */
 export function summaryLines(c: Checks): Line[] {
   const lines: Line[] = [];
-  lines.push(c.read.ok ? { ok: true, text: `Settings and memory read (${fmt(c.read.bytes ?? 0)} bytes)` } : { ok: false, text: `Memory not read: ${c.read.error ?? "no answer"}` });
+  lines.push(
+    !c.read.ok
+      ? { ok: false, text: `Memory not read: ${c.read.error ?? "no answer"}` }
+      : c.read.settingsOnly
+        ? { ok: null, text: "Settings read; hrtz doesn't read this model's memory whole yet" }
+        : { ok: true, text: `Settings and memory read (${fmt(c.read.bytes ?? 0)} bytes)` },
+  );
   if (c.polling) {
     const { set, measured, stutters } = c.polling;
     const steady = stutters <= 2;

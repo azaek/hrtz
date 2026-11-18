@@ -31,7 +31,8 @@ export interface ButtonCheck {
 
 /** What the check found, for the card and the report. */
 export interface Checks {
-  read: { ok: boolean; bytes?: number; error?: string };
+  /** `settingsOnly`: a model whose memory hrtz doesn't read whole yet, read without it. */
+  read: { ok: boolean; bytes?: number; error?: string; settingsOnly?: boolean };
   polling: { set: number | null; measured: number | null; stutters: number } | null;
   buttons: ButtonCheck[];
   /** The first change tried, as reports had it before every setting was tried. */
@@ -338,10 +339,11 @@ export function useParticipate() {
     setStage("reading");
     cap.start(screenOf("reading", r, 0));
     try {
-      const d = (await api.mouseReport()) as { memorySize?: number; memory?: string };
+      const d = (await api.mouseReport()) as { memoryWhole?: boolean; memorySize?: number; memory?: string };
       run.current.memory = d?.memory ?? null;
       setDump(d);
-      setChecks((c) => c && { ...c, read: { ok: true, bytes: d?.memorySize } });
+      const read = d?.memoryWhole === false ? { ok: true, settingsOnly: true } : { ok: true, bytes: d?.memorySize };
+      setChecks((c) => c && { ...c, read });
     } catch (e) {
       setChecks((c) => c && { ...c, read: { ok: false, error: message(e) } });
     }

@@ -383,6 +383,7 @@ fn a_testers_report_becomes_their_mouse_here() {
     // One hrtz ran: its memory is in its test report's reading.
     let mut r = Rig::connected(SimMouse::z11());
     let device = r.w.report().unwrap();
+    assert_eq!(device["memoryWhole"], true);
     let report = serde_json::json!({ "connections": [{
         "ids": "3554:F511",
         "how": "check",
