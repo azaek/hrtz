@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## 0.5.9 — 2026-11-18
+
+### Improved
+- The Zaopin Z2 is now tested. A check on a real one passed on its 4K receiver and its cable: its DPI stages, their colour and the DPI light, polling rate, lift-off distance, sensor mode, debounce, motion sync, angle snapping, ripple control, peak performance timeout and the onboard profiles, with each of its six buttons seen. Thanks to elist-exe for the check.
+
 ## 0.5.8 — 2026-11-18
 
 ### Improved

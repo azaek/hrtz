@@ -57,10 +57,12 @@ pub fn dpi_method(mid: u8) -> Method {
 }
 
 /// The mice on this channel hrtz runs: Zaopin's models, by MID, then ATK's, each with whether it has
-/// been tried on the real mouse (the Z1 PRO MAX only, so far).
+/// been tried on the real mouse: the Z1 PRO MAX, and the Z2 that answers MID 11 (issue #25,
+/// elist-exe, 2026-11-18: every setting kept and put back on its 4K receiver and its cable,
+/// firmware 2.17).
 pub fn supported() -> Vec<Supported> {
     let mut all: Vec<Supported> =
-        [(4, true), (1, false), (2, false), (11, false), (5, false), (3, false), (6, false), (9, false)]
+        [(4, true), (1, false), (2, false), (11, true), (5, false), (3, false), (6, false), (9, false)]
             .into_iter()
             .map(|(mid, tested)| Supported {
                 family: "compx",
@@ -234,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn a_z2_answering_mid_11_is_a_z2() {
+    fn a_z2_answering_mid_11_is_a_z2_and_tested() {
         assert!(known(11));
         assert_eq!(model_name(11), "Z2");
         assert_eq!(dpi_method(11), Method::Step50);
@@ -243,7 +245,9 @@ mod tests {
         assert_eq!((dpi.min, dpi.max, dpi.step), (50, 26000, 50));
         assert!(caps.motion_sync && caps.angle_snapping && caps.ripple_control && caps.sensor_mode.is_some());
         assert_eq!(caps.polling.unwrap().rates.last(), Some(&4000));
-        assert!(supported().iter().any(|m| m.key == "compx/7-11" && m.model == "Z2" && !m.tested));
+        assert!(supported().iter().any(|m| m.key == "compx/7-11" && m.model == "Z2" && m.tested));
+        // The Z2 that answers MID 2 hasn't been tried.
+        assert!(supported().iter().any(|m| m.key == "compx/7-2" && m.model == "Z2" && !m.tested));
     }
 
     #[test]
