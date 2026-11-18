@@ -116,7 +116,7 @@ The app is translated (`src/i18n.ts`, i18next). Every line of text the user sees
 - A count takes `count` and the singular: `t("{{count}} presses", { count, defaultValue_one: "{{count}} press" })`.
 - `t()` runs where the text is shown, never when a module loads. A table of labels is a function that calls `t()`, or marks each label with `msg()` and calls `t(label)` where it's shown.
 - What we read stays English: the mouse check's report, its issue and its URL. Helpers that name a setting take a `Speech` for that (`actionLabel(a, english)`).
-- After changing text, run `pnpm strings`. It gathers the keys into `src/locales`, where `uk.json` and `ru.json` fill them in (`src/locales/README.md` is the translators' guide).
+- After changing text, run `pnpm strings`. It gathers the keys into `src/locales`, where each language's file fills them in (German, Spanish, Portuguese (Brazil), Russian, Ukrainian, Simplified Chinese; `src/locales/README.md` is the translators' guide). A new line shows in English until its translations are added.
 - Rust's text (the tray, notifications, the pop-up) uses `i18n::tr` on the same files. Each key there is listed in `src/locales/backend.ts`, and a test fails until it is.
 
 ## Commits

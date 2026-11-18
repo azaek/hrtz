@@ -1,8 +1,12 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import de from "./locales/de.json";
 import en from "./locales/en.json";
+import es from "./locales/es.json";
+import ptBR from "./locales/pt-BR.json";
 import ru from "./locales/ru.json";
 import uk from "./locales/uk.json";
+import zhCN from "./locales/zh-CN.json";
 
 /**
  * The languages hrtz shows its text in, each named in itself. The English is the text in the code,
@@ -11,8 +15,12 @@ import uk from "./locales/uk.json";
  */
 export const LANGUAGES = [
   { code: "en", name: "English" },
-  { code: "uk", name: "Українська" },
+  { code: "de", name: "Deutsch" },
+  { code: "es", name: "Español" },
+  { code: "pt-BR", name: "Português (Brasil)" },
   { code: "ru", name: "Русский" },
+  { code: "uk", name: "Українська" },
+  { code: "zh-CN", name: "简体中文" },
 ] as const;
 export type Language = (typeof LANGUAGES)[number]["code"];
 
@@ -20,9 +28,14 @@ export type Language = (typeof LANGUAGES)[number]["code"];
 const KEY = "hrtz.language";
 
 /** Windows' display language (WebView2's `navigator.language`), if hrtz has it; English if not.
- *  The tray and notifications take the same one (`src-tauri/src/i18n.rs`). */
+ *  Any Portuguese takes Brazil's, and Chinese only the Simplified (China's, Singapore's): the
+ *  tray and notifications take the same one (`src-tauri/src/i18n.rs`). */
 export function windowsLanguage(): Language {
-  return LANGUAGES.find((l) => l.code === navigator.language.toLowerCase().split("-")[0])?.code ?? "en";
+  const tag = navigator.language.toLowerCase();
+  const base = tag.split("-")[0];
+  if (base === "zh") return /^zh-(cn|sg|hans)/.test(tag) ? "zh-CN" : "en";
+  if (base === "pt") return "pt-BR";
+  return LANGUAGES.find((l) => l.code === base)?.code ?? "en";
 }
 
 /** The language to show for a choice in Settings: null (or one hrtz no longer has) is Windows'. */
@@ -37,7 +50,15 @@ function stored(): string | null {
 }
 
 void i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, uk: { translation: uk }, ru: { translation: ru } },
+  resources: {
+    en: { translation: en },
+    de: { translation: de },
+    es: { translation: es },
+    "pt-BR": { translation: ptBR },
+    ru: { translation: ru },
+    uk: { translation: uk },
+    "zh-CN": { translation: zhCN },
+  },
   lng: languageFor(stored()),
   fallbackLng: "en",
   // The keys are English sentences, with their own dots and colons.
@@ -86,7 +107,8 @@ export const num = (n: number, options?: Intl.NumberFormatOptions) => n.toLocale
 
 /** Where a date or time follows Windows' regional format ("15 Oct" in English in India): that
  *  format while Windows is in the language shown, else the language's usual one. */
-export const dateLocale = () => (navigator.language.toLowerCase().split("-")[0] === i18n.language ? navigator.language : i18n.language);
+export const dateLocale = () => (base(navigator.language) === base(i18n.language) ? navigator.language : i18n.language);
+const base = (tag: string) => tag.toLowerCase().split("-")[0];
 
 /** A line from its English, which is its key, and the values it holds: `t`'s shape. */
 export type Say = (key: string, values?: Record<string, unknown>) => string;

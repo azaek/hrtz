@@ -1,22 +1,29 @@
 # Translating hrtz
 
-Each language is one file here: `uk.json` (Українська), `ru.json` (Русский). `en.json` is the English, made from the app's code.
+Each language is one file here:
+
+| File | Language |
+|---|---|
+| `de.json` | Deutsch |
+| `es.json` | Español |
+| `pt-BR.json` | Português (Brasil) |
+| `ru.json` | Русский |
+| `uk.json` | Українська |
+| `zh-CN.json` | 简体中文 |
+
+`en.json` is the English, made from the app's code. The first versions were machine-drafted, so the most useful help is someone who speaks the language reading them in the app and fixing what sounds wrong.
 
 ## How to translate
 
 Open your language's file. Each line is the English on the left and your language on the right:
 
 ```json
-"Polling rate": "",
-```
-
-Fill in the empty right side:
-
-```json
 "Polling rate": "Частота опитування",
 ```
 
-A line left empty shows in English, so you can translate a part and send it.
+Change the right side. A line left empty shows in English, so new lines can be translated a few at a time.
+
+To add a language, copy a file's keys with empty values, name it by the language's code, and ask us to add it to the list in `src/i18n.ts`.
 
 ## Keep these as they are
 
@@ -26,7 +33,7 @@ A line left empty shows in English, so you can translate a part and send it.
 
 ## Counts
 
-A line with a count has one entry per plural form. Ukrainian and Russian have four:
+A line with a count has one entry per plural form your language has. German has `_one` and `_other`; Spanish and Portuguese add `_many`, used only for millions in compact form (the same text as `_other`); Chinese has `_other` alone. Ukrainian and Russian have four:
 
 ```json
 "{{count}} presses_one": "{{count}} натискання",

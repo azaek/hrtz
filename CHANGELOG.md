@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### New
+- hrtz now comes in Deutsch, Español, Português (Brasil), Русский, Українська and 简体中文, as well as English. It follows Windows' display language, or pick one in Settings under Language. The tray menu, notifications and the DPI pop-up follow it too. Thanks to elist-exe for asking.
+
 ## 0.5.9 — 2026-11-18
 
 ### Improved
