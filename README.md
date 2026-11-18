@@ -18,6 +18,7 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
+| Logitech G304 / G305 | Not tested yet |
 | VXE R1 (PAW3395) | Tested |
 | VXE R1 PRO MAX (PAW3395) | Tested |
 | VXE R1 PRO (PAW3950 Ultra) | Tested |
@@ -165,7 +166,8 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 </details>
 <!-- supported:end -->
 
-Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED receiver or cable.
+Zaopin mice connect by their receiver or cable, Logitech's by their LIGHTSPEED receiver or cable
+(G304/G305: receiver only).
 "Tested" means tried on the real mouse; the others use the same protocol as a tested one and should
 work. More mice come one at a time, each tried with its owners before it's called tested.
 
@@ -184,6 +186,14 @@ isn't sure how a sensor keeps something, it leaves it out: the DPI on PAW3311, P
 models, until owners' checks confirm it. Macros aren't in hrtz yet.
 
 ## Help test it
+
+G304/G305 support is experimental: identity, DPI range, report rates, six buttons and the single
+onboard profile were read from a G304, but writes have not been verified on hardware. Existing
+onboard button records and unedited profile bytes are preserved when editing a setting. Full
+backup/restore and factory reset are disabled because its memory layout needs further work.
+Endurance/performance switching, macro editing and G-Shift editing are not implemented; keep
+G HUB for these and its software profiles. This is not yet a complete G HUB replacement.
+The automated support check currently requires a full backup and cannot complete on this model.
 
 hrtz is in beta. If you have one of the mice above, these help most:
 
