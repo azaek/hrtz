@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.11 — 2026-11-19
 
 ### Fixed
 - On the PRO X SUPERLIGHT 2c, DPI now moves in steps of 50, as in G HUB. Values in between, such as 801, were refused by the mouse. Thanks to @bwyao for the report.
