@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.5.10 — 2026-11-19
 
 ### New
 - Logitech's G304 and G305, on their LIGHTSPEED receiver: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery, with backups, restores and factory settings. Tested on a real G304, by @whyshhnuv in #26
