@@ -1106,6 +1106,25 @@ fn only_the_profiles_turned_on_are_offered() {
     assert_eq!(all.mouse.lock().current, 1);
 }
 
+/// The PRO X SUPERLIGHT 2c of issue #36: DPI in steps of 50 from a list whose steps differ, one
+/// profile, and 801 refused as the mouse refused it.
+#[test]
+fn a_superlight_2c_steps_by_50_and_offers_its_one_profile() {
+    let mut r = Rig::connected(SimMouse::superlight2c());
+    let s = r.state();
+    assert_eq!(s.model.as_deref(), Some("PRO X SUPERLIGHT 2c"));
+    let caps = s.capabilities.unwrap();
+    let dpi = caps.dpi.unwrap();
+    assert_eq!((dpi.min, dpi.max, dpi.step), (100, 44000, 50));
+    assert_eq!(caps.profiles, Some(1));
+    let one = |r: &Rig, dpi| with_stages(&r.settings(), &[dpi], 0);
+    let odd = one(&r, 801);
+    assert!(r.w.apply_settings(&odd).unwrap_err().to_string().contains("801"));
+    let even = one(&r, 850);
+    r.w.apply_settings(&even).unwrap();
+    assert_eq!(dpis(&r.settings())[0], 850);
+}
+
 #[test]
 fn a_profile_switched_on_the_mouse_is_read_and_announced() {
     let mut r = Rig::connected(SimMouse::superlight2().all_profiles_on());

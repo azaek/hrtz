@@ -49,6 +49,8 @@ pub struct SimMouse {
     pub battery: Battery,
     /// 0x2202 and 0x8061, as the Superlight 2; else 0x2201 and 0x8060, as the first.
     pub extended: bool,
+    /// 0x2202's DPI list, as it sends it: 100 to 32,000 in steps of 50 unless set.
+    pub dpi_list: Option<Vec<u8>>,
     /// The stage slot it runs. A rewrite of the profile in use keeps the slot, as the user's
     /// Superlight did (2026-10-18): the DPI is whatever that slot holds now.
     pub stage: u8,
@@ -104,6 +106,7 @@ impl SimMouse {
             name: "PRO X Wireless",
             battery: Battery::Unified { percent: 44, status: 0 },
             extended: false,
+            dpi_list: None,
             stage: 0,
             dpi_index: true,
             port: None,
@@ -152,6 +155,26 @@ impl SimMouse {
             sectors,
             current: 3,
             ..Self::superlight()
+        }
+    }
+
+    /// A PRO X SUPERLIGHT 2c on its receiver, as its check showed it (issue #36): only profile 1
+    /// turned on, white. Its DPI list is a stand-in with the 2c's trait, ranges whose steps differ
+    /// (100 to 400 in steps of 1, then to 44,000 in steps of 50): it has 850 but not 801.
+    pub fn superlight2c() -> Self {
+        let mut s = Self::superlight2();
+        let mut directory = fixtures::superlight2_directory();
+        directory[..20].copy_from_slice(&[0, 1, 1, 0xFF, 0, 2, 0, 0xFF, 0, 3, 0, 0xFF, 0, 4, 0, 0xFF, 0, 5, 0, 0xFF]);
+        ob::apply_crc(&mut directory);
+        s.sectors.insert(0, directory);
+        s.sectors.insert(3, fixtures::superlight2_factory());
+        Self {
+            usb_id: 0xC09F,
+            name: "PRO X SUPERLIGHT 2c",
+            colour: 1,
+            current: 1,
+            dpi_list: Some(vec![0x00, 0x64, 0xE0, 0x01, 0x01, 0x90, 0xE0, 0x32, 0xAB, 0xE0, 0x00, 0x00]),
+            ..s
         }
     }
 
@@ -327,10 +350,9 @@ impl SimMouse {
             }
             // 100 to 32,000 in steps of 50, on page 0.
             (feature::EXTENDED_DPI, 0x20) => {
+                let list = self.dpi_list.clone().unwrap_or_else(|| vec![0x00, 0x64, 0xE0, 0x32, 0x7D, 0x00]);
                 let mut v = vec![0, 0, at(2)];
-                if at(2) == 0 {
-                    v.extend_from_slice(&[0x00, 0x64, 0xE0, 0x32, 0x7D, 0x00]);
-                }
+                v.extend(list.iter().skip(at(2) as usize * 13).take(13));
                 v.resize(16, 0);
                 Ok(v)
             }
@@ -525,7 +547,7 @@ impl Finder for SimFinder {
 }
 
 /// Simulated Superlights beside the real mice, in a dev build: `HRTZ_SIM=superlight` (or
-/// `superlight2`, or both, with Zaopin ones too, comma-separated). Their keys start `sim/`.
+/// `superlight2`, `superlight2c`, or several, with Zaopin ones too, comma-separated). Their keys start `sim/`.
 pub struct SimFamily {
     mice: Vec<(String, Arc<Mutex<SimMouse>>)>,
 }
@@ -539,6 +561,7 @@ impl SimFamily {
                 let m = match n.trim() {
                     "superlight" => SimMouse::superlight(),
                     "superlight2" => SimMouse::superlight2(),
+                    "superlight2c" => SimMouse::superlight2c(),
                     _ => return None,
                 };
                 Some((format!("sim:{}", n.trim()), Arc::new(Mutex::new(m))))
