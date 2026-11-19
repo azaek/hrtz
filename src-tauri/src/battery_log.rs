@@ -3,7 +3,7 @@
 //! The mouse reports its level, voltage and whether it's charging, and nothing about health. So a
 //! row is kept whenever one of those, the polling rate or sleep changes (and every so often
 //! regardless), and battery life per polling rate, charge cycles and capacity are worked out from
-//! the rows.
+//! the rows. A row also notes whether battery saver was holding the rate down, for the chart.
 
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
@@ -25,7 +25,7 @@ const MIN_DROP: f64 = 3.0;
 const CAPACITY_AFTER: u64 = 30 * DAY;
 const WINDOW: u64 = 14 * DAY;
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Entry {
     /// Unix seconds.
     pub t: u64,
@@ -37,22 +37,33 @@ pub struct Entry {
     pub hz: u32,
     /// Awake and linked to the receiver; false while it sleeps.
     pub awake: bool,
+    /// Battery saver had lowered the polling rate. The log fills this in (`set_saving`); rows from
+    /// before it was kept read as off.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub saver: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !b
 }
 
 #[derive(Default)]
 pub struct BatteryLog {
     path: Option<PathBuf>,
     entries: Vec<Entry>,
+    /// Battery saver is holding the rate down now.
+    saving: bool,
 }
 
 impl BatteryLog {
     pub fn load(path: Option<PathBuf>) -> Self {
-        let entries = path
+        let entries: Vec<Entry> = path
             .as_ref()
             .and_then(|p| fs::read_to_string(p).ok())
             .map(|text| text.lines().filter_map(|l| serde_json::from_str::<Entry>(l).ok()).collect())
             .unwrap_or_default();
-        Self { path, entries }
+        let saving = entries.last().is_some_and(|e| e.saver);
+        Self { path, entries, saving }
     }
 
     pub fn entries(&self) -> &[Entry] {
@@ -61,8 +72,13 @@ impl BatteryLog {
 
     /// Keep `e` if it says something new, or the last row is getting old. Returns whether it did.
     pub fn record(&mut self, e: Entry) -> bool {
+        let e = Entry { saver: self.saving, ..e };
         if let Some(last) = self.entries.last() {
-            let same = last.level == e.level && last.charging == e.charging && last.hz == e.hz && last.awake == e.awake;
+            let same = last.level == e.level
+                && last.charging == e.charging
+                && last.hz == e.hz
+                && last.awake == e.awake
+                && last.saver == e.saver;
             let every = if e.awake { EVERY_AWAKE } else { EVERY_ASLEEP };
             // A clock that went back would scramble the order.
             if e.t < last.t || (same && e.t < last.t + every) {
@@ -80,8 +96,20 @@ impl BatteryLog {
         true
     }
 
+    /// Note battery saver lowering the rate or putting it back, with a row from `now` so the
+    /// chart shows it from then.
+    pub fn set_saving(&mut self, on: bool, now: u64) {
+        if self.saving == on {
+            return;
+        }
+        self.saving = on;
+        if let Some(&last) = self.entries.last() {
+            self.record(Entry { t: now.max(last.t), ..last });
+        }
+    }
+
     /// Rows from `since` on, thinned to about `max`, always keeping the rows where charging,
-    /// sleep or the polling rate changed.
+    /// sleep, the polling rate or battery saver changed.
     pub fn history(&self, since: u64, max: usize) -> Vec<Entry> {
         let start = self.entries.partition_point(|e| e.t < since);
         let rows = &self.entries[start..];
@@ -94,7 +122,7 @@ impl BatteryLog {
         for (i, e) in rows.iter().enumerate() {
             let changed = i > 0 && {
                 let p = rows[i - 1];
-                p.charging != e.charging || p.awake != e.awake || p.hz != e.hz
+                p.charging != e.charging || p.awake != e.awake || p.hz != e.hz || p.saver != e.saver
             };
             let last = i + 1 == rows.len();
             if out.last().is_none_or(|o| e.t >= o.t + step) || changed || last {
@@ -269,11 +297,27 @@ mod tests {
                 level -= if awake { per_h / 60.0 } else { sleep_per_day / 1440.0 };
                 let charging = level < 15.0;
                 if charging {
-                    log.record(Entry { t, level: level.round() as u8, mv: 3700, charging: true, hz, awake });
+                    log.record(Entry {
+                        t,
+                        level: level.round() as u8,
+                        mv: 3700,
+                        charging: true,
+                        hz,
+                        awake,
+                        saver: false,
+                    });
                     level = 100.0;
-                    log.record(Entry { t: t + 1, level: 100, mv: 4150, charging: true, hz, awake });
+                    log.record(Entry { t: t + 1, level: 100, mv: 4150, charging: true, hz, awake, saver: false });
                 }
-                log.record(Entry { t: t + 2, level: level.round() as u8, mv: 3900, charging: false, hz, awake });
+                log.record(Entry {
+                    t: t + 2,
+                    level: level.round() as u8,
+                    mv: 3900,
+                    charging: false,
+                    hz,
+                    awake,
+                    saver: false,
+                });
             }
         }
         log
@@ -282,13 +326,35 @@ mod tests {
     #[test]
     fn keeps_rows_only_when_something_changes_or_time_passes() {
         let mut log = BatteryLog::default();
-        let e = Entry { t: T0, level: 80, mv: 3900, charging: false, hz: 8000, awake: true };
+        let e = Entry { t: T0, level: 80, mv: 3900, charging: false, hz: 8000, awake: true, saver: false };
         assert!(log.record(e));
         assert!(!log.record(Entry { t: T0 + 60, mv: 3890, ..e }));
         assert!(log.record(Entry { t: T0 + 120, level: 79, ..e }));
         assert!(log.record(Entry { t: T0 + 130, level: 79, hz: 1000, ..e }));
         assert!(log.record(Entry { t: T0 + 130 + EVERY_AWAKE, level: 79, hz: 1000, ..e }));
         assert!(!log.record(Entry { t: T0, ..e }), "the clock went back");
+    }
+
+    #[test]
+    fn notes_battery_saver() {
+        let mut log = BatteryLog::default();
+        let e = Entry { t: T0, level: 20, mv: 3700, charging: false, hz: 8000, awake: true, saver: false };
+        log.record(e);
+        log.record(Entry { t: T0 + 5, hz: 1000, ..e });
+        log.set_saving(true, T0 + 6);
+        assert_eq!(log.entries().last(), Some(&Entry { t: T0 + 6, hz: 1000, saver: true, ..e }));
+        log.set_saving(true, T0 + 7);
+        assert_eq!(log.entries().len(), 3, "only a change is noted");
+        log.record(Entry { t: T0 + 600, level: 19, hz: 1000, ..e });
+        assert!(log.entries().last().unwrap().saver, "later rows carry it");
+        log.set_saving(false, T0 + 700);
+        assert!(!log.entries().last().unwrap().saver);
+
+        // Left out of the file while off, and rows from before it read as off.
+        assert!(!serde_json::to_string(&e).unwrap().contains("saver"));
+        let old: Entry =
+            serde_json::from_str(r#"{"t":1,"level":5,"mv":3600,"charging":false,"hz":8000,"awake":true}"#).unwrap();
+        assert!(!old.saver);
     }
 
     #[test]
@@ -325,7 +391,7 @@ mod tests {
     #[test]
     fn gaps_the_app_did_not_see_are_left_out_of_battery_life() {
         let mut log = BatteryLog::default();
-        let e = Entry { t: T0, level: 90, mv: 3950, charging: false, hz: 8000, awake: true };
+        let e = Entry { t: T0, level: 90, mv: 3950, charging: false, hz: 8000, awake: true, saver: false };
         log.record(e);
         // The PC was off for a day; the level fell meanwhile.
         log.record(Entry { t: T0 + DAY, level: 60, ..e });

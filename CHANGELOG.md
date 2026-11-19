@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Improved
+- A better battery level view, with charging, battery saver and the time awake and asleep at a glance.
+
 ## 0.5.11 — 2026-11-19
 
 ### Fixed

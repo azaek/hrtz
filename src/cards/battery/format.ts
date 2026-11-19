@@ -5,6 +5,12 @@ export const DAY = 86_400;
 export const unixNow = () => Math.floor(Date.now() / 1000);
 /** 0.4 → "24 min", 7.6 → "8 h". */
 export const hours = (h: number) => (h < 1.5 ? t("{{n}} min", { n: num(Math.round(h * 60)) }) : t("{{n}} h", { n: num(Math.round(h)) }));
+/** 10.85 → "10 h 51 min", 0.4 → "24 min". */
+export const duration = (h: number) => {
+  const m = Math.round(h * 60);
+  if (m < 60) return t("{{n}} min", { n: num(m) });
+  return m % 60 ? t("{{h}} h {{m}} min", { h: num(Math.floor(m / 60)), m: num(m % 60) }) : t("{{n}} h", { n: num(m / 60) });
+};
 /** 1.2 → "29 hours", 5.12 → "5.1 days". */
 export const days = (d: number) => {
   if (d < 1.5) return t("{{count}} hours", { count: Math.round(d * 24) });

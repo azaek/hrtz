@@ -1,25 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Caption1, makeStyles, tokens } from "@fluentui/react-components";
-import type { BatteryEntry } from "@/api";
+import type { BatteryEntry, BatterySummary } from "@/api";
 import { dateLocale, num, t } from "@/i18n";
-import { hzText, rateColor } from "@/rates";
-import { DAY } from "./format";
-
-/** A longer gap between log rows means the app wasn't running (matches `battery_log.rs`). */
-const GAP = 45 * 60;
-const CHART_HEIGHT = 160;
-/** Room for the level labels on the left, and the awake band and time labels below (px). */
-const LEFT = 36;
-const BAND = 6;
-const BELOW = 26;
+import { hzText } from "@/rates";
+import { BatteryFooter } from "./BatteryFooter";
+import { awakeIn, CHART_HEIGHT, drawChart, hoursPerBar, RIGHT, slotsOf, tints, type Mark, type Slot } from "./drawChart";
+import { duration } from "./format";
 
 const useStyles = makeStyles({
   muted: { color: tokens.colorNeutralForeground3 },
   chartWrap: { position: "relative", minWidth: 0 },
-  canvas: { display: "block" },
+  canvas: { display: "block", borderRadius: tokens.borderRadiusMedium },
   tooltip: {
     position: "absolute",
     pointerEvents: "none",
+    display: "flex",
+    flexDirection: "column",
     padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
     borderRadius: tokens.borderRadiusMedium,
     backgroundColor: "var(--flyout)",
@@ -27,20 +23,52 @@ const useStyles = makeStyles({
     whiteSpace: "nowrap",
     zIndex: 1,
   },
-  legend: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: tokens.spacingHorizontalL, rowGap: tokens.spacingVerticalXS, color: tokens.colorNeutralForeground3 },
+  legend: { display: "flex", flexWrap: "wrap", columnGap: tokens.spacingHorizontalL, color: tokens.colorNeutralForeground3 },
   key: { display: "inline-flex", alignItems: "center", gap: tokens.spacingHorizontalXS },
-  swatch: { width: "10px", height: "10px", borderRadius: "2px" },
+  dot: { width: "8px", height: "8px", borderRadius: "50%" },
+  dash: { width: "12px", height: 0, borderTopWidth: "1px", borderTopStyle: "dashed" },
 });
 
-/** The level over time: charging shaded, a band below for time awake coloured by polling rate. */
-export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: number; now: number }) {
+/** What a bar covers and what happened in it: the time, then the level and state. */
+function describe(slot: Slot, days: number): [string, string] {
+  // A day's bar is its date; a shorter one, its hours.
+  const when =
+    hoursPerBar(days) >= 24
+      ? new Date(slot.start * 1000).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" })
+      : t("{{from}} – {{to}}", {
+          from: new Date(slot.start * 1000).toLocaleString(dateLocale(), { weekday: "short", hour: "numeric", minute: "2-digit" }),
+          to: new Date(slot.end * 1000).toLocaleTimeString(dateLocale(), { hour: "numeric", minute: "2-digit" }),
+        });
+  if (slot.level == null) return [when, t("No readings")];
+  const awake = awakeIn(slot);
+  // The rate it spent longest at.
+  const hz = [...slot.awake].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const state = [
+    t("{{percent}}%", { percent: num(slot.level) }),
+    slot.charging && t("Charging"),
+    slot.saver && t("Battery saver"),
+    awake > 0 ? (hz ? t("Awake {{time}} at {{rate}}", { time: duration(awake / 3600), rate: hzText(hz) }) : t("Awake {{time}}", { time: duration(awake / 3600) })) : t("Asleep"),
+  ];
+  return [when, state.filter(Boolean).join(" · ")];
+}
+
+/**
+ * The level as bars, an hour each over a day (`drawChart`), with dashed lines at the low battery
+ * alert's level (`low`) and battery saver's (`saverAt`) when they're on. Point at a bar, or focus
+ * the chart and use the arrow keys, for what happened in it; the polling rate is told there. The
+ * figures under it are `BatteryFooter`.
+ */
+export function BatteryChart({ rows, days, now, summary, hz, low, saverAt }: { rows: BatteryEntry[]; days: number; now: number; summary: BatterySummary | null; hz?: number; low?: number; saverAt?: number }) {
   const s = useStyles();
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
-  const [hover, setHover] = useState<{ x: number; row: BatteryEntry } | null>(null);
-  const shown = rows.filter((r) => r.t >= from);
-  const drawn = shown.length >= 2;
+  const [hover, setHover] = useState<number | null>(null);
+  const slots = useMemo(() => slotsOf(rows, days, now), [rows, days, now]);
+  const drawn = slots.some((x) => x.level != null);
+  // Read each render, so a change of theme redraws in its colours.
+  const dark = document.documentElement.dataset.theme === "dark";
+  const tint = tints(dark);
 
   // The chart mounts once there's something to draw, so watch its size from then.
   useEffect(() => {
@@ -50,171 +78,123 @@ export function BatteryChart({ rows, from, now }: { rows: BatteryEntry[]; from: 
     return () => ro.disconnect();
   }, [drawn]);
 
-  const plotW = Math.max(0, width - LEFT - 8);
-  const x = (t: number) => LEFT + ((t - from) / Math.max(1, now - from)) * plotW;
-  const y = (level: number) => 6 + (1 - level / 100) * CHART_HEIGHT;
+  const plotW = Math.max(0, width - RIGHT);
+  const slotW = plotW / slots.length;
 
   useEffect(() => {
     const c = canvas.current;
     if (!c || !width) return;
     const dpr = window.devicePixelRatio || 1;
-    const h = 6 + CHART_HEIGHT + 8 + BAND + BELOW;
     c.width = Math.round(width * dpr);
-    c.height = Math.round(h * dpr);
+    c.height = Math.round(CHART_HEIGHT * dpr);
     c.style.width = `${width}px`;
-    c.style.height = `${h}px`;
+    c.style.height = `${CHART_HEIGHT}px`;
     const g = c.getContext("2d")!;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const css = getComputedStyle(c);
     const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-    const stroke = v("--colorNeutralStroke2", "#555");
-    const muted = v("--colorNeutralForeground3", "#aaa");
-    const accent = v("--colorBrandForeground1", "#479ef5");
-    const green = v("--colorPaletteGreenForeground1", "#54b054");
-    const font = v("--fontFamilyBase", "sans-serif");
-    const bandY = 6 + CHART_HEIGHT + 8;
-
-    // Level grid, labelled on the left.
-    g.font = `11px ${font}`;
-    g.textBaseline = "middle";
-    g.textAlign = "right";
-    for (const level of [0, 25, 50, 75, 100]) {
-      g.strokeStyle = stroke;
-      g.globalAlpha = level % 50 ? 0.5 : 1;
-      g.lineWidth = 1;
-      g.beginPath();
-      g.moveTo(LEFT, Math.round(y(level)) + 0.5);
-      g.lineTo(LEFT + plotW, Math.round(y(level)) + 0.5);
-      g.stroke();
-      g.globalAlpha = 1;
-      if (level % 50 === 0) {
-        g.fillStyle = muted;
-        g.fillText(t("{{percent}}%", { percent: num(level) }), LEFT - 6, y(level));
-      }
-    }
-
-    // Charging, and time awake by rate, both between consecutive rows the app saw.
-    for (let i = 0; i < shown.length; i++) {
-      const a = shown[i];
-      const b = shown[i + 1];
-      const end = b && b.t - a.t <= GAP ? b.t : Math.min(now, a.t + 60);
-      if (a.charging) {
-        g.fillStyle = green;
-        g.globalAlpha = 0.16;
-        g.fillRect(x(a.t), y(100), Math.max(1, x(end) - x(a.t)), CHART_HEIGHT);
-        g.globalAlpha = 1;
-      }
-      if (a.awake) {
-        g.fillStyle = rateColor(a.hz);
-        g.fillRect(x(a.t), bandY, Math.max(1, x(end) - x(a.t)), BAND);
-      }
-    }
-
-    // The level, broken where the app wasn't running.
-    g.strokeStyle = accent;
-    g.lineWidth = 2;
-    g.lineJoin = "round";
-    g.beginPath();
-    shown.forEach((r, i) => {
-      const gap = i === 0 || r.t - shown[i - 1].t > GAP;
-      if (gap) g.moveTo(x(r.t), y(r.level));
-      else g.lineTo(x(r.t), y(r.level));
-    });
-    g.stroke();
-
-    // Time labels.
-    g.fillStyle = muted;
-    g.textAlign = "center";
-    g.textBaseline = "top";
-    const span = now - from;
-    const step = span <= DAY ? 6 * 3600 : span <= 7 * DAY ? DAY : 7 * DAY;
-    const start = new Date(from * 1000);
-    start.setMinutes(0, 0, 0);
-    if (step >= DAY) start.setHours(0);
-    else start.setHours(Math.ceil(start.getHours() / 6) * 6);
-    for (let t = start.getTime() / 1000; t <= now; t += step) {
-      if (t < from) continue;
-      const d = new Date(t * 1000);
-      const text =
-        step < DAY
-          ? d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" })
-          : step === DAY
-            ? d.toLocaleDateString(dateLocale(), { weekday: "short" })
-            : d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
-      g.fillText(text, x(t), bandY + BAND + 6);
-    }
-
-    if (hover) {
-      g.strokeStyle = muted;
-      g.lineWidth = 1;
-      g.beginPath();
-      g.moveTo(Math.round(hover.x) + 0.5, y(100));
-      g.lineTo(Math.round(hover.x) + 0.5, bandY + BAND);
-      g.stroke();
-      g.fillStyle = accent;
-      g.beginPath();
-      g.arc(x(hover.row.t), y(hover.row.level), 3.5, 0, Math.PI * 2);
-      g.fill();
-    }
-  }, [shown, width, from, now, hover]);
+    const look = {
+      ...tints(dark),
+      stroke: v("--colorNeutralStroke2", "#555"),
+      muted: v("--colorNeutralForeground3", "#aaa"),
+      ink: v("--colorNeutralForeground1", "#fff"),
+      font: v("--fontFamilyBase", "sans-serif"),
+    };
+    const marks: Mark[] = [];
+    if (low != null) marks.push({ level: low, color: look.muted });
+    if (saverAt != null) marks.push({ level: saverAt, color: look.saver });
+    drawChart(g, { width, slots, days, hover, marks, look });
+  }, [slots, width, days, hover, dark, low, saverAt]);
 
   if (!drawn) {
-    return <Caption1 className={s.muted}>{t("No history yet. The level appears here as you use the mouse.")}</Caption1>;
+    return (
+      <>
+        <Caption1 className={s.muted}>{t("No history yet. The level appears here as you use the mouse.")}</Caption1>
+        <BatteryFooter totals={null} summary={summary} hz={hz} />
+      </>
+    );
   }
 
+  const last = slots.length - 1;
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const px = e.clientX - e.currentTarget.getBoundingClientRect().left;
-    if (px < LEFT || px > LEFT + plotW) return setHover(null);
-    const t = from + ((px - LEFT) / plotW) * (now - from);
-    // The row in force at that moment.
-    let row = shown[0];
-    for (const r of shown) {
-      if (r.t > t) break;
-      row = r;
-    }
-    setHover({ x: px, row });
+    const i = Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / slotW);
+    setHover(i >= 0 && i <= last ? i : null);
+  };
+  // The arrow keys step through the bars from the latest; Home and End go to either end.
+  const onKey = (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+    const from = hover ?? last;
+    const next = e.key === "ArrowLeft" ? Math.max(0, from - 1) : e.key === "ArrowRight" ? Math.min(last, from + 1) : e.key === "Home" ? 0 : e.key === "End" ? last : null;
+    if (next == null) return;
+    e.preventDefault();
+    setHover(next);
   };
 
-  const rates = [...new Set(shown.filter((r) => r.awake).map((r) => r.hz))].sort((a, b) => a - b);
-  const tip = hover
-    ? [
-        new Date(hover.row.t * 1000).toLocaleString(dateLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" }),
-        t("{{percent}}%", { percent: num(hover.row.level) }),
-        hover.row.charging ? t("charging") : hover.row.awake ? hzText(hover.row.hz) : t("asleep"),
-      ].join(" · ")
-    : "";
-  const lowest = Math.min(...shown.map((r) => r.level));
-  const charged = shown.some((r) => r.charging);
+  const awake = slots.reduce((sum, x) => sum + awakeIn(x), 0);
+  const asleep = slots.reduce((sum, x) => sum + x.asleep, 0);
+  const charged = slots.some((x) => x.charging);
+  const saved = slots.some((x) => x.saver);
+  const lowest = Math.min(...slots.flatMap((x) => (x.level == null ? [] : [x.level])));
+  const tip = hover != null ? describe(slots[hover], days) : null;
 
   return (
     <>
+      {(charged || saved || low != null || saverAt != null) && (
+        <div className={s.legend}>
+          {charged && (
+            <span className={s.key}>
+              <span className={s.dot} style={{ background: tint.charging }} aria-hidden />
+              <Caption1>{t("Charging")}</Caption1>
+            </span>
+          )}
+          {saved && (
+            <span className={s.key}>
+              <span className={s.dot} style={{ background: tint.saver }} aria-hidden />
+              <Caption1>{t("Battery saver")}</Caption1>
+            </span>
+          )}
+          {low != null && (
+            <span className={s.key}>
+              <span className={s.dash} style={{ borderTopColor: tokens.colorNeutralForeground3 }} aria-hidden />
+              <Caption1>{t("Low battery alert")}</Caption1>
+            </span>
+          )}
+          {saverAt != null && (
+            <span className={s.key}>
+              <span className={s.dash} style={{ borderTopColor: tint.saver }} aria-hidden />
+              <Caption1>{t("Battery saver starts")}</Caption1>
+            </span>
+          )}
+        </div>
+      )}
       <div ref={wrap} className={s.chartWrap}>
         <canvas
           ref={canvas}
           className={s.canvas}
-          role="img"
-          aria-label={charged ? t("Battery level over the period shown, lowest {{percent}}%, with charging", { percent: num(lowest) }) : t("Battery level over the period shown, lowest {{percent}}%", { percent: num(lowest) })}
+          tabIndex={0}
+          role="slider"
+          aria-label={
+            charged
+              ? t("Battery level over the period shown, lowest {{percent}}%, with charging", { percent: num(lowest) })
+              : t("Battery level over the period shown, lowest {{percent}}%", { percent: num(lowest) })
+          }
+          aria-valuemin={0}
+          aria-valuemax={last}
+          aria-valuenow={hover ?? last}
+          aria-valuetext={tip ? tip.join(", ") : undefined}
           onMouseMove={onMove}
-          onMouseLeave={() => setHover(null)}
+          onMouseLeave={(e) => document.activeElement !== e.currentTarget && setHover(null)}
+          onFocus={() => setHover((h) => h ?? last)}
+          onBlur={() => setHover(null)}
+          onKeyDown={onKey}
         />
-        {hover && (
-          <div className={s.tooltip} style={{ left: Math.min(hover.x + 12, Math.max(0, width - 220)), top: 8 }}>
-            <Caption1>{tip}</Caption1>
+        {tip && hover != null && (
+          <div className={s.tooltip} style={{ left: Math.min(hover * slotW + slotW + 8, Math.max(0, width - 240)), top: 0 }}>
+            <Caption1 className={s.muted}>{tip[0]}</Caption1>
+            <Caption1>{tip[1]}</Caption1>
           </div>
         )}
       </div>
-      <div className={s.legend}>
-        <span className={s.key}>
-          <span className={s.swatch} style={{ background: tokens.colorPaletteGreenForeground1, opacity: 0.4 }} aria-hidden />
-          <Caption1>{t("Charging")}</Caption1>
-        </span>
-        {rates.map((hz) => (
-          <span key={hz} className={s.key}>
-            <span className={s.swatch} style={{ background: rateColor(hz) }} aria-hidden />
-            <Caption1>{t("Awake at {{rate}}", { rate: hzText(hz) })}</Caption1>
-          </span>
-        ))}
-      </div>
+      <BatteryFooter totals={{ awake, asleep }} summary={summary} hz={hz} />
     </>
   );
 }
