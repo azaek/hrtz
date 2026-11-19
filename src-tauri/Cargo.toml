@@ -31,7 +31,8 @@ base64 = "0.22"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 png = "0.17"
-tauri-plugin-updater = "2"
+# Without "zip": the updates are plain setup.exe files, and zip only unpacks Tauri v1 bundles.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-process = "2"
 
 [target.'cfg(windows)'.dependencies]

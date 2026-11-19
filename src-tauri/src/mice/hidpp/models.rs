@@ -3,16 +3,32 @@
 // src/drivers/vendors.ts. Translated to Rust and modified for hrtz, 2026-10-18. Copyright (C) the
 // OpenMouse contributors. AGPL-3.0-or-later.
 
-//! Logitech's mice hrtz runs: the Superlights, on their LIGHTSPEED receivers or their cables.
+//! Logitech's mice hrtz runs: Superlights and the wireless-only G304/G305.
 //! Other mice that speak HID++ come one at a time, with an owner to try them, so only these are
 //! claimed: a keyboard or headset on the same protocol is left alone.
 
 use crate::mice::model::Supported;
 
 /// LIGHTSPEED receivers: 0xC539 (HERO-era, shipped with the first Superlight and the G Pro
-/// Wireless), 0xC547 (the first Superlight's later one) and 0xC54D (the Superlight 2's). The mouse
-/// answers on one of the receiver's pairing slots.
-pub const RECEIVERS: [u16; 3] = [0xC539, 0xC547, 0xC54D];
+/// Wireless), 0xC547 (the first Superlight's later one), 0xC54D (the Superlight 2's) and 0xC53F
+/// (the G304/G305's: G HUB's `receiverPid` 50495 for it). The mouse answers on one of the
+/// receiver's pairing slots.
+pub const RECEIVERS: [u16; 4] = [0xC539, 0xC547, 0xC54D, 0xC53F];
+
+/// The G304 and G305: one mouse with no cable, so 0x4074 is its wireless ID, not a USB product ID.
+/// G HUB lists it as the G305, with each colour's extended model ID called a G304 or a G305
+/// (`devices_0002.json`). A read-only probe of a G304 on its C53F receiver (PR #26, 2026-11-18):
+/// HID++ on vendor page 0xFF00 (short reports usage 1, long 2); DPI 200 to 12,000 in steps of 50
+/// (0x2201); 125, 250, 500 and 1,000 Hz (0x8060); battery by 0x1000, an AA cell; onboard memory
+/// format 3, one profile, six buttons, 255-byte sectors. G HUB saved Ctrl+C directly in both
+/// button tables in sector 1. For X then Y, the records pointed to copies of the macro in sector
+/// 2 at offsets 0x00 and 0x16. Sector 2 had a valid profile-style CRC after this write. Its earlier
+/// macro data had FF FF in the CRC field. Switching back to Ctrl+C restored sector 1 byte for byte
+/// and left the new macro bytes in sector 2. Sectors 3 to 5 refused reads in every capture.
+/// On RQM 68.02, hrtz verified writing both sectors, applying the ROM profile, and restoring the
+/// original readable memory byte for byte. Factory reset preserves the macro sector.
+pub const G304: u16 = 0x4074;
+const WIRELESS: [(u16, &str); 1] = [(G304, "G304 / G305")];
 
 /// The mice on their own cables, which answer as themselves, with their names.
 pub const CABLED: [(u16, &str); 3] =
@@ -28,7 +44,7 @@ pub fn is_receiver(product_id: u16) -> bool {
 
 /// A mouse's name, by its USB ID (which it reports through either link).
 pub fn name(usb_id: u16) -> Option<&'static str> {
-    CABLED.iter().find(|(pid, _)| *pid == usb_id).map(|(_, n)| *n)
+    CABLED.iter().chain(WIRELESS.iter()).find(|(pid, _)| *pid == usb_id).map(|(_, n)| *n)
 }
 
 /// Logitech's power model, from G HUB (`battery.xml`, the notes' GHUB.md): the battery in mWh,
@@ -60,12 +76,14 @@ pub fn model_key(usb_id: u16) -> String {
     format!("hidpp/{usb_id:04x}")
 }
 
-/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18).
-const TESTED: [u16; 1] = [0xC094];
+/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18), and a
+/// G304 on its receiver, whose check passed (PR #26, 2026-11-18).
+const TESTED: [u16; 2] = [0xC094, G304];
 
 pub fn supported() -> Vec<Supported> {
     CABLED
         .iter()
+        .chain(WIRELESS.iter())
         .map(|(pid, name)| Supported {
             family: "hidpp",
             brand: "Logitech",

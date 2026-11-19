@@ -11,6 +11,11 @@ import mid6 from "./assets/models/mid6.png";
 import mid9 from "./assets/models/mid9.png";
 import atkR1Black from "./assets/models/atk-r1-black.webp";
 import atkU2PlusBlack from "./assets/models/atk-u2-plus-black.webp";
+import g305Black from "./assets/models/g305-black.webp";
+import g305Blue from "./assets/models/g305-blue.webp";
+import g305Lilac from "./assets/models/g305-lilac.webp";
+import g305Mint from "./assets/models/g305-mint.webp";
+import g305White from "./assets/models/g305-white.webp";
 import superlightBlack from "./assets/models/superlight-black.webp";
 import superlightMagenta from "./assets/models/superlight-magenta.webp";
 import superlightWhite from "./assets/models/superlight-white.webp";
@@ -27,6 +32,8 @@ export interface ModelArt {
   /** How the picture shows it, for its description: "viewed from the left" unless said. In the
    *  language shown when it's read. */
   view?: string;
+  /** The DPI button is visible on top, rather than underneath the mouse. */
+  dpiButtonOnTop?: boolean;
 }
 
 /** The model (MID) in a Zaopin key: `compx/7-4` (or a simulated `sim/7-4`) is 4. An ATK on the same
@@ -133,10 +140,31 @@ const superlight = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT", ima
 const SUPERLIGHT_2_HOTSPOTS: Record<number, [number, number]> = { 0: [72, 109], 1: [126, 54], 2: [90, 72], 3: [111, 191], 4: [78, 162] };
 const superlight2 = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2", image, size: [298, 263], hotspots: SUPERLIGHT_2_HOTSPOTS, get view() { return t("viewed from above"); } });
 
+/** G HUB's top view of the G305 (the G304 is the same mouse), upright in the frame above, with
+ *  the buttons measured on it (see NOTICE.md): left, right, middle, back, forward, and the DPI
+ *  button, on top behind the wheel. */
+const G305_HOTSPOTS: Record<number, [number, number]> = { 0: [112, 64], 1: [185, 64], 2: [150, 55], 3: [82, 143], 4: [83, 106], 5: [149, 92] };
+const g305 = (name: string, image: string): ModelArt => ({ name, image, size: [298, 263], hotspots: G305_HOTSPOTS, view: "viewed from above", dpiButtonOnTop: true });
+
 /** A Logitech's pictures by its USB product ID, then by its colour (the extended model ID). A
  *  colour without its own picture shows the first. */
 const LOGITECH_ART: Record<string, ModelArt[]> = {
-  c094: [superlight(superlightBlack), superlight(superlightWhite), superlight(superlightMagenta)],
+  // G HUB's colours of 0x4074, by extended model ID, and whether it calls each a G304 or a G305.
+  // The K/DA and the miHoYo editions have no picture here, so they show the black one; the SE
+  // shows the white.
+  "4074": [
+    g305("G305", g305Black), g305("G304", g305Black),
+    g305("G305", g305White), g305("G304", g305White),
+    g305("G305", g305Blue), g305("G304", g305Blue),
+    g305("G305", g305Lilac), g305("G304", g305Lilac),
+    g305("G304", g305Black), g305("G305", g305Black),
+    g305("G305", g305Mint), g305("G304", g305Mint),
+    g305("G305", g305White), g305("G304", g305White),
+    g305("G305", g305Black), g305("G304", g305Black),
+    g305("G305", g305Black), g305("G304", g305Black),
+    g305("G305", g305Black), g305("G304", g305Black),
+  ],
+  c094:[superlight(superlightBlack), superlight(superlightWhite), superlight(superlightMagenta)],
   // Assumed in the first Superlight's order (G HUB's data for this one isn't public): to confirm
   // with an owner.
   c09b: [superlight2(superlight2Black), superlight2(superlight2White), superlight2(superlight2Pink)],

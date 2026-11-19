@@ -7,7 +7,11 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ## Unreleased
 
 ### New
-- hrtz now comes in Deutsch, Español, Português (Brasil), Русский, Українська and 简体中文, as well as English. It follows Windows' display language, or pick one in Settings under Language. The tray menu, notifications and the DPI pop-up follow it too. Thanks to elist-exe for asking.
+- hrtz now comes in Deutsch, Español, Português (Brasil), Русский, Українська and 简体中文, as well as English. It follows Windows' display language, or pick one in Settings under Language. The tray menu, notifications and the DPI pop-up follow it too. Thanks to @elist-exe for asking.
+- Logitech's G304 and G305, on their LIGHTSPEED receiver: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery, with backups, restores and factory settings. Tested on a real G304, by @whyshhnuv in #26
+
+### Fixed
+- Mouse button shortcuts are now recorded one key at a time, so Alt+Tab can be set without Windows switching away, by @whyshhnuv in #33
 
 ## 0.5.9 — 2026-11-18
 

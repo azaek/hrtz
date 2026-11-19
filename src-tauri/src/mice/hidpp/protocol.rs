@@ -91,6 +91,8 @@ pub enum Refusal {
     V20(u8),
 }
 
+impl std::error::Error for Refusal {}
+
 impl Refusal {
     /// HID++ 1.0's "resource error" and "connection request failed": the slot holds a mouse the
     /// receiver can't reach now, asleep or switched off.

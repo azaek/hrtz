@@ -97,7 +97,7 @@ export function ButtonsPanel({
                   <span className="flex min-w-0 flex-col">
                     <Body1>{nm}</Body1>
                     <Caption1 className="truncate" style={muted}>
-                      {i === DPI_BUTTON ? `${t("Underneath")} · ${shortLabel(actions[i])}` : shortLabel(actions[i])}
+                      {i === DPI_BUTTON && !art?.dpiButtonOnTop ? `${t("Underneath")} · ${shortLabel(actions[i])}` : shortLabel(actions[i])}
                     </Caption1>
                   </span>
                 </button>
@@ -132,8 +132,8 @@ export function ButtonsPanel({
               maxDpi={caps.dpi?.above?.from ?? caps.dpi?.max ?? 12800}
               disabled={off || onlyLeft}
               onChange={(a) => e.set(sel, a)}
-              recordNow={e.waiting === sel}
-              onLeaveKeys={e.cancelWaiting}
+              waitingForKeys={e.waiting === sel}
+              onCancelKeys={e.cancelWaiting}
             />
           </div>
           <PaneFooter>{footer}</PaneFooter>
