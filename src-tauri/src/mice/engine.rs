@@ -292,6 +292,7 @@ impl Worker {
                 charging: b.charging,
                 hz: s.settings.as_ref().and_then(|x| x.polling_hz).unwrap_or(0),
                 awake: s.online,
+                saver: false,
             }
         };
         self.log.lock().record(entry);

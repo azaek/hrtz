@@ -948,6 +948,9 @@ fn battery_saver(app: &AppHandle, ctx: &Arc<Ctx>, s: &DeviceState, prefs: &Mouse
                 let mut p = ctx.known.read().prefs(&key);
                 p.battery_saver_restore = restore;
                 commit_mouse_prefs(&app, &ctx, &key, p);
+                if let Some(e) = ctx.hub.engine(&key) {
+                    e.log.lock().set_saving(restore.is_some(), unix_now());
+                }
                 if lowering {
                     notify_saver(&app, level, target.unwrap_or(0), from, &model);
                 }
