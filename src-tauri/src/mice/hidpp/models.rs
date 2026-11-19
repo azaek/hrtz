@@ -76,8 +76,9 @@ pub fn model_key(usb_id: u16) -> String {
     format!("hidpp/{usb_id:04x}")
 }
 
-/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18).
-const TESTED: [u16; 1] = [0xC094];
+/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18), and a
+/// G304 on its receiver, whose check passed (PR #26, 2026-11-18).
+const TESTED: [u16; 2] = [0xC094, G304];
 
 pub fn supported() -> Vec<Supported> {
     CABLED

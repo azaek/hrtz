@@ -7,7 +7,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ## Unreleased
 
 ### New
-- Logitech's G304 and G305, on their LIGHTSPEED receiver, not tested yet: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery. Backups, restores and factory settings aren't offered for them yet. Thanks to whyshhnuv, who added them.
+- Logitech's G304 and G305, on their LIGHTSPEED receiver: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery, with backups, restores and factory settings. Tested: a check on a real G304 passed. Thanks to @whyshhnuv, who added them and ran the check.
 
 ## 0.5.9 — 2026-11-18
 

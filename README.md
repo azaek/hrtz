@@ -18,7 +18,7 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
-| Logitech G304 / G305 | Not tested yet |
+| Logitech G304 / G305 | Tested |
 | VXE R1 (PAW3395) | Tested |
 | VXE R1 PRO MAX (PAW3395) | Tested |
 | VXE R1 PRO (PAW3950 Ultra) | Tested |
