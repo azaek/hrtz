@@ -590,8 +590,16 @@ impl Onboard {
         ob::decode(&self.bytes, self.info.format)
     }
 
+    /// The profiles the mouse can switch to: those turned on in the directory, and the one in use.
+    /// A PRO X SUPERLIGHT 2c refused one turned off (issue #36), and G HUB's reset leaves only the
+    /// first on (OpenMouse). A directory with none on offers them all.
+    fn profiles(&self) -> Vec<Entry> {
+        let on: Vec<Entry> = self.directory.iter().copied().filter(|e| e.enabled || e.sector == self.sector).collect();
+        if on.is_empty() { self.directory.clone() } else { on }
+    }
+
     fn index(&self) -> Option<u8> {
-        self.directory.iter().position(|e| e.sector == self.sector).map(|i| i as u8)
+        self.profiles().iter().position(|e| e.sector == self.sector).map(|i| i as u8)
     }
 }
 
@@ -633,7 +641,7 @@ impl Connected {
     /// Each profile's name: the name bytes alone of each, the profile in use from what's read.
     fn read_names(&mut self) -> Result<Option<Vec<Option<String>>>> {
         let Some(o) = &self.onboard else { return Ok(None) };
-        let (fi, sector, bytes, entries) = (o.feature, o.sector, o.bytes.clone(), o.directory.clone());
+        let (fi, sector, bytes, entries) = (o.feature, o.sector, o.bytes.clone(), o.profiles());
         let mut names = Vec::with_capacity(entries.len());
         for e in entries {
             let region = if e.sector == sector {
@@ -938,7 +946,7 @@ impl Connected {
             board.set(|s| s.settings = Some(Settings::default()));
             return Ok(());
         };
-        let (format, profile, index, count) = (o.info.format, o.profile(), o.index(), o.directory.len());
+        let (format, profile, index, count) = (o.info.format, o.profile(), o.index(), o.profiles().len());
         let mut settings = Settings::default();
         caps.profiles = (count > 0).then_some(count.min(u8::MAX as usize) as u8);
         caps.backups = ob::writable(format) && (self.model_id != Some(models::G304) || backup::g304_layout(o.info));
@@ -1352,12 +1360,13 @@ impl Driver for Connected {
     }
 
     /// Factory settings: the mouse's own factory profile (its ROM profile, the first for a profile
-    /// past the ROM's count) written over each profile it lists, then the first one selected. The
-    /// factory profiles are read and checked before anything is written.
+    /// past the ROM's count) written over each profile it lists, then the first one turned on
+    /// selected. The factory profiles are read and checked before anything is written.
     fn factory_reset(&mut self, board: &Board) -> Result<()> {
         let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;
         let (fi, len, roms, format, directory) =
             (o.feature, o.info.sector_len(), o.info.rom_count, o.info.format, o.directory.clone());
+        let first = o.profiles().first().map_or(1, |e| e.sector);
         if !ob::writable(o.info.format) || roms == 0 || directory.is_empty() {
             bail!("hrtz can't restore this mouse's factory settings yet.");
         }
@@ -1393,7 +1402,7 @@ impl Driver for Connected {
             }
             board.publish(Some(DeviceEvent::Progress { done: i + 1, total: directory.len() }));
         }
-        self.t.request(fi, ob::func::SET_CURRENT, &directory[0].sector.to_be_bytes())?;
+        self.t.request(fi, ob::func::SET_CURRENT, &first.to_be_bytes())?;
         self.load(board)
     }
 
@@ -1445,7 +1454,7 @@ impl Driver for Connected {
     /// Save profile names: each profile whose name differs is rewritten, checked, and read again.
     fn set_profile_names(&mut self, board: &Board, names: &[String]) -> Result<()> {
         let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;
-        let (fi, len, current, entries) = (o.feature, o.info.sector_len(), o.sector, o.directory.clone());
+        let (fi, len, current, entries) = (o.feature, o.info.sector_len(), o.sector, o.profiles());
         if !ob::writable(o.info.format) {
             bail!("hrtz can't change this mouse's profiles yet (profile format {}).", o.info.format);
         }
@@ -1483,12 +1492,12 @@ impl Driver for Connected {
         Ok(())
     }
 
-    /// Switch to the profile at `index` in the directory. This writes nothing to flash.
+    /// Switch to the profile at `index` of those turned on. This writes nothing to flash.
     fn set_profile(&mut self, board: &Board, index: u8) -> Result<()> {
         let o = self.onboard.as_ref().ok_or_else(|| anyhow!("The mouse's settings aren't read yet."))?;
-        let (fi, len) = (o.feature, o.info.sector_len());
-        let Some(sector) = o.directory.get(index as usize).map(|e| e.sector) else {
-            bail!("This mouse has {} profiles.", o.directory.len());
+        let (fi, len, profiles) = (o.feature, o.info.sector_len(), o.profiles());
+        let Some(sector) = profiles.get(index as usize).map(|e| e.sector) else {
+            bail!("This mouse has {} profiles.", profiles.len());
         };
         self.t.request(fi, ob::func::SET_CURRENT, &sector.to_be_bytes())?;
         let bytes = self.read_sector(fi, sector, len)?;

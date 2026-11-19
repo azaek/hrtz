@@ -201,6 +201,18 @@ impl SimMouse {
     }
 
     #[cfg(test)]
+    /// The same mouse with every profile turned on in its directory, as G HUB can set it.
+    pub fn all_profiles_on(mut self) -> Self {
+        if let Some(d) = self.sectors.get_mut(&0) {
+            for entry in d.chunks_exact_mut(4).take_while(|e| e[..2] != [0xFF, 0xFF] && e[..2] != [0, 0]) {
+                entry[2] = 0x01;
+            }
+            ob::apply_crc(d);
+        }
+        self
+    }
+
+    #[cfg(test)]
     /// Linked up again, and the mouse says so (0x1D4B's status event: reconnection).
     pub fn reconnect_event(&mut self) {
         let fi = self.index_of(feature::WIRELESS_STATUS);
@@ -341,6 +353,12 @@ impl SimMouse {
         });
     }
 
+    /// Whether the directory has `sector` turned on (all of them, when it has none on).
+    fn turned_on(&self, sector: u16) -> bool {
+        let entries = self.sectors.get(&0).map(|d| ob::directory(d)).unwrap_or_default();
+        !entries.iter().any(|e| e.enabled) || entries.iter().any(|e| e.sector == sector && e.enabled)
+    }
+
     fn onboard(&mut self, function: u8, params: &[u8]) -> Result<Vec<u8>, u8> {
         let at = |i: usize| params.get(i).copied().unwrap_or(0);
         let sector = u16::from_be_bytes([at(0), at(1)]);
@@ -348,6 +366,8 @@ impl SimMouse {
             func::INFO => Ok(self.info.clone()),
             func::GET_MODE => Ok(vec![self.mode]),
             func::GET_CURRENT => Ok(self.current.to_be_bytes().to_vec()),
+            // A profile turned off in the directory is refused, as a PRO X SUPERLIGHT 2c did.
+            func::SET_CURRENT if sector != self.current && !self.turned_on(sector) => Err(0x02),
             func::SET_CURRENT if sector != 0 && self.sectors.contains_key(&sector) => {
                 // Another profile starts on its default stage; the same one keeps its slot.
                 if sector != self.current {

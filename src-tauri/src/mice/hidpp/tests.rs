@@ -450,6 +450,12 @@ fn limits_are_the_formats_and_the_sensor_narrows_them() {
         Some(ob::DpiLimits { max_stages: 5, min: 100, max: 25600, step: 50 })
     );
     assert_eq!(ob::dpi_limits_for_sensor(ob::dpi_limits(4), &[]), ob::dpi_limits(4));
+    // Ranges whose steps differ have only 1 in common; the format's step holds (issue #36).
+    let uneven: Vec<u32> = (100..=200).chain((250..=44000).step_by(50)).collect();
+    assert_eq!(
+        ob::dpi_limits_for_sensor(ob::dpi_limits(7), &uneven),
+        Some(ob::DpiLimits { max_stages: 5, min: 100, max: 44000, step: 50 })
+    );
     assert_eq!(ob::dpi_limits_for_sensor(None, &sensor), None);
 }
 
@@ -589,7 +595,7 @@ fn a_superlight_on_its_receiver_is_met_and_read() {
     assert_eq!(s.profile, Some(0));
     let caps = s.capabilities.clone().unwrap();
     assert!(!caps.wired && caps.battery);
-    assert_eq!(caps.profiles, Some(5));
+    assert_eq!(caps.profiles, Some(1), "only profile 1 is turned on");
     let dpi = caps.dpi.unwrap();
     assert_eq!((dpi.min, dpi.max, dpi.step, dpi.max_stages, dpi.colors), (100, 25600, 50, 5, false));
     assert_eq!(caps.polling.unwrap().rates, [125, 250, 500, 1000]);
@@ -680,8 +686,9 @@ fn a_superlight_2_shows_its_profile_in_use_and_its_links_rates() {
     let s = r.state();
     assert_eq!(s.key.as_deref(), Some("hidpp/c09b/5e6f7081"));
     assert_eq!(s.model.as_deref(), Some("PRO X SUPERLIGHT 2"));
-    assert_eq!(s.profile, Some(2), "sector 3 is the third profile");
+    assert_eq!(s.profile, Some(0), "sector 3, the only profile turned on");
     let caps = s.capabilities.unwrap();
+    assert_eq!(caps.profiles, Some(1));
     assert_eq!(caps.polling.unwrap().rates, [125, 250, 500, 1000, 2000, 4000, 8000]);
     assert_eq!((caps.dpi.as_ref().unwrap().min, caps.dpi.as_ref().unwrap().max), (100, 32000));
     let st = r.settings();
@@ -755,7 +762,7 @@ fn a_profile_name_reads_back_as_written_and_g_hubs_stand_in_is_none() {
 
 #[test]
 fn names_saved_here_go_onto_the_mouse_and_read_back() {
-    let mut r = Rig::connected(SimMouse::superlight());
+    let mut r = Rig::connected(SimMouse::superlight().all_profiles_on());
     assert_eq!(r.state().profile_names.unwrap(), vec![None; 5], "G HUB's stand-in, and erased");
     let (from, _) = r.mark();
     let names: Vec<String> = ["Aim", "Profile 2", "Profile 3", "Work", "Profile 5"].map(String::from).to_vec();
@@ -784,14 +791,15 @@ fn a_test_report_holds_the_memory_and_what_the_mouse_lists() {
 
 #[test]
 fn factory_settings_put_the_factory_profile_over_every_profile() {
-    let mut r = Rig::connected(SimMouse::superlight());
+    let mut r = Rig::connected(SimMouse::superlight().all_profiles_on());
     assert!(r.state().capabilities.unwrap().factory_reset, "getInfo counts one factory profile");
+    let directory = r.sector(0);
     r.w.set_profile(2).unwrap();
     r.w.factory_reset().unwrap();
     for s in 1..=5 {
         assert_eq!(r.sector(s), fx::superlight_c547_factory(), "profile {s}");
     }
-    assert_eq!(r.sector(0), fx::superlight_c547_directory(), "the directory is left as it is");
+    assert_eq!(r.sector(0), directory, "the directory is left as it is");
     assert_eq!(r.mouse.lock().current, 1, "the first profile, selected");
     assert_eq!(dpis(&r.settings()), [400, 800, 1600, 3200, 6400]);
 }
@@ -1070,7 +1078,7 @@ fn a_profile_whose_checksum_fails_is_not_written_over() {
 
 #[test]
 fn switching_profile_selects_its_sector_and_writes_nothing() {
-    let mut r = Rig::connected(SimMouse::superlight2());
+    let mut r = Rig::connected(SimMouse::superlight2().all_profiles_on());
     let (from, seen) = r.mark();
     r.w.set_profile(0).unwrap();
     let calls = r.profile_calls_since(from);
@@ -1083,9 +1091,24 @@ fn switching_profile_selects_its_sector_and_writes_nothing() {
     assert!(r.w.set_profile(5).is_err());
 }
 
+/// A PRO X SUPERLIGHT 2c with only profile 1 turned on refused profile 2 (issue #36): only the
+/// profiles turned on are offered.
+#[test]
+fn only_the_profiles_turned_on_are_offered() {
+    let mut r = Rig::connected(SimMouse::superlight2());
+    assert_eq!(r.state().capabilities.unwrap().profiles, Some(1));
+    assert!(r.w.set_profile(1).is_err());
+    r.w.set_profile(0).unwrap();
+    assert_eq!(r.mouse.lock().current, 3, "the one turned on");
+    let mut all = Rig::connected(SimMouse::superlight2().all_profiles_on());
+    assert_eq!(all.state().capabilities.unwrap().profiles, Some(5));
+    all.w.set_profile(0).unwrap();
+    assert_eq!(all.mouse.lock().current, 1);
+}
+
 #[test]
 fn a_profile_switched_on_the_mouse_is_read_and_announced() {
-    let mut r = Rig::connected(SimMouse::superlight2());
+    let mut r = Rig::connected(SimMouse::superlight2().all_profiles_on());
     let (_, seen) = r.mark();
     r.mouse.lock().switch_on_mouse(5);
     r.w.drain_unsolicited();
