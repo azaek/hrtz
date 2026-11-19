@@ -130,8 +130,8 @@ export function ButtonsPanel({
               maxDpi={caps.dpi?.above?.from ?? caps.dpi?.max ?? 12800}
               disabled={off || onlyLeft}
               onChange={(a) => e.set(sel, a)}
-              recordNow={e.waiting === sel}
-              onLeaveKeys={e.cancelWaiting}
+              waitingForKeys={e.waiting === sel}
+              onCancelKeys={e.cancelWaiting}
             />
           </div>
           <PaneFooter>{footer}</PaneFooter>
