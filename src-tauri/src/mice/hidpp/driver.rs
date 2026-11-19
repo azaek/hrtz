@@ -298,7 +298,7 @@ impl Hidpp {
 
     fn request_for(&mut self, feature_index: u8, function: u8, params: &[u8], timeout: Duration) -> Result<Vec<u8>> {
         self.exchange(feature_index, function, params, timeout).map_err(|f| match f {
-            Fail::Refused(why) => anyhow!("{why}"),
+            Fail::Refused(why) => anyhow::Error::new(why),
             Fail::Silent => anyhow!("The mouse did not answer. Move it, or close Logitech G HUB, then try again."),
             Fail::Lost(e) => e,
         })
@@ -513,15 +513,16 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
     let name = device_name(&mut t).ok().flatten();
     // On its cable, a mouse that doesn't say is the product plugged in.
     let usb = id.usb.or((!receiver).then_some(opened.product_id));
+    let model_id = usb.or(id.wireless);
     // The link in use is the one whose ID is what's plugged in; a receiver's is never the mouse's.
     let wired = match (id.usb, id.wireless) {
         (Some(u), _) if u == opened.product_id => true,
         (_, Some(w)) if w == opened.product_id => false,
         _ => index == p::DIRECT,
     };
-    let model = usb.or(id.wireless).unwrap_or(opened.product_id);
+    let model = model_id.unwrap_or(opened.product_id);
     let key = format!("{}/{model:04x}/{}", opened.family, id.unit.as_deref().unwrap_or("0"));
-    let model = usb.and_then(models::name).map(str::to_string).or(name).unwrap_or_else(|| "Logitech mouse".into());
+    let model = model_id.and_then(models::name).map(str::to_string).or(name).unwrap_or_else(|| "Logitech mouse".into());
     let mut battery = false;
     for f in BATTERIES {
         battery |= t.feature(f)? != 0;
@@ -558,6 +559,7 @@ pub(crate) fn connect(opened: Opened, board: &Board, last: &mut Option<u8>) -> R
         t,
         wired,
         usb,
+        model_id,
         port,
         asleep_since: None,
         stage_index: None,
@@ -606,6 +608,8 @@ struct Connected {
     wired: bool,
     /// Its USB product ID, which says which model it is.
     usb: Option<u16>,
+    /// Stable model identity, including wireless-only mice which have no USB product ID.
+    model_id: Option<u16>,
     /// The USB port its receiver is on, where raw input shows it used.
     port: Option<String>,
     /// When it was found asleep: it isn't asked again until it's used after this.
@@ -665,6 +669,10 @@ impl Connected {
     /// memoryRead hands back 16 bytes and refuses to run past the sector's end, so a length that
     /// isn't a multiple of 16 has its tail read from `len - 16`, over the chunk before it.
     fn read_sector(&mut self, fi: u8, sector: u16, len: usize) -> Result<Vec<u8>> {
+        self.read_sector_if_present(fi, sector, len, false)?.ok_or_else(|| anyhow!("Missing sector {sector}."))
+    }
+
+    fn read_sector_if_present(&mut self, fi: u8, sector: u16, len: usize, optional: bool) -> Result<Option<Vec<u8>>> {
         let mut out = vec![0u8; len];
         let mut offsets: Vec<usize> = (0..len / ob::CHUNK).map(|i| i * ob::CHUNK).collect();
         if !len.is_multiple_of(ob::CHUNK) {
@@ -673,14 +681,17 @@ impl Connected {
         for at in offsets {
             let [s_hi, s_lo] = sector.to_be_bytes();
             let [o_hi, o_lo] = (at as u16).to_be_bytes();
-            let r = self.t.request(fi, ob::func::READ, &[s_hi, s_lo, o_hi, o_lo])?;
+            let r = match self.t.request(fi, ob::func::READ, &[s_hi, s_lo, o_hi, o_lo]) {
+                Err(e) if optional && at == 0 && e.downcast_ref() == Some(&Refusal::V20(0x02)) => return Ok(None),
+                r => r?,
+            };
             let n = ob::CHUNK.min(len - at);
             if r.len() < n {
                 bail!("The mouse sent part of its profile.");
             }
             out[at..at + n].copy_from_slice(&r[..n]);
         }
-        Ok(out)
+        Ok(Some(out))
     }
 
     /// memoryAddrWrite says where and how much, memoryWrite sends 16 bytes at a time, and
@@ -696,6 +707,77 @@ impl Connected {
         }
         self.t.request_for(fi, ob::func::WRITE_END, &[], WRITE_TIMEOUT)?;
         Ok(())
+    }
+
+    fn write_verified_sector(&mut self, fi: u8, sector: u16, bytes: &[u8]) -> Result<()> {
+        self.write_sector(fi, sector, bytes)?;
+        if self.read_sector(fi, sector, bytes.len())? != bytes {
+            bail!("The mouse didn't keep sector {sector} as written.");
+        }
+        Ok(())
+    }
+
+    fn restore_g304(
+        &mut self,
+        board: &Board,
+        fi: u8,
+        now: backup::Image<'_>,
+        then: backup::Image<'_>,
+    ) -> Result<usize> {
+        let mut changed = Vec::new();
+        // Write macro data before the button records that point into it. Write the directory last.
+        for sector in (0..then.sectors.len()).rev() {
+            let (old, next) = match (now.sectors[sector], then.sectors[sector]) {
+                (Some(old), Some(next)) => (old, next),
+                (None, None) => continue,
+                _ => {
+                    bail!("G304/G305 sector {sector} is readable in only one of the two backups. Nothing was changed.")
+                }
+            };
+            let current = backup::g304_write_bytes(sector, old)?;
+            let target = backup::g304_write_bytes(sector, next)?;
+            if current != target {
+                changed.push((sector as u16, old, current, target));
+            }
+        }
+        for directory in [now.sectors[0], then.sectors[0]].into_iter().flatten() {
+            if !matches!(ob::directory(directory).as_slice(), [ob::Entry { sector: 1, enabled: true }]) {
+                bail!("The G304/G305 backup must contain one enabled profile in sector 1.");
+            }
+        }
+        if changed.is_empty() {
+            return Ok(0);
+        }
+        if self.t.request(fi, ob::func::GET_MODE, &[])?.first() != Some(&ob::MODE_ONBOARD)
+            || self.current_sector(fi)? != 1
+        {
+            bail!("Switch the G304/G305 to onboard memory mode before restoring it.");
+        }
+        for (sector, old, _, _) in &changed {
+            if self.read_sector(fi, *sector, old.len())? != *old {
+                bail!("The mouse's memory changed after the safety backup. Try again.");
+            }
+        }
+        for (n, (sector, _, _, target)) in changed.iter().enumerate() {
+            if let Err(error) = self.write_verified_sector(fi, *sector, target) {
+                let mut recovered = true;
+                for (sector, original, fallback, _) in changed[..=n].iter().rev() {
+                    if !self.read_sector(fi, *sector, original.len()).is_ok_and(|kept| kept == *original) {
+                        recovered &= self.write_verified_sector(fi, *sector, fallback).is_ok();
+                    }
+                }
+                if recovered {
+                    bail!("Restore stopped at sector {sector}: {error:#}. The previous settings were put back.");
+                }
+                bail!(
+                    "Restore stopped at sector {sector}: {error:#}. Reconnect the mouse and restore the safety backup."
+                );
+            }
+            board.publish(Some(DeviceEvent::Progress { done: n + 1, total: changed.len() }));
+        }
+        self.t.request(fi, ob::func::SET_CURRENT, &[0, 1])?;
+        self.load(board)?;
+        Ok(changed.len())
     }
 
     /// The profile in use: the directory, which one, and its sector.
@@ -859,12 +941,18 @@ impl Connected {
         let (format, profile, index, count) = (o.info.format, o.profile(), o.index(), o.directory.len());
         let mut settings = Settings::default();
         caps.profiles = (count > 0).then_some(count.min(u8::MAX as usize) as u8);
-        caps.backups = ob::writable(format);
-        caps.factory_reset = ob::writable(format) && o.info.rom_count > 0;
+        caps.backups = ob::writable(format) && (self.model_id != Some(models::G304) || backup::g304_layout(o.info));
+        caps.factory_reset = caps.backups && o.info.rom_count > 0;
         if ob::writable(format) {
             let (at, room) = buttons::table(format);
             let count = o.info.button_count.min(room as u8);
             caps.buttons = (count > 0).then(|| buttons::names(count));
+            if self.model_id == Some(models::G304)
+                && let Some(names) = caps.buttons.as_mut()
+                && let Some((_, name)) = names.get_mut(5)
+            {
+                *name = "DPI button".into();
+            }
             settings.buttons = (count > 0).then(|| {
                 (0..count as usize).map(|i| buttons::decode(o.bytes.get(at + i * 4..).unwrap_or(&[]))).collect()
             });
@@ -1188,9 +1276,15 @@ impl Driver for Connected {
         self.show(board, live)
     }
 
+    /// G304 backups record unreadable sectors. The diagnostic report expects a complete image.
+    fn reads_whole_memory(&self) -> bool {
+        self.model_id != Some(models::G304)
+    }
+
     /// The onboard memory for a backup: getInfo's reply, then every sector in order (`backup.rs`).
     /// Erased sectors read as 0xFF.
     fn read_image(&mut self, board: &Board, progress: bool) -> Result<Vec<u8>> {
+        let g304 = self.model_id == Some(models::G304);
         let fi = self.t.feature(feature::ONBOARD_PROFILES)?;
         if fi == 0 {
             bail!("This mouse keeps no profiles to back up.");
@@ -1201,9 +1295,22 @@ impl Driver for Connected {
         if !ob::writable(info.format) {
             bail!("hrtz can't back up this mouse yet (profile format {}).", info.format);
         }
+        if g304 {
+            if !backup::g304_layout(info) {
+                bail!("This G304/G305 reports a different memory layout.");
+            }
+            image.extend_from_slice(backup::G304_MARKER);
+            image.push(0);
+        }
         let (count, len) = (info.sector_count as usize, info.sector_len());
         for s in 0..count {
-            image.extend(self.read_sector(fi, s as u16, len)?);
+            if let Some(bytes) = self.read_sector_if_present(fi, s as u16, len, g304 && s >= 2)? {
+                if g304 {
+                    backup::g304_write_bytes(s, &bytes)?;
+                    image[backup::G304_MASK_AT] |= 1 << s;
+                }
+                image.extend(bytes);
+            }
             if progress {
                 board.publish(Some(DeviceEvent::Progress { done: s + 1, total: count }));
             }
@@ -1216,19 +1323,24 @@ impl Driver for Connected {
     /// which erased bytes don't carry. Then the mouse runs its profile again, and it's read whole.
     fn write_image(&mut self, board: &Board, current: &[u8], target: &[u8]) -> Result<usize> {
         let (now, then) = (backup::split(current)?, backup::split(target)?);
-        if now.head != then.head {
+        let g304 = self.model_id == Some(models::G304);
+        if now.head != then.head || now.g304 != g304 || then.g304 != g304 {
             bail!("This backup is from a mouse whose memory is laid out differently.");
         }
         let fi = self.t.feature(feature::ONBOARD_PROFILES)?;
-        let changed: Vec<usize> = (0..then.sectors.len())
-            .filter(|i| now.sectors[*i] != then.sectors[*i] && !backup::erased(then.sectors[*i]))
+        if g304 {
+            return self.restore_g304(board, fi, now, then);
+        }
+        let changed: Vec<_> = then
+            .sectors
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &bytes)| {
+                bytes.filter(|b| now.sectors[i] != bytes && !backup::erased(b)).map(|b| (i as u16, b))
+            })
             .collect();
-        for (n, i) in changed.iter().enumerate() {
-            let (sector, bytes) = (*i as u16, then.sectors[*i]);
-            self.write_sector(fi, sector, bytes)?;
-            if self.read_sector(fi, sector, bytes.len())? != bytes {
-                bail!("The mouse didn't keep sector {sector} as written.");
-            }
+        for (n, &(sector, bytes)) in changed.iter().enumerate() {
+            self.write_verified_sector(fi, sector, bytes)?;
             board.publish(Some(DeviceEvent::Progress { done: n + 1, total: changed.len() }));
         }
         if !changed.is_empty() {
@@ -1263,6 +1375,13 @@ impl Driver for Connected {
                 bail!("Its factory profile doesn't read as a profile, so nothing was changed.");
             }
             factory.push(bytes);
+        }
+        if self.model_id == Some(models::G304) {
+            let current = self.read_image(board, false)?;
+            let mut target = current.clone();
+            let at = backup::G304_MASK_AT + 1 + len;
+            target[at..at + len].copy_from_slice(&factory[0]);
+            return self.write_image(board, &current, &target).map(|_| ());
         }
         for (i, e) in directory.iter().enumerate() {
             let bytes = &factory[i.min(factory.len() - 1)];
