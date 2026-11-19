@@ -18,6 +18,7 @@ in place of their own "Mouse Drive Beta" app, and Logitech's PRO X SUPERLIGHT, w
 | Logitech PRO X SUPERLIGHT | Tested |
 | Logitech PRO X SUPERLIGHT 2 | Not tested yet |
 | Logitech PRO X SUPERLIGHT 2 DEX | Not tested yet |
+| Logitech PRO X SUPERLIGHT 2c | Tested |
 | Logitech G304 / G305 | Tested |
 | VXE R1 (PAW3395) | Tested |
 | VXE R1 PRO MAX (PAW3395) | Tested |
@@ -216,6 +217,8 @@ Thanks to everyone who has tested a mouse:
 - [derekjamesedu](https://github.com/derekjamesedu): Zaopin Z2
 - [krishiv1545](https://github.com/krishiv1545): VXE R1 (PAW3395)
 - [elist-exe](https://github.com/elist-exe): Zaopin Z2
+- [whyshhnuv](https://github.com/whyshhnuv): Logitech G304
+- [bwyao](https://github.com/bwyao): Logitech PRO X SUPERLIGHT 2c
 
 ## What it does
 

@@ -434,15 +434,19 @@ fn list(rates: &[u32]) -> String {
 }
 
 /// The DPI limits for the connected sensor: the format's slots, and the sensor's own range and
-/// step (the largest step every value it lists is a multiple of), when it lists any.
+/// step (the largest step every value it lists is a multiple of), when it lists any. The step is
+/// never finer than the format's: a HERO 2 lists ranges whose steps differ, so every value has
+/// only 1 in common, yet it refuses 801 (a PRO X SUPERLIGHT 2c, issue #36). G HUB sets the
+/// Superlight 2 in steps of 50 (OpenMouse).
 pub fn dpi_limits_for_sensor(limits: Option<DpiLimits>, options: &[u32]) -> Option<DpiLimits> {
     let limits = limits?;
     let mut values: Vec<u32> = options.iter().copied().filter(|v| *v > 0).collect();
     values.sort_unstable();
     values.dedup();
     let (Some(&min), Some(&max)) = (values.first(), values.last()) else { return Some(limits) };
-    let gcd = values.iter().fold(0, |a, &b| gcd(a, b));
-    Some(DpiLimits { max_stages: limits.max_stages, min, max, step: if gcd == 0 { limits.step } else { gcd } })
+    let common = values.iter().fold(0, |a, &b| gcd(a, b));
+    let step = if common == 0 || (common < limits.step && limits.step % common == 0) { limits.step } else { common };
+    Some(DpiLimits { max_stages: limits.max_stages, min, max, step })
 }
 
 fn gcd(a: u32, b: u32) -> u32 {

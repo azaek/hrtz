@@ -22,6 +22,9 @@ import superlightWhite from "./assets/models/superlight-white.webp";
 import superlight2Black from "./assets/models/superlight2-black.webp";
 import superlight2Pink from "./assets/models/superlight2-pink.webp";
 import superlight2White from "./assets/models/superlight2-white.webp";
+import superlight2cBlack from "./assets/models/superlight2c-black.webp";
+import superlight2cPink from "./assets/models/superlight2c-pink.webp";
+import superlight2cWhite from "./assets/models/superlight2c-white.webp";
 import { t } from "./i18n";
 
 export interface ModelArt {
@@ -140,11 +143,16 @@ const superlight = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT", ima
 const SUPERLIGHT_2_HOTSPOTS: Record<number, [number, number]> = { 0: [72, 109], 1: [126, 54], 2: [90, 72], 3: [111, 191], 4: [78, 162] };
 const superlight2 = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2", image, size: [298, 263], hotspots: SUPERLIGHT_2_HOTSPOTS, get view() { return t("viewed from above"); } });
 
+/** Logitech's top view of the 2c from its product page, turned the same way, with the buttons
+ *  measured on it (see NOTICE.md). */
+const SUPERLIGHT_2C_HOTSPOTS: Record<number, [number, number]> = { 0: [78, 109], 1: [127, 60], 2: [95, 77], 3: [114, 191], 4: [78, 162] };
+const superlight2c = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2c", image, size: [298, 263], hotspots: SUPERLIGHT_2C_HOTSPOTS, get view() { return t("viewed from above"); } });
+
 /** G HUB's top view of the G305 (the G304 is the same mouse), upright in the frame above, with
  *  the buttons measured on it (see NOTICE.md): left, right, middle, back, forward, and the DPI
  *  button, on top behind the wheel. */
 const G305_HOTSPOTS: Record<number, [number, number]> = { 0: [112, 64], 1: [185, 64], 2: [150, 55], 3: [82, 143], 4: [83, 106], 5: [149, 92] };
-const g305 = (name: string, image: string): ModelArt => ({ name, image, size: [298, 263], hotspots: G305_HOTSPOTS, view: "viewed from above", dpiButtonOnTop: true });
+const g305 = (name: string, image: string): ModelArt => ({ name, image, size: [298, 263], hotspots: G305_HOTSPOTS, get view() { return t("viewed from above"); }, dpiButtonOnTop: true });
 
 /** A Logitech's pictures by its USB product ID, then by its colour (the extended model ID). A
  *  colour without its own picture shows the first. */
@@ -168,4 +176,6 @@ const LOGITECH_ART: Record<string, ModelArt[]> = {
   // Assumed in the first Superlight's order (G HUB's data for this one isn't public): to confirm
   // with an owner.
   c09b: [superlight2(superlight2Black), superlight2(superlight2White), superlight2(superlight2Pink)],
+  // Black, white and pink, assumed in the Superlight 2's order: to confirm with a 2c's colour.
+  c09f: [superlight2c(superlight2cBlack), superlight2c(superlight2cWhite), superlight2c(superlight2cPink)],
 };

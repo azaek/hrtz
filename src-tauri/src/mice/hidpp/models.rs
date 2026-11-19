@@ -10,8 +10,8 @@
 use crate::mice::model::Supported;
 
 /// LIGHTSPEED receivers: 0xC539 (HERO-era, shipped with the first Superlight and the G Pro
-/// Wireless), 0xC547 (the first Superlight's later one), 0xC54D (the Superlight 2's) and 0xC53F
-/// (the G304/G305's: G HUB's `receiverPid` 50495 for it). The mouse answers on one of the
+/// Wireless), 0xC547 (the first Superlight's later one), 0xC54D (the Superlight 2's and 2c's) and
+/// 0xC53F (the G304/G305's: G HUB's `receiverPid` 50495 for it). The mouse answers on one of the
 /// receiver's pairing slots.
 pub const RECEIVERS: [u16; 4] = [0xC539, 0xC547, 0xC54D, 0xC53F];
 
@@ -30,9 +30,15 @@ pub const RECEIVERS: [u16; 4] = [0xC539, 0xC547, 0xC54D, 0xC53F];
 pub const G304: u16 = 0x4074;
 const WIRELESS: [(u16, &str); 1] = [(G304, "G304 / G305")];
 
-/// The mice on their own cables, which answer as themselves, with their names.
-pub const CABLED: [(u16, &str); 3] =
-    [(0xC094, "PRO X SUPERLIGHT"), (0xC09B, "PRO X SUPERLIGHT 2"), (0xC0A0, "PRO X SUPERLIGHT 2 DEX")];
+/// The mice on their own cables, which answer as themselves, with their names. The 2c keeps its
+/// profiles as the 2 does (format 7, five profiles, 16 sectors of 255 bytes), by a report from
+/// one (issue #34).
+pub const CABLED: [(u16, &str); 4] = [
+    (0xC094, "PRO X SUPERLIGHT"),
+    (0xC09B, "PRO X SUPERLIGHT 2"),
+    (0xC0A0, "PRO X SUPERLIGHT 2 DEX"),
+    (0xC09F, "PRO X SUPERLIGHT 2c"),
+];
 
 pub fn claims(product_id: u16) -> bool {
     is_receiver(product_id) || CABLED.iter().any(|(pid, _)| *pid == product_id)
@@ -76,9 +82,12 @@ pub fn model_key(usb_id: u16) -> String {
     format!("hidpp/{usb_id:04x}")
 }
 
-/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18), and a
-/// G304 on its receiver, whose check passed (PR #26, 2026-11-18).
-const TESTED: [u16; 2] = [0xC094, G304];
+/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18), a
+/// G304 on its receiver, whose check passed (PR #26, 2026-11-18), and a PRO X SUPERLIGHT 2c on
+/// its receiver and its cable (issue #36, 2026-11-19): its reads, polling, buttons, stage count
+/// and polling rate passed; its two failures were hrtz's (a DPI it doesn't offer, a profile
+/// turned off), fixed in PR #37.
+const TESTED: [u16; 3] = [0xC094, 0xC09F, G304];
 
 pub fn supported() -> Vec<Supported> {
     CABLED

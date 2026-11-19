@@ -10,6 +10,8 @@ They belong to Zaopin. They are **not** covered by this project's license, and a
 
 `superlight2-black.webp`, `superlight2-white.webp` and `superlight2-pink.webp` are Logitech's own renders of the PRO X SUPERLIGHT 2, one per colour, from its product page on logitechg.com (the gallery's top views). The lit status light is filled in from the body around it, and they're turned and scaled the same way; the button positions in `../../models.ts` are the first Superlight's, placed on this shape.
 
+`superlight2c-black.webp`, `superlight2c-white.webp` and `superlight2c-pink.webp` are Logitech's own renders of the PRO X SUPERLIGHT 2c, one per colour, from its product page on logitechg.com (the gallery's top views). The lit status light is filled in from the body around it, and they're turned and scaled the same way; the button positions in `../../models.ts` were measured on them.
+
 `g305-black.webp`, `g305-white.webp`, `g305-blue.webp`, `g305-lilac.webp` and `g305-mint.webp` are Logitech's own renders of the G305 (the G304 is the same mouse), one per colour. They come from Logitech G HUB (its thumbnails, `core_assets/thumbnails/g305_<colour>.png`), upright and scaled into the frame above, and the button positions in `../../models.ts` were measured on them.
 
 They belong to Logitech. They are **not** covered by this project's license, and are included only to show which mouse is connected. If Logitech asks, they will be removed.
