@@ -82,9 +82,12 @@ pub fn model_key(usb_id: u16) -> String {
     format!("hidpp/{usb_id:04x}")
 }
 
-/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18), and a
-/// G304 on its receiver, whose check passed (PR #26, 2026-11-18).
-const TESTED: [u16; 2] = [0xC094, G304];
+/// Tried on a real mouse: the first Superlight, on its receiver and its cable (2026-10-18), a
+/// G304 on its receiver, whose check passed (PR #26, 2026-11-18), and a PRO X SUPERLIGHT 2c on
+/// its receiver and its cable (issue #36, 2026-11-19): its reads, polling, buttons, stage count
+/// and polling rate passed; its two failures were hrtz's (a DPI it doesn't offer, a profile
+/// turned off), fixed in PR #37.
+const TESTED: [u16; 3] = [0xC094, 0xC09F, G304];
 
 pub fn supported() -> Vec<Supported> {
     CABLED

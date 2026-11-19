@@ -576,9 +576,9 @@ fn logitechs_power_model_gives_a_charges_hours_at_each_rate() {
 }
 
 #[test]
-fn the_first_superlight_and_the_g304_have_been_tried() {
+fn the_models_tried_on_real_mice_are_tested() {
     let tried: Vec<_> = super::models::supported().into_iter().filter(|m| m.tested).map(|m| m.key).collect();
-    assert_eq!(tried, ["hidpp/c094", "hidpp/4074"]);
+    assert_eq!(tried, ["hidpp/c094", "hidpp/c09f", "hidpp/4074"]);
 }
 
 /// What hrtz's driver read from the user's Superlight in the probe (2026-10-18), but the unit ID:
