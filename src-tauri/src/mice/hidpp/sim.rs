@@ -227,7 +227,8 @@ impl SimMouse {
     /// The same mouse with every profile turned on in its directory, as G HUB can set it.
     pub fn all_profiles_on(mut self) -> Self {
         if let Some(d) = self.sectors.get_mut(&0) {
-            for entry in d.chunks_exact_mut(4).take_while(|e| e[..2] != [0xFF, 0xFF] && e[..2] != [0, 0]) {
+            for entry in d.as_chunks_mut::<4>().0.iter_mut().take_while(|e| e[..2] != [0xFF, 0xFF] && e[..2] != [0, 0])
+            {
                 entry[2] = 0x01;
             }
             ob::apply_crc(d);
