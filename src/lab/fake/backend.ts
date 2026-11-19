@@ -1,6 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { currentDpi, topRate, type AutoReason, type BackupMeta, type ButtonAction, type ButtonEvent, type ConnStats, type DeviceState, type GameSensitivity, type Inspected, type KnownMouse, type MeterSample, type MouseRead, type PadView, type Picture, type PointerSettings, type Prefs, type RunningApp, type Settings, type Stroke, type WheelEvent } from "@/api";
+import { currentDpi, topRate, type AutoReason, type BackupMeta, type BatteryEntry, type BatterySummary, type ButtonAction, type ButtonEvent, type ConnStats, type DeviceState, type GameSensitivity, type Inspected, type KnownMouse, type MeterSample, type MouseRead, type PadView, type Picture, type PointerSettings, type Prefs, type RunningApp, type Settings, type Stroke, type WheelEvent } from "@/api";
 
 /** This PC's data (src/lab/data), read through a glob: it's git-ignored, so a fresh clone has none
  *  and still type-checks. Without it the lab says how to make it. */
@@ -973,6 +973,83 @@ const running = (): RunningApp[] =>
     .filter((a) => /valorant|r5apex|marvel/i.test(a.exe))
     .map((a) => ({ exe: a.exe, name: a.name, title: a.name, path: a.path, icon: a.icon }));
 
+/** A small seeded random generator (mulberry32), so a seed always makes the same month. */
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A made-up month of battery log, the same for each seed: use in blocks most days at the
+ * usual rate (now and then another), asleep between, battery saver dropping the rate near
+ * empty, a charge once it's nearly flat, and the odd stretch the app wasn't running.
+ */
+function sampleBatteryLog(seed: number): BatteryEntry[] {
+  const rnd = seeded(seed);
+  const pick = <T,>(xs: T[]) => xs[Math.floor(rnd() * xs.length)];
+  const day = new Date();
+  day.setHours(24, 0, 0, 0);
+  const end = day.getTime() / 1000;
+  const now = Math.floor(Date.now() / 1000);
+  const usual = pick([1000, 2000, 4000, 4000, 8000]);
+  const drain = (hz: number) => ({ 125: 1.5, 250: 1.8, 500: 2, 1000: 2.5, 2000: 3.5, 4000: 5, 8000: 7.5 })[hz] ?? 4;
+  const saverAt = pick([15, 20, 25]);
+  const saverHz = usual > 1000 ? 1000 : 500;
+  let level = 30 + rnd() * 60;
+  let charging = false;
+  const rows: BatteryEntry[] = [];
+  for (let d = 30; d > 0; d--) {
+    // Each day: blocks of use, maybe another rate for one of them, maybe a stretch unseen.
+    const blocks: [number, number, number][] = [];
+    if (rnd() < 0.7) blocks.push([8 + rnd() * 4, 1 + rnd() * 3, usual]);
+    blocks.push([16 + rnd() * 4, 2 + rnd() * 4, rnd() < 0.25 ? pick([500, 1000, 2000, 4000, 8000]) : usual]);
+    const unseen = rnd() < 0.15 ? 6 + rnd() * 12 : -1;
+    const start = end - d * 86_400;
+    for (let t = start; t < start + 86_400 && t <= now; t += 600) {
+      const hour = (t - start) / 3600;
+      const block = blocks.find(([from, len]) => hour >= from && hour < from + len);
+      const awake = !!block || charging;
+      if (!charging && level < 8 && block) charging = true;
+      if (charging && level >= 100) charging = false;
+      const saver = !charging && level <= saverAt;
+      const hz = saver ? saverHz : (block?.[2] ?? usual);
+      level = charging ? Math.min(100, level + 6) : Math.max(1, level - (block ? (drain(hz) / 6) * (0.7 + rnd() * 0.6) : 0.02));
+      if (unseen >= 0 && hour >= unseen && hour < unseen + 3) continue;
+      // Asleep, the log only keeps a row every half hour.
+      if (!awake && Math.round((t - start) / 600) % 3) continue;
+      rows.push({ t, level: Math.round(level), mv: 3700 + Math.round(level * 4.5), charging, hz, awake, saver });
+    }
+  }
+  return rows;
+}
+
+/** The sample month's summary, worked out as `battery_log.rs` does: a charge at each rate from
+ *  the drain while awake, and the drain asleep. */
+function sampleBatterySummary(seed: number): BatterySummary {
+  const rows = sampleBatteryLog(seed);
+  const use = new Map<number, { secs: number; drop: number }>();
+  const asleep = { secs: 0, drop: 0 };
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const [a, b] = [rows[i], rows[i + 1]];
+    if (b.t - a.t > 45 * 60 || a.charging || b.charging) continue;
+    const u = a.awake ? (use.get(a.hz) ?? use.set(a.hz, { secs: 0, drop: 0 }).get(a.hz)!) : asleep;
+    u.secs += b.t - a.t;
+    u.drop += Math.max(0, a.level - b.level);
+  }
+  const life = [...use]
+    .filter(([, u]) => u.secs >= 3600 && u.drop >= 3)
+    .map(([hz, u]) => ({ hz, hours: (100 * u.secs) / 3600 / u.drop, measuredHours: u.secs / 3600 }))
+    .sort((a, b) => a.hz - b.hz);
+  const standbyPerDay = asleep.secs >= 12 * 3600 ? (asleep.drop / (asleep.secs / 3600)) * 24 : null;
+  return { since: rows[0]?.t ?? null, life, standbyPerDay, awakePerDay: null, usualHz: null, daysPerCharge: null, cycles: 0, charges: 0, capacity: null };
+}
+
 async function handle(cmd: string, args: Record<string, unknown>): Promise<unknown> {
   switch (cmd) {
     case "get_state":
@@ -1222,9 +1299,9 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
       changed();
       return fake.pointer;
     case "battery_summary":
-      return { since: null, life: [], standbyPerDay: null, awakePerDay: null, usualHz: null, daysPerCharge: null, cycles: 0, charges: 0, capacity: null };
+      return sampleBatterySummary(1);
     case "battery_history":
-      return [];
+      return sampleBatteryLog(1).filter((r) => r.t >= Date.now() / 1000 - (Number(args.days) || 7) * 86_400);
     case "plugin:dialog|save":
       return `C:\\Users\\you\\Documents\\${(args.options as { defaultPath?: string } | undefined)?.defaultPath ?? "mouse-backup.json"}`;
     case "plugin:dialog|open":

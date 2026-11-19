@@ -356,6 +356,8 @@ export interface BatteryEntry {
   hz: number;
   /** False while the mouse sleeps. */
   awake: boolean;
+  /** Battery saver had lowered the polling rate (left out when not). */
+  saver?: boolean;
 }
 
 export interface RateLife {
