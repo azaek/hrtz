@@ -7,8 +7,11 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ## Unreleased
 
 ### New
-- Logitech's G304 and G305, on their LIGHTSPEED receiver: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery, with backups, restores and factory settings. Tested: a check on a real G304 passed. Thanks to @whyshhnuv, who added them and ran the check.
+- Logitech's G304 and G305, on their LIGHTSPEED receiver: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery, with backups, restores and factory settings. Tested on a real G304, by @whyshhnuv in #26
 - Logitech's PRO X SUPERLIGHT 2c, on its LIGHTSPEED receiver or its cable: DPI stages, polling rate, profiles and battery, as on the PRO X SUPERLIGHT 2. Not tested yet: its Not tested badge runs the check. Thanks to @bwyao for the report.
+
+### Fixed
+- Mouse button shortcuts are now recorded one key at a time, so Alt+Tab can be set without Windows switching away, by @whyshhnuv in #33
 
 ## 0.5.9 — 2026-11-18
 
