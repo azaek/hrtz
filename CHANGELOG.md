@@ -6,8 +6,11 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 
 ## Unreleased
 
+### New
+- Logitech's G304 and G305, on their LIGHTSPEED receiver: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery, with backups, restores and factory settings. Tested: a check on a real G304 passed. Thanks to @whyshhnuv, who added them and ran the check.
+
 ### Fixed
-- When setting a mouse button to a keyboard shortcut, tap the keys one at a time and save them with Stop recording. Tap and release Alt, then tap Tab to set Alt+Tab without switching windows.
+- A mouse button can now be set to a shortcut like Alt+Tab without Windows switching away: tap the keys one at a time, then click Stop recording. Thanks to @whyshhnuv.
 
 ## 0.5.9 — 2026-11-18
 
