@@ -217,6 +217,8 @@ Thanks to everyone who has tested a mouse:
 - [derekjamesedu](https://github.com/derekjamesedu): Zaopin Z2
 - [krishiv1545](https://github.com/krishiv1545): VXE R1 (PAW3395)
 - [elist-exe](https://github.com/elist-exe): Zaopin Z2
+- [whyshhnuv](https://github.com/whyshhnuv): Logitech G304
+- [bwyao](https://github.com/bwyao): Logitech PRO X SUPERLIGHT 2c
 
 ## What it does
 
