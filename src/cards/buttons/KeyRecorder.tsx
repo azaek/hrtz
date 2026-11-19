@@ -72,7 +72,7 @@ export function KeyRecorder({ value, autoFocus, disabled, oneKey, onCommit, onCa
           aria-label={recording ? "Keys being recorded" : "Assigned keys"}
           contentBefore={<Keyboard16Regular />}
           value={shown.modifiers || shown.keys.length ? comboLabel(shown.modifiers, shown.keys) : ""}
-          placeholder={recording ? "Tap each key separately" : "No keys set"}
+          placeholder={recording ? "Tap keys one at a time" : "No keys set"}
           style={{ width: 240 }}
           onKeyDown={(e) => {
             if (!recording || (e.key === "Tab" && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey)) return;
@@ -95,7 +95,6 @@ export function KeyRecorder({ value, autoFocus, disabled, oneKey, onCommit, onCa
           </Button>
         )}
       </div>
-      {recording && <span className="text-xs">Tap keys one at a time. Shift+Tab moves to Stop.</span>}
     </>
   );
 }
