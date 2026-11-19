@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Improved
+- The battery chart is now a bar for each hour of the day, each 6 hours of the week or each day of the month. Bars are green while charging and amber while battery saver is on, and fainter for time the mouse spent asleep. Below it, a bar shows the time awake against the time asleep. Point at a bar, or use the arrow keys, for its level, how long the mouse was awake and at what polling rate. Dashed lines mark the low battery alert and battery saver levels, and a dotted baseline the time hrtz wasn't running. Battery saver shows from this version on.
+
 ## 0.5.11 — 2026-11-19
 
 ### Fixed

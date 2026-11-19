@@ -7,8 +7,8 @@ import { hoursLeft, lifeAt, useBatteryData } from "./useBatteryData";
 import { Choice, Group, SettingCard } from "@/components";
 import { StatTile } from "@/kit";
 import { makerOf } from "@/models";
-import { hzText, rateColor } from "@/rates";
-import { useStore } from "@/store";
+import { hzText } from "@/rates";
+import { useMouse, useStore } from "@/store";
 
 /**
  * Battery at a glance: four figures across the top (the level, time left, how long a charge
@@ -19,6 +19,7 @@ import { useStore } from "@/store";
 export function BatteryOverview() {
   const device = useStore((x) => x.device);
   const prefs = useStore((x) => x.prefs);
+  const saver = useMouse()?.prefs;
   const { summary, range, pickRange, rows, now } = useBatteryData();
   const b = device?.connected ? device.battery : null;
   const hz = device?.settings?.pollingHz;
@@ -76,22 +77,18 @@ export function BatteryOverview() {
           stacked
           icon={<DataTrending20Regular />}
           title="Battery level"
-          description="Charging, awake time and polling rate over time."
+          description="The level over time, with charging and battery saver."
           below={
             <div className="tw flex flex-col gap-3 pl-9">
-              <BatteryChart rows={rows} from={now - range * DAY} now={now} />
-              {summary && summary.life.length > 0 && (
-                <div className="flex flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-sm tabular-nums">
-                  {summary.life.map((l) => (
-                    <span key={l.hz} className="flex items-center gap-2">
-                      <span aria-hidden className="size-2 rounded-full" style={{ background: rateColor(l.hz) }} />
-                      {hzText(l.hz)}: about {hours(l.hours)} a charge
-                      <span className="text-xs text-muted-foreground">(over {hours(l.measuredHours)})</span>
-                    </span>
-                  ))}
-                  {summary.standbyPerDay != null && <span className="text-muted-foreground">Asleep: {Math.max(0.1, summary.standbyPerDay).toFixed(1)}% a day</span>}
-                </div>
-              )}
+              <BatteryChart
+                rows={rows}
+                days={range}
+                now={now}
+                summary={summary}
+                hz={hz}
+                low={prefs?.batteryAlerts ? prefs.lowBatteryPercent : undefined}
+                saverAt={saver?.batterySaver && !device?.capabilities?.wired ? saver.batterySaverBelow : undefined}
+              />
             </div>
           }
         >
