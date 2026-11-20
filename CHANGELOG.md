@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### Fixed
+- In Ukrainian, Rapid fire now reads "Автоклік", as in Russian, instead of a word-for-word "Швидкий вогонь". Thanks to @elist-exe for the report.
+
 ## 0.6.0 — 2026-11-20
 
 ### New
