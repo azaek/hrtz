@@ -6,6 +6,9 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 
 ## Unreleased
 
+### New
+- hrtz in six more languages: German, Spanish, Portuguese (Brazil), Russian, Ukrainian and Simplified Chinese. It follows Windows' display language, or pick one under Settings → Language. These are first versions, not yet read by native speakers; if something reads wrong, the link under Language opens an issue. Thanks to @elist-exe for the request.
+
 ### Improved
 - A better battery level view, with charging, battery saver and the time awake and asleep at a glance.
 
