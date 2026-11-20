@@ -4,7 +4,7 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
-## Unreleased
+## 0.6.0 — 2026-11-20
 
 ### New
 - hrtz in six more languages: German, Spanish, Portuguese (Brazil), Russian, Ukrainian and Simplified Chinese. It follows Windows' display language, or pick one under Settings → Language. These are first versions, not yet read by native speakers; if something reads wrong, the link under Language opens an issue. Thanks to @elist-exe for the request.
