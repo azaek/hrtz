@@ -1,22 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { CaptureScreen, MeterSample } from "@/api";
 import { useCapture, useHold } from "@/cards/lab/parts";
+import { num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import type { Measured } from "./report";
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
-const fmt = (n: number) => n.toLocaleString("en-US");
 
+/** `title` and `detail` come in the language shown. */
 type Run = { hz: number[]; ms: number; stutters: number; rate: number | null; want: number; title: string; detail: string; done: ((m: Measured) => void) | null };
 
 function screenOf(r: Run): CaptureScreen {
   return {
     title: r.title,
     detail: r.detail,
-    figure: r.rate ? fmt(r.rate) : "–",
-    figureLabel: r.rate ? "reports a second" : "Start moving",
+    figure: r.rate ? num(r.rate) : "–",
+    figureLabel: r.rate ? t("reports a second") : t("Start moving"),
     progress: r.want ? r.ms / r.want : 0,
-    progressLabel: `${(r.ms / 1000).toFixed(1)} of ${r.want / 1000} s counted`,
+    progressLabel: t("{{counted}} of {{total}} s counted", { counted: num(r.ms / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), total: num(r.want / 1000) }),
   };
 }
 

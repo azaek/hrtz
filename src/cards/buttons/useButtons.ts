@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ButtonAction, Settings } from "@/api";
 import { actionLabel } from "@/hid";
+import { t } from "@/i18n";
 import { commit } from "@/store";
 import { DEFAULT_ACTIONS, isLeftClick, sameAction } from "./functions";
 
@@ -21,7 +22,7 @@ export function useButtons(s: Settings, physical: [number, string][]) {
   const timer = useRef<number | null>(null);
   useEffect(() => () => clearTimeout(timer.current ?? 0), []);
 
-  const nameOf = (i: number) => physical.find(([b]) => b === i)?.[1] ?? `Button ${i + 1}`;
+  const nameOf = (i: number) => physical.find(([b]) => b === i)?.[1] ?? t("Button {{n}}", { n: i + 1 });
   const write = (next: ButtonAction[], undoText: string) => {
     setUndo({ text: undoText, prev: buttons });
     clearTimeout(timer.current ?? 0);
@@ -38,13 +39,13 @@ export function useButtons(s: Settings, physical: [number, string][]) {
     setWaiting(null);
     if (sameAction(buttons[i], a)) return;
     if (onlyLeft(i) && !isLeftClick(a)) {
-      setNote({ text: `${nameOf(i)} is your only left click. Set another button to Left click first.`, warn: true });
+      setNote({ text: t("{{name}} is your only left click. Set another button to Left click first.", { name: nameOf(i) }), warn: true });
       return;
     }
     setNote(null);
     write(
       buttons.map((b, j) => (j === i ? a : b)),
-      `${nameOf(i)} is set to ${actionLabel(a)}`,
+      t("{{name}} is set to {{action}}", { name: nameOf(i), action: actionLabel(a) }),
     );
   };
 
@@ -54,7 +55,7 @@ export function useButtons(s: Settings, physical: [number, string][]) {
     setNote(null);
     write(
       buttons.map((b, i) => (physical.some(([p]) => p === i) && DEFAULT_ACTIONS[i] ? DEFAULT_ACTIONS[i] : b)),
-      "Default buttons restored",
+      t("Default buttons restored"),
     );
   };
   const revert = () => {

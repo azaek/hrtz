@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Minus, Plus } from "lucide-react";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { fieldLook } from "./field";
 
@@ -119,8 +120,8 @@ export function NumberStepper(props: {
       // A flush end of the field: full height inside its border, the field's inner corner on the
       // outside, square against the number, so the hover wash meets the edges evenly.
       className={cn("h-full w-8 shrink-0 border-0 rounded-none", dir > 0 ? "rounded-r-[3px]" : "rounded-l-[3px]")}
-      aria-label={dir > 0 ? `More ${props.label.toLowerCase()}` : `Less ${props.label.toLowerCase()}`}
-      title={dir > 0 ? "More (hold to repeat)" : "Less (hold to repeat)"}
+      aria-label={dir > 0 ? t("More {{setting}}", { setting: props.label.toLowerCase() }) : t("Less {{setting}}", { setting: props.label.toLowerCase() })}
+      title={dir > 0 ? t("More (hold to repeat)") : t("Less (hold to repeat)")}
       disabled={props.disabled || (dir > 0 ? draft >= props.max : draft <= props.min)}
       onPointerDown={(e) => holdStart(dir, e)}
       onPointerUp={holdEnd}

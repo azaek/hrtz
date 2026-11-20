@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Button, Input } from "@fluentui/react-components";
 import { Keyboard16Regular } from "@fluentui/react-icons";
 import { comboLabel, KEY_USAGE, MODIFIER_BIT } from "@/hid";
+import { t } from "@/i18n";
 
 type Combo = { modifiers: number; keys: number[] };
 
@@ -62,17 +63,17 @@ export function KeyRecorder({ value, autoFocus, disabled, oneKey, onCommit, onCa
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Button autoFocus={autoFocus} disabled={disabled} onClick={toggle}>
-          {recording ? "Stop recording" : "Start recording"}
+          {recording ? t("Stop recording") : t("Start recording")}
         </Button>
         <Input
           ref={input}
           readOnly
           disabled={disabled}
           tabIndex={recording ? 0 : -1}
-          aria-label={recording ? "Keys being recorded" : "Assigned keys"}
+          aria-label={recording ? t("Keys being recorded") : t("Assigned keys")}
           contentBefore={<Keyboard16Regular />}
           value={shown.modifiers || shown.keys.length ? comboLabel(shown.modifiers, shown.keys) : ""}
-          placeholder={recording ? "Tap keys one at a time" : "No keys set"}
+          placeholder={recording ? t("Tap keys one at a time") : t("No keys set")}
           style={{ width: 240 }}
           onKeyDown={(e) => {
             if (!recording || (e.key === "Tab" && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey)) return;
@@ -91,7 +92,7 @@ export function KeyRecorder({ value, autoFocus, disabled, oneKey, onCommit, onCa
         />
         {(recording || autoFocus) && (
           <Button appearance="subtle" disabled={disabled} onClick={() => { setDraft(null); onCancel?.(); }}>
-            Cancel
+            {t("Cancel")}
           </Button>
         )}
       </div>

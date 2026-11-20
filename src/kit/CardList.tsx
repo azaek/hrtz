@@ -1,5 +1,6 @@
 import { useState, type ComponentProps, type ReactNode, type Ref } from "react";
 import { Badge } from "@/components/ui/badge";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,7 +39,7 @@ export function UndoNote({ children, onUndo }: { children: ReactNode; onUndo: ()
     <div role="status" className="flex items-center gap-3 text-muted-foreground">
       {children}
       <button className="cursor-pointer font-medium text-foreground underline-offset-4 hover:underline" onClick={onUndo}>
-        Undo
+        {t("Undo")}
       </button>
     </div>
   );
@@ -76,7 +77,7 @@ export function HoverSwap({ rest, active }: { rest: ReactNode; active: (setInUse
 export function NewBadge({ ref }: { ref?: Ref<HTMLSpanElement> }) {
   return (
     <span ref={ref} style={{ display: "inline-flex", verticalAlign: "middle" }}>
-      <Badge className="tw h-4 rounded-[3px] bg-brand px-1 text-[10px] leading-none font-semibold text-background">New</Badge>
+      <Badge className="tw h-4 rounded-[3px] bg-brand px-1 text-[10px] leading-none font-semibold text-background">{t("New")}</Badge>
     </span>
   );
 }

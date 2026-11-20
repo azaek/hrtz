@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { FluentProvider } from "@fluentui/react-components";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { useTranslation } from "react-i18next";
+import "./i18n";
 import App from "./App";
 import Osd from "./Osd";
 import { setStatesTheme } from "./states";
@@ -22,6 +24,8 @@ function useSystemTheme() {
 }
 
 function Root() {
+  // A new language renders every window again, so all its text changes at once.
+  useTranslation();
   const isDark = useSystemTheme();
   const isOsd = getCurrentWebviewWindow().label === "osd";
   document.documentElement.dataset.theme = isDark ? "dark" : "light";
@@ -35,7 +39,11 @@ function Root() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+// Hot reloading in dev runs this file again (a change to a language file reaches it through
+// i18n.ts). Keep the one root, or each run would start another app in the same window.
+const container = document.getElementById("root") as HTMLElement & { root?: ReactDOM.Root };
+container.root ??= ReactDOM.createRoot(container);
+container.root.render(
   <React.StrictMode>
     <Root />
   </React.StrictMode>,

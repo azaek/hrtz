@@ -1,15 +1,38 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type DeviceState, type Inspected, type MouseRead, type Picture, type Reading } from "@/api";
+import { physicalName } from "@/hid";
+import { english, msg, num, screen, t, type Say, type Speech } from "@/i18n";
 import { LINK_NAME, linkName } from "@/links";
 import { familyOf, modelKeyOf, SUPPORT_TEXT, type Support } from "@/models";
 import { mouseIssueUrl } from "@/report";
 import { pack, PACKED } from "./pack";
-import type { WriteCheck } from "./changes";
+import type { Said, WriteCheck } from "./changes";
 import type { Checks } from "./useParticipate";
 
 /** Whole: a rate counted comes with decimals ("990.051 reports a second"). */
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const hex = (n: number) => n.toString(16).toUpperCase().padStart(4, "0");
+
+export type { Say };
+
+/**
+ * How what a check found is said: on screen (`SCREEN`) in the language shown, and in the report we
+ * read, its file and its GitHub issue, in English (`ENGLISH`), whatever the language shown. `t`
+ * says a line, `n` writes a number whole and grouped ("1,600"), `d` writes it as it is ("0.5"),
+ * and `change` says a change the check tried.
+ */
+export interface Voice {
+  t: Say;
+  n: (x: number) => string;
+  d: (x: number) => string;
+  change: (w: WriteCheck) => Said;
+  /** What a button was set to. */
+  does: (b: { does: string; shown?: () => string }) => string;
+  /** For the helpers that name a setting (`lodName`, `actionLabel`). */
+  speech: Speech;
+}
+export const SCREEN: Voice = { t: (key, values) => t(key, values), n: (x) => num(Math.round(x)), d: (x) => num(x), change: (w) => w.shown?.() ?? w, does: (b) => b.shown?.() ?? b.does, speech: screen };
+export const ENGLISH: Voice = { t: english.t, n: fmt, d: String, change: (w) => w, does: (b) => b.does, speech: english };
 
 /** "3554:F527", as Windows and the GitHub forms write a device's IDs; a simulated mouse has none. */
 export const idsOf = (m: Inspected) => (m.vendorId || m.productId ? `${hex(m.vendorId)}:${hex(m.productId)}` : "Simulated");
@@ -22,11 +45,11 @@ export const nameOf = (m: Inspected) => (m.vendorId || m.productId ? (m.supporte
 export const idOf = (m: Inspected) => `${idsOf(m)}-${m.name}`;
 
 /** How far hrtz is with a listed mouse, in a word or two: beside its IDs, in the list and on its
- *  check. `support` is where its model stands, for one hrtz runs. */
+ *  check (only on screen). `support` is where its model stands, for one hrtz runs. */
 export const statusOf = (m: Inspected, support: Support | undefined) =>
-  m.reach === "asleep" ? "Mouse not answering" : support && m.reach === "runs" ? SUPPORT_TEXT[support] : "Not supported yet";
+  m.reach === "asleep" ? t("Mouse not answering") : support && m.reach === "runs" ? t(SUPPORT_TEXT[support]) : t("Not supported yet");
 
-/** One thing a check found: fine, not, or only noted. */
+/** One thing a check found: fine, not, or only noted. Its text is in its `Voice`'s language. */
 export type Line = { ok: boolean | null; text: string };
 
 /** What a check comes to, said first: all there, something to look at again, or only a little. */
@@ -187,49 +210,62 @@ const triedHeld = (t: Tried) => !t.error && t.kept && t.restored && !!t.measured
 const pickedStages = (p: Part) => readingOf(p, "stages")?.ways.find((w) => w.piece === p.confirmed?.stages) ?? null;
 
 /** What the check of a mouse hrtz runs found, a line each. */
-export function summaryLines(c: Checks): Line[] {
+export function summaryLines(c: Checks, voice: Voice): Line[] {
+  const { t, n, d, change, does } = voice;
   const lines: Line[] = [];
   lines.push(
     !c.read.ok
-      ? { ok: false, text: `Memory not read: ${c.read.error ?? "no answer"}` }
+      ? { ok: false, text: t("Memory not read: {{error}}", { error: c.read.error ?? t("no answer") }) }
       : c.read.settingsOnly
-        ? { ok: null, text: "Settings read; hrtz doesn't read this model's memory whole yet" }
-        : { ok: true, text: `Settings and memory read (${fmt(c.read.bytes ?? 0)} bytes)` },
+        ? { ok: null, text: t("Settings read; hrtz doesn't read this model's memory whole yet") }
+        : { ok: true, text: t("Settings and memory read ({{bytes}} bytes)", { bytes: n(c.read.bytes ?? 0) }) },
   );
   if (c.polling) {
     const { set, measured, stutters } = c.polling;
     const steady = stutters <= 2;
     lines.push({
       ok: measured !== null && steady,
-      text: measured === null ? "Polling not measured" : `${fmt(measured)} reports a second${set ? ` at ${fmt(set)} Hz` : ""}, ${steady ? "steady" : `${stutters} stutters`}`,
+      text:
+        measured === null
+          ? t("Polling not measured")
+          : set
+            ? steady
+              ? t("{{rate}} reports a second at {{hz}} Hz, steady", { rate: n(measured), hz: n(set) })
+              : t("{{rate}} reports a second at {{hz}} Hz, {{count}} stutters", { rate: n(measured), hz: n(set), count: stutters })
+            : steady
+              ? t("{{rate}} reports a second, steady", { rate: n(measured) })
+              : t("{{rate}} reports a second, {{count}} stutters", { rate: n(measured), count: stutters }),
     });
   }
   const seeable = c.buttons.filter((b) => b.seen !== null);
   if (seeable.length) {
     const seen = seeable.filter((b) => b.seen);
-    lines.push({ ok: seen.length === seeable.length, text: `Buttons: ${seen.length} of ${seeable.length} seen` });
-    for (const b of seeable.filter((x) => !x.seen)) lines.push({ ok: false, text: `${b.name}: no press seen (set to ${b.does})` });
+    lines.push({ ok: seen.length === seeable.length, text: t("Buttons: {{seen}} of {{total}} seen", { seen: d(seen.length), total: d(seeable.length) }) });
+    for (const b of seeable.filter((x) => !x.seen)) lines.push({ ok: false, text: t("{{button}}: no press seen (set to {{action}})", { button: physicalName(b.name, voice.speech), action: does(b) }) });
   }
-  for (const b of c.buttons.filter((x) => x.seen === null)) lines.push({ ok: null, text: b.why ? `${b.name}: ${b.why}` : `${b.name} is set to ${b.does}, which hrtz can't see` });
+  for (const b of c.buttons.filter((x) => x.seen === null)) lines.push({ ok: null, text: b.why ? t("{{button}}: {{why}}", { button: physicalName(b.name, voice.speech), why: t(b.why) }) : t("{{button}} is set to {{action}}, which hrtz can't see", { button: physicalName(b.name, voice.speech), action: does(b) }) });
   // Every change tried; a report from before each setting was tried has the one.
   const writes = c.writes ?? (c.write ? [c.write] : []);
   const held = writes.filter(writeHeld);
-  if (held.length === 1) lines.push({ ok: true, text: `${held[0].what} ${held[0].from} → ${held[0].to}: kept, put back` });
-  else if (held.length) lines.push({ ok: true, text: `${held.length} settings changed, kept and put back: ${held.map((w) => w.what).join(", ")}` });
+  if (held.length === 1) {
+    const { what, from, to } = change(held[0]);
+    lines.push({ ok: true, text: t("{{what}} {{from}} → {{to}}: kept, put back", { what, from, to }) });
+  } else if (held.length) lines.push({ ok: true, text: t("{{count}} settings changed, kept and put back: {{settings}}", { count: held.length, settings: held.map((w) => change(w).what).join(", ") }) });
   for (const w of held) {
-    if (w.hz && w.measured) lines.push({ ok: true, text: `Set to ${fmt(w.hz)} Hz, it counted ${fmt(w.measured)} reports a second` });
-    else if (w.hz) lines.push({ ok: null, text: `Set to ${fmt(w.hz)} Hz and kept; not counted, the mouse wasn't moved` });
+    if (w.hz && w.measured) lines.push({ ok: true, text: t("Set to {{hz}} Hz, it counted {{rate}} reports a second", { hz: n(w.hz), rate: n(w.measured) }) });
+    else if (w.hz) lines.push({ ok: null, text: t("Set to {{hz}} Hz and kept; not counted, the mouse wasn't moved", { hz: n(w.hz) }) });
   }
-  for (const w of writes.filter((x) => !writeHeld(x))) lines.push({ ok: false, text: writeFailed(w) });
+  for (const w of writes.filter((x) => !writeHeld(x))) lines.push({ ok: false, text: writeFailed(w, voice) });
   if (c.left) {
+    const at = c.left.slice(0, 6).join(", ");
     lines.push(
       c.left.length
-        ? { ok: false, text: `After the check, its memory isn't as it was at ${c.left.slice(0, 6).join(", ")}${c.left.length > 6 ? " and more" : ""}` }
-        : { ok: true, text: "After the check, its memory is as it was" },
+        ? { ok: false, text: c.left.length > 6 ? t("After the check, its memory isn't as it was at {{at}} and more", { at }) : t("After the check, its memory isn't as it was at {{at}}", { at }) }
+        : { ok: true, text: t("After the check, its memory is as it was") },
     );
   }
   if (c.wroteBack) {
-    lines.push(c.wroteBack.ok ? { ok: true, text: "hrtz then wrote its memory back as it was before the check" } : { ok: false, text: `Writing its memory back failed: ${c.wroteBack.error}` });
+    lines.push(c.wroteBack.ok ? { ok: true, text: t("hrtz then wrote its memory back as it was before the check") } : { ok: false, text: t("Writing its memory back failed: {{error}}", { error: c.wroteBack.error }) });
   }
   return lines;
 }
@@ -238,59 +274,67 @@ export function summaryLines(c: Checks): Line[] {
  *  counted, counted at that rate. */
 const writeHeld = (w: WriteCheck) => !w.error && w.kept && w.restored && (!w.hz || !w.measured || rateNear(w.measured) === w.hz);
 
-function writeFailed(w: WriteCheck): string {
-  const change = w.from || w.to ? `${w.what} ${w.from} → ${w.to}` : "Change";
-  if (w.error) return `${change} failed: ${w.error}`;
-  if (!w.kept) return `${change}: not kept`;
-  if (!w.restored) return `${change}: kept, not put back`;
-  return `${change}: kept, but it still counted ${fmt(w.measured ?? 0)} reports a second`;
+function writeFailed(w: WriteCheck, { t, n, change }: Voice): string {
+  const { what, from, to } = change(w);
+  const changed = w.from || w.to ? t("{{what}} {{from}} → {{to}}", { what, from, to }) : t("Change");
+  if (w.error) return t("{{change}} failed: {{error}}", { change: changed, error: w.error });
+  if (!w.kept) return t("{{change}}: not kept", { change: changed });
+  if (!w.restored) return t("{{change}}: kept, not put back", { change: changed });
+  return t("{{change}}: kept, but it still counted {{rate}} reports a second", { change: changed, rate: n(w.measured ?? 0) });
 }
 
 /** What its owner said of the readings, a line each; none for a part they weren't asked about. */
-function confirmedLines(p: Part): Line[] {
+function confirmedLines(p: Part, { t }: Voice): Line[] {
   if (!asks(p)) return [];
   const lines: Line[] = [];
   const stages = readingOf(p, "stages");
   const picked = pickedStages(p);
-  if (picked) lines.push({ ok: true, text: `DPI stages ${picked.text}, as its owner says` });
-  else if (p.confirmed?.stages === "none") lines.push({ ok: null, text: `DPI stages: none of hrtz's readings${p.confirmed.stagesAre ? ` (its own app shows ${p.confirmed.stagesAre})` : ""}` });
-  else if (stages?.ways.length) lines.push({ ok: null, text: `DPI stages read as ${stages.ways[0].text}, not confirmed` });
+  if (picked) lines.push({ ok: true, text: t("DPI stages {{stages}}, as its owner says", { stages: picked.text }) });
+  else if (p.confirmed?.stages === "none") lines.push({ ok: null, text: p.confirmed.stagesAre ? t("DPI stages: none of hrtz's readings (its own app shows {{stages}})", { stages: p.confirmed.stagesAre }) : t("DPI stages: none of hrtz's readings") });
+  else if (stages?.ways.length) lines.push({ ok: null, text: t("DPI stages read as {{stages}}, not confirmed", { stages: stages.ways[0].text }) });
   if (shownOf(p).length) {
     const c = p.confirmed;
     lines.push(
       c?.rest === "right"
-        ? { ok: true, text: "Its other settings read as its own app shows them" }
+        ? { ok: true, text: t("Its other settings read as its own app shows them") }
         : c?.rest === "wrong"
-          ? { ok: null, text: `Its other settings don't all read right${c.note ? `: ${c.note}` : ""}` }
-          : { ok: null, text: "Its other settings read, not confirmed" },
+          ? { ok: null, text: c.note ? t("Its other settings don't all read right: {{note}}", { note: c.note }) : t("Its other settings don't all read right") }
+          : { ok: null, text: t("Its other settings read, not confirmed") },
     );
   }
-  const more = [p.confirmed?.topDpi && `up to ${p.confirmed.topDpi} DPI`, p.confirmed?.sensor && `sensor ${p.confirmed.sensor}`].filter(Boolean);
-  if (more.length) lines.push({ ok: null, text: `Its owner says: ${more.join(", ")}` });
+  const more = [p.confirmed?.topDpi && t("up to {{dpi}} DPI", { dpi: p.confirmed.topDpi }), p.confirmed?.sensor && t("sensor {{sensor}}", { sensor: p.confirmed.sensor })].filter(Boolean);
+  if (more.length) lines.push({ ok: null, text: t("Its owner says: {{facts}}", { facts: more.join(", ") }) });
   return lines;
 }
 
-function triedLine(t: Tried): Line {
-  if (t.error) return { ok: false, text: `A change wasn't tried: ${t.error}` };
-  const counted = t.measured === null ? "not measured" : rateNear(t.measured) === t.to ? `measured ${fmt(t.measured)}` : `but still ${fmt(t.measured)} reports a second`;
+function triedLine(tried: Tried, { t, n }: Voice): Line {
+  if (tried.error) return { ok: false, text: t("A change wasn't tried: {{error}}", { error: tried.error }) };
+  const counted =
+    tried.measured === null ? t("not measured") : rateNear(tried.measured) === tried.to ? t("measured {{rate}}", { rate: n(tried.measured) }) : t("but still {{rate}} reports a second", { rate: n(tried.measured) });
   return {
-    ok: triedHeld(t) ? true : t.kept && t.restored && t.measured === null ? null : false,
-    text: `${t.what} ${fmt(t.from)} → ${fmt(t.to)} Hz: ${t.kept ? "kept" : "not kept"}, ${counted}, ${t.restored ? "put back" : "not put back"}`,
+    ok: triedHeld(tried) ? true : tried.kept && tried.restored && tried.measured === null ? null : false,
+    text: t("{{what}} {{from}} → {{to}} Hz: {{result}}", {
+      what: t(tried.what),
+      from: n(tried.from),
+      to: n(tried.to),
+      result: [tried.kept ? t("kept") : t("not kept"), counted, tried.restored ? t("put back") : t("not put back")].join(", "),
+    }),
   };
 }
 
 /** What a part's check found, a line each. */
-export function linesOf(p: Part): Line[] {
-  const tried = p.tried ? [triedLine(p.tried)] : [];
-  if (p.how === "check" && p.checks) return [...summaryLines(p.checks), ...confirmedLines(p), ...tried];
+export function linesOf(p: Part, voice: Voice): Line[] {
+  const { t, n, d } = voice;
+  const tried = p.tried ? [triedLine(p.tried, voice)] : [];
+  if (p.how === "check" && p.checks) return [...summaryLines(p.checks, voice), ...confirmedLines(p, voice), ...tried];
   if (p.how === "windows") {
     const interfaces = (p.data.inspection as { interfaces?: unknown[] } | null)?.interfaces?.length ?? 0;
     const holds = p.read?.answeredAs;
     // Noted, not ticked: none of it says the mouse can be added.
     return [
-      { ok: null, text: `IDs ${p.ids}` },
-      { ok: null, text: interfaces ? `${interfaces} interface${interfaces > 1 ? "s" : ""}, with what each reports` : "No interfaces read" },
-      ...(holds ? [{ ok: null, text: `Its receiver answers for maker ${holds.cid}, model ${holds.mid}` }] : []),
+      { ok: null, text: t("IDs {{ids}}", { ids: p.ids }) },
+      { ok: null, text: interfaces ? t("{{count}} interfaces, with what each reports", { count: interfaces, defaultValue_one: "{{count}} interface, with what each reports" }) : t("No interfaces read") },
+      ...(holds ? [{ ok: null, text: t("Its receiver answers for maker {{maker}}, model {{model}}", { maker: holds.cid, model: holds.mid }) }] : []),
     ];
   }
   const read = p.read;
@@ -298,55 +342,66 @@ export function linesOf(p: Part): Line[] {
   const who = read.model ?? read.answeredAs;
   const [got, wanted] = [read.memorySize ?? 0, read.memoryWanted ?? 0];
   const lines: Line[] = [
-    who ? { ok: true, text: `Answers as ${read.knownAs ?? `maker ${who.cid}, model ${who.mid}`}` } : { ok: false, text: "It didn't say which mouse it is" },
-    read.firmware ? { ok: true, text: `Firmware ${read.firmware}` } : { ok: null, text: "Firmware not given" },
+    who
+      ? { ok: true, text: read.knownAs != null ? t("Answers as {{model}}", { model: read.knownAs }) : t("Answers as maker {{maker}}, model {{model}}", { maker: who.cid, model: who.mid }) }
+      : { ok: false, text: t("It didn't say which mouse it is") },
+    read.firmware ? { ok: true, text: t("Firmware {{firmware}}", { firmware: read.firmware }) } : { ok: null, text: t("Firmware not given") },
     whole(p)
-      ? { ok: true, text: `Memory read (${fmt(got)} bytes)${read.listening ? ", once told an app was listening" : ""}` }
-      : { ok: false, text: `Memory read in part (${fmt(got)} of ${fmt(wanted)} bytes)` },
+      ? { ok: true, text: read.listening ? t("Memory read ({{bytes}} bytes), once told an app was listening", { bytes: n(got) }) : t("Memory read ({{bytes}} bytes)", { bytes: n(got) }) }
+      : { ok: false, text: t("Memory read in part ({{bytes}} of {{total}} bytes)", { bytes: n(got), total: n(wanted) }) },
   ];
   const pic = p.picture;
   if (pic) {
     lines.push(
       pic.kept * 3 >= pic.of * 2
-        ? { ok: true, text: `${pic.kept} of ${pic.of} settings kept where hrtz knows them` }
-        : { ok: null, text: `Its settings are kept another way: ${pic.kept} of ${pic.of} where hrtz looks` },
+        ? { ok: true, text: t("{{kept}} of {{total}} settings kept where hrtz knows them", { kept: d(pic.kept), total: d(pic.of) }) }
+        : { ok: null, text: t("Its settings are kept another way: {{kept}} of {{total}} where hrtz looks", { kept: d(pic.kept), total: d(pic.of) }) },
     );
   }
   const { set, measured } = pollingOf(p);
-  if (set && measured) lines.push(pollingAgrees(p) ? { ok: true, text: `Polling rate ${fmt(set)} Hz, measured ${fmt(measured)}` } : { ok: null, text: `Polling rate reads ${fmt(set)} Hz, but ${fmt(measured)} reports a second measured` });
-  else if (set) lines.push({ ok: null, text: `Polling rate reads ${fmt(set)} Hz, not measured` });
-  else if (measured) lines.push({ ok: null, text: `${fmt(measured)} reports a second measured; its rate isn't where hrtz looks` });
-  return [...lines, ...confirmedLines(p), ...tried];
+  if (set && measured)
+    lines.push(
+      pollingAgrees(p)
+        ? { ok: true, text: t("Polling rate {{hz}} Hz, measured {{rate}}", { hz: n(set), rate: n(measured) }) }
+        : { ok: null, text: t("Polling rate reads {{hz}} Hz, but {{rate}} reports a second measured", { hz: n(set), rate: n(measured) }) },
+    );
+  else if (set) lines.push({ ok: null, text: t("Polling rate reads {{hz}} Hz, not measured", { hz: n(set) }) });
+  else if (measured) lines.push({ ok: null, text: t("{{rate}} reports a second measured; its rate isn't where hrtz looks", { rate: n(measured) }) });
+  return [...lines, ...confirmedLines(p, voice), ...tried];
 }
 
 /** What a part comes to. */
-export function verdictOf(p: Part): Verdict {
+export function verdictOf(p: Part, voice: Voice): Verdict {
+  const { t } = voice;
   if (p.how === "windows") {
     return p.silent
-      ? { tone: "warn", title: "The mouse didn't answer", detail: "This holds only what Windows knows. Wake the mouse and check again for a full report." }
-      : { tone: "plain", title: "Only what Windows knows", detail: "hrtz can't read this mouse yet. Its IDs and how it connects still tell us someone has one, and where to start." };
+      ? { tone: "warn", title: t("The mouse didn't answer"), detail: t("This holds only what Windows knows. Wake the mouse and check again for a full report.") }
+      : { tone: "plain", title: t("Only what Windows knows"), detail: t("hrtz can't read this mouse yet. Its IDs and how it connects still tell us someone has one, and where to start.") };
   }
   if (p.known) {
-    return linesOf(p).some((l) => l.ok === false)
-      ? { tone: "warn", title: "Some things didn't work", detail: "The report shows which, and that's what we need to fix them." }
+    return linesOf(p, voice).some((l) => l.ok === false)
+      ? { tone: "warn", title: t("Some things didn't work"), detail: t("The report shows which, and that's what we need to fix them.") }
       : {
           tone: "good",
-          title: "Everything checked works",
-          detail: `hrtz read the mouse, measured it and changed ${(p.checks?.writes?.length ?? 0) > 1 ? "each setting it offers" : "a setting"}, and all of it held.`,
+          title: t("Everything checked works"),
+          detail:
+            (p.checks?.writes?.length ?? 0) > 1
+              ? t("hrtz read the mouse, measured it and changed each setting it offers, and all of it held.")
+              : t("hrtz read the mouse, measured it and changed a setting, and all of it held."),
         };
   }
   if (!whole(p)) {
     return p.read?.fellAsleep
-      ? { tone: "warn", title: "The mouse fell asleep partway", detail: "Keep it moving while it's read, and check again." }
+      ? { tone: "warn", title: t("The mouse fell asleep partway"), detail: t("Keep it moving while it's read, and check again.") }
       : p.how === "check"
-        ? { tone: "warn", title: "Its memory couldn't be read", detail: "Check again with the mouse awake and near its receiver." }
-        : { tone: "warn", title: "Only part of its memory was read", detail: "Check again with the mouse awake and near its receiver." };
+        ? { tone: "warn", title: t("Its memory couldn't be read"), detail: t("Check again with the mouse awake and near its receiver.") }
+        : { tone: "warn", title: t("Only part of its memory was read"), detail: t("Check again with the mouse awake and near its receiver.") };
   }
   if (p.tried && !triedHeld(p.tried) && !(p.tried.kept && p.tried.restored && p.tried.measured === null)) {
-    return { tone: "warn", title: "The change tried didn't hold", detail: "The report shows what happened, and that's what we need to look into it." };
+    return { tone: "warn", title: t("The change tried didn't hold"), detail: t("The report shows what happened, and that's what we need to look into it.") };
   }
   if (p.picture && p.picture.kept * 2 < p.picture.of) {
-    return { tone: "plain", title: "Its settings are kept another way", detail: "hrtz read all of its memory, but little of it is where hrtz looks. The report shows us where to start." };
+    return { tone: "plain", title: t("Its settings are kept another way"), detail: t("hrtz read all of its memory, but little of it is where hrtz looks. The report shows us where to start.") };
   }
   // What hrtz doesn't read right yet, and what's still open, said plainly: each is something
   // we'd otherwise have to ask about later.
@@ -355,22 +410,25 @@ export function verdictOf(p: Part): Verdict {
   const restAsked = asks(p) && shownOf(p).length > 0;
   const { set, measured } = pollingOf(p);
   const counted = !!set && !!measured;
-  const named = (xs: (string | false)[]) => xs.filter((x): x is string => !!x).join(", ").replace(/, ([^,]*)$/, " or $1");
-  const wrong = named([stagesAsked && c?.stages === "none" && "its DPI stages", restAsked && c?.rest === "wrong" && "its other settings", counted && !pollingAgrees(p) && "its polling rate"]);
+  const named = (xs: (string | false)[]) => xs.filter((x): x is string => !!x);
+  /** "its DPI stages, its other settings or its polling rate". */
+  const either = (xs: string[]) => (xs.length > 1 ? t("{{list}} or {{last}}", { list: xs.slice(0, -1).join(", "), last: xs[xs.length - 1] }) : xs[0]);
+  const wrong = named([stagesAsked && c?.stages === "none" && t("its DPI stages"), restAsked && c?.rest === "wrong" && t("its other settings"), counted && !pollingAgrees(p) && t("its polling rate")]);
   const open = named([
-    stagesAsked && !pickedStages(p) && c?.stages !== "none" && "its DPI stages",
-    restAsked && (c?.rest ?? "unsure") === "unsure" && "its other settings",
-    !counted && "its polling rate",
+    stagesAsked && !pickedStages(p) && c?.stages !== "none" && t("its DPI stages"),
+    restAsked && (c?.rest ?? "unsure") === "unsure" && t("its other settings"),
+    !counted && t("its polling rate"),
   ]);
-  const changed = !p.tried || p.tried.error ? " Nothing was changed." : triedHeld(p.tried) ? " A change held, and was put back." : " A change was tried and put back, but not measured.";
-  if (!wrong && !open) return { tone: "good", title: "This has what we need to add it", detail: `hrtz read the mouse, and what it read is confirmed.${changed}` };
+  const changed = !p.tried || p.tried.error ? t("Nothing was changed.") : triedHeld(p.tried) ? t("A change held, and was put back.") : t("A change was tried and put back, but not measured.");
+  if (!wrong.length && !open.length) return { tone: "good", title: t("This has what we need to add it"), detail: [t("hrtz read the mouse, and what it read is confirmed."), changed].join(" ") };
   const detail = [
-    wrong ? `hrtz read the mouse, but doesn't read ${wrong} right yet. The report shows us how.` : "hrtz read the mouse.",
-    open && `Not confirmed yet: ${open.replace(" or ", ", ")}.`,
+    wrong.length ? t("hrtz read the mouse, but doesn't read {{settings}} right yet. The report shows us how.", { settings: either(wrong) }) : t("hrtz read the mouse."),
+    open.length > 0 && t("Not confirmed yet: {{settings}}.", { settings: open.join(", ") }),
+    changed,
   ]
     .filter(Boolean)
     .join(" ");
-  return { tone: "good", title: "This has what we need to start adding it", detail: `${detail}${changed}` };
+  return { tone: "good", title: t("This has what we need to start adding it"), detail };
 }
 
 /**
@@ -429,7 +487,7 @@ export function readPart(mouse: Inspected, read: MouseRead, measured: Measured |
     name: mouse.name,
     ids: idsOf(mouse),
     how: "read",
-    link: read.answeredAs ? (LINK_NAME[read.answeredAs.deviceType] ?? null) : read.wired ? "USB cable" : "receiver",
+    link: read.answeredAs ? (LINK_NAME[read.answeredAs.deviceType] ?? null) : read.wired ? msg("USB cable") : msg("receiver"),
     wired: read.wired,
     called: read.knownAs ?? null,
     listed: !!read.knownAs,
@@ -456,8 +514,8 @@ export function windowsPart(mouse: Inspected, silent = false, receiver: MouseRea
   };
 }
 
-/** What to call a part's connection: "USB cable · 3554:F511". */
-export const partLabel = (p: Part) => [p.link, p.ids].filter(Boolean).join(" · ");
+/** What to call a part's connection: "USB cable · 3554:F511", in its `Voice`'s language. */
+export const partLabel = (p: Part, { t }: Voice) => [p.link && t(p.link), p.ids].filter(Boolean).join(" · ");
 
 /** The report sent as a test of a model hrtz knows, rather than a request to add one. */
 export const isTest = (parts: Part[]) => parts.some((p) => p.known);
@@ -487,8 +545,8 @@ export async function buildReport(parts: Part[], called: string) {
       ids: p.ids,
       how: p.how,
       link: p.link,
-      verdict: verdictOf(p).title,
-      summary: linesOf(p),
+      verdict: verdictOf(p, ENGLISH).title,
+      summary: linesOf(p, ENGLISH),
       ...(p.measured && { measured: p.measured }),
       ...(p.confirmed && { confirmed: p.confirmed }),
       ...(p.tried && { tried: p.tried }),
@@ -536,7 +594,7 @@ const SUMMARY_MAX = 2000;
 async function summaryText(parts: Part[]) {
   const { hrtz, windows } = await versions();
   const mark = (ok: boolean | null) => (ok === null ? "-" : ok ? "OK" : "FAILED");
-  const blocks = parts.map((p) => [`${p.name} (${partLabel(p)}): ${verdictOf(p).title}`, ...linesOf(p).map((l) => `${mark(l.ok)}  ${l.text}`)].join("\n"));
+  const blocks = parts.map((p) => [`${p.name} (${partLabel(p, ENGLISH)}): ${verdictOf(p, ENGLISH).title}`, ...linesOf(p, ENGLISH).map((l) => `${mark(l.ok)}  ${l.text}`)].join("\n"));
   const text = [`hrtz ${hrtz} · ${windows}`, ...blocks].join("\n\n");
   return text.length > SUMMARY_MAX ? `${text.slice(0, SUMMARY_MAX)}…` : text;
 }

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { setLanguage } from "./i18n";
 import { api, message, on, showMouse, type AppStatus, type DeviceState, type KnownMouse, type MousePrefs, type Prefs, type Settings, type Supported } from "./api";
 
 /** The onboarding's steps: first run goes Welcome, Connect, Your mouse, Preferences; "Connect a new
@@ -62,6 +63,8 @@ const listeners = new Set<() => void>();
 
 function set(patch: Partial<Store>) {
   state = { ...state, ...patch };
+  // The language picked in Settings, however the prefs arrived (loaded, saved, or from the tray).
+  if (patch.prefs) setLanguage(patch.prefs.language);
   listeners.forEach((l) => l());
 }
 

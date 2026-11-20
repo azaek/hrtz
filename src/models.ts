@@ -25,13 +25,15 @@ import superlight2White from "./assets/models/superlight2-white.webp";
 import superlight2cBlack from "./assets/models/superlight2c-black.webp";
 import superlight2cPink from "./assets/models/superlight2c-pink.webp";
 import superlight2cWhite from "./assets/models/superlight2c-white.webp";
+import { t } from "./i18n";
 
 export interface ModelArt {
   name: string;
   image: string;
   size: [number, number];
   hotspots: Record<number, [number, number]>;
-  /** How the picture shows it, for its description: "viewed from the left" unless said. */
+  /** How the picture shows it, for its description: "viewed from the left" unless said. In the
+   *  language shown when it's read. */
   view?: string;
   /** The DPI button is visible on top, rather than underneath the mouse. */
   dpiButtonOnTop?: boolean;
@@ -88,8 +90,8 @@ export const supportOf = (key: string | null | undefined, supported: { key: stri
   return m ? (m.tested ? "tested" : "untested") : "unknown";
 };
 
-/** What Inspect a mouse and the mouse card call each. */
-export const SUPPORT_TEXT: Record<Support, string> = { tested: "Tested", untested: "Not tested yet", unknown: "Not supported yet" };
+/** What Inspect a mouse and the mouse card call each, in the language shown when it's read. */
+export const SUPPORT_TEXT: Record<Support, string> = { get tested() { return t("Tested"); }, get untested() { return t("Not tested yet"); }, get unknown() { return t("Not supported yet"); } };
 
 /** A mouse's picture, from its key and, for a model that comes in several colours, which it is
  *  (`DeviceState.variant`). */
@@ -121,12 +123,12 @@ export const MODEL_ART: Record<number, ModelArt> = {
 /** An ATK's picture by its CID and MID: ATK's own top view from its app (ATK HUB), turned into the
  *  frame above (see NOTICE.md). No buttons are placed: hrtz doesn't offer an ATK's yet. */
 const ATK_ART: Record<string, ModelArt> = {
-  "2-78": { name: "U2 Plus", image: atkU2PlusBlack, size: [298, 263], hotspots: {}, view: "viewed from above" },
+  "2-78": { name: "U2 Plus", image: atkU2PlusBlack, size: [298, 263], hotspots: {}, get view() { return t("viewed from above"); } },
   // VXE's R1 line shares one shell: ATK's app's R1 picture for each of its models in ATK's list.
   ...Object.fromEntries(
     ["1-20", "2-7", "2-8", "2-11", "2-12", "2-27", "2-28", "2-29", "2-30", "2-31", "2-32", "2-34", "2-57", "2-63", "2-67", "2-114", "2-116", "2-117", "2-125", "2-126", "2-127", "2-130", "2-136", "2-137"].map((k) => [
       k,
-      { name: "R1", image: atkR1Black, size: [298, 263] as [number, number], hotspots: {}, view: "viewed from above" },
+      { name: "R1", image: atkR1Black, size: [298, 263] as [number, number], hotspots: {}, get view() { return t("viewed from above"); } },
     ]),
   ),
 };
@@ -134,23 +136,23 @@ const ATK_ART: Record<string, ModelArt> = {
 /** Logitech's top view from G HUB, turned into the frame above, with G HUB's button markers moved
  *  along (see NOTICE.md). Keys are the profile's buttons: left, right, middle, back, forward. */
 const SUPERLIGHT_HOTSPOTS: Record<number, [number, number]> = { 0: [72, 108], 1: [126, 55], 2: [90, 72], 3: [111, 190], 4: [79, 161] };
-const superlight = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT", image, size: [298, 263], hotspots: SUPERLIGHT_HOTSPOTS, view: "viewed from above" });
+const superlight = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT", image, size: [298, 263], hotspots: SUPERLIGHT_HOTSPOTS, get view() { return t("viewed from above"); } });
 
 /** Logitech's top view from its product page, turned the same way; the buttons placed where the
  *  first Superlight's are on its own shape (see NOTICE.md). */
 const SUPERLIGHT_2_HOTSPOTS: Record<number, [number, number]> = { 0: [72, 109], 1: [126, 54], 2: [90, 72], 3: [111, 191], 4: [78, 162] };
-const superlight2 = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2", image, size: [298, 263], hotspots: SUPERLIGHT_2_HOTSPOTS, view: "viewed from above" });
+const superlight2 = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2", image, size: [298, 263], hotspots: SUPERLIGHT_2_HOTSPOTS, get view() { return t("viewed from above"); } });
 
 /** Logitech's top view of the 2c from its product page, turned the same way, with the buttons
  *  measured on it (see NOTICE.md). */
 const SUPERLIGHT_2C_HOTSPOTS: Record<number, [number, number]> = { 0: [78, 109], 1: [127, 60], 2: [95, 77], 3: [114, 191], 4: [78, 162] };
-const superlight2c = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2c", image, size: [298, 263], hotspots: SUPERLIGHT_2C_HOTSPOTS, view: "viewed from above" });
+const superlight2c = (image: string): ModelArt => ({ name: "PRO X SUPERLIGHT 2c", image, size: [298, 263], hotspots: SUPERLIGHT_2C_HOTSPOTS, get view() { return t("viewed from above"); } });
 
 /** G HUB's top view of the G305 (the G304 is the same mouse), upright in the frame above, with
  *  the buttons measured on it (see NOTICE.md): left, right, middle, back, forward, and the DPI
  *  button, on top behind the wheel. */
 const G305_HOTSPOTS: Record<number, [number, number]> = { 0: [112, 64], 1: [185, 64], 2: [150, 55], 3: [82, 143], 4: [83, 106], 5: [149, 92] };
-const g305 = (name: string, image: string): ModelArt => ({ name, image, size: [298, 263], hotspots: G305_HOTSPOTS, view: "viewed from above", dpiButtonOnTop: true });
+const g305 = (name: string, image: string): ModelArt => ({ name, image, size: [298, 263], hotspots: G305_HOTSPOTS, get view() { return t("viewed from above"); }, dpiButtonOnTop: true });
 
 /** A Logitech's pictures by its USB product ID, then by its colour (the extended model ID). A
  *  colour without its own picture shows the first. */

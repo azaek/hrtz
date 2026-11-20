@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { api, type ClickDay } from "@/api";
+import { msg, num, t } from "@/i18n";
 import type { TestResult } from "./result";
 
 // Double clicks over days: the click log Rust keeps (clicks.rs), counted in the background while
 // the switch is on, summed over the last week.
 
-export const NAMES = ["Left", "Right", "Middle", "Back", "Forward"];
+export const NAMES = [msg("Left"), msg("Right"), msg("Middle"), msg("Back"), msg("Forward")];
 /** Days a week's count covers, today among them. */
 const WEEK = 7;
 
 export type ButtonWeek = { name: string; presses: number; doubles: number; worstMs: number };
 
 const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const fmt = (n: number) => n.toLocaleString("en-US");
 
 /** The last seven days of the log, per button. */
 export function weekOf(days: ClickDay[], today = new Date()): ButtonWeek[] {
@@ -44,9 +44,9 @@ export function weekText(week: ButtonWeek[]) {
   const presses = week.reduce((a, b) => a + b.presses, 0);
   const bad = week.filter((b) => b.doubles > 0);
   const doubles = bad.reduce((a, b) => a + b.doubles, 0);
-  if (!bad.length) return { presses, doubles, text: `No doubles in ${fmt(presses)} ${presses === 1 ? "press" : "presses"}` };
-  const who = bad.length === 1 ? `all on ${bad[0].name}` : bad.map((b) => `${b.name} ${b.doubles}`).join(", ");
-  return { presses, doubles, text: `${doubles} ${doubles === 1 ? "double" : "doubles"} in ${fmt(presses)} presses, ${who}` };
+  if (!bad.length) return { presses, doubles, text: t("No doubles in {{n}} presses", { count: presses, n: num(presses), defaultValue_one: "No doubles in {{n}} press" }) };
+  const who = bad.length === 1 ? t("all on {{button}}", { button: t(bad[0].name, { context: "button" }) }) : bad.map((b) => `${t(b.name, { context: "button" })} ${b.doubles}`).join(", ");
+  return { presses, doubles, text: t("{{count}} doubles in {{presses}} presses, {{who}}", { count: doubles, presses: num(presses), who, defaultValue_one: "{{count}} double in {{presses}} presses, {{who}}" }) };
 }
 
 /** The Lab list's line from the week, once there's a press in it. */
@@ -54,6 +54,10 @@ export function weekResult(week: ButtonWeek[]): TestResult | null {
   const { presses, doubles } = weekText(week);
   if (!presses) return null;
   const bad = week.filter((b) => b.doubles > 0);
-  if (!doubles) return { value: "No doubles this week", detail: `${fmt(presses)} presses`, tone: "good" };
-  return { value: `${doubles} ${doubles === 1 ? "double" : "doubles"} this week`, detail: bad.length === 1 ? `All on ${bad[0].name}` : bad.map((b) => `${b.name} ${b.doubles}`).join(", "), tone: "warn" };
+  if (!doubles) return { value: t("No doubles this week"), detail: t("{{n}} presses", { count: presses, n: num(presses), defaultValue_one: "{{n}} press" }), tone: "good" };
+  return {
+    value: t("{{count}} doubles this week", { count: doubles, defaultValue_one: "{{count}} double this week" }),
+    detail: bad.length === 1 ? t("All on {{button}}", { button: t(bad[0].name, { context: "button" }) }) : bad.map((b) => `${t(b.name, { context: "button" })} ${b.doubles}`).join(", "),
+    tone: "warn",
+  };
 }

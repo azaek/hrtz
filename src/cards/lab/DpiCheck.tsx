@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Body1, Button, Caption1, Caption1Strong, Link, makeStyles, Title2, tokens } from "@fluentui/react-components";
 import type { MeterSample } from "@/api";
 import { Choice } from "@/components";
+import { num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
 import { useReport, type TestProps, type TestResult } from "./result";
@@ -31,9 +32,10 @@ const useStyles = makeStyles({
   actions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: tokens.spacingHorizontalL },
 });
 
-const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+const fmt = (n: number) => num(Math.round(n));
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
-const pct = (n: number) => `${Math.abs(n).toFixed(1).replace(/\.0$/, "")}%`;
+/** A difference in percent, without its sign or the % (the sentence has those). */
+const pct = (n: number) => num(Math.abs(n), { maximumFractionDigits: 1 });
 
 /**
  * Real DPI from measured drags: hold the left button, slide a known distance along a ruler, let
@@ -82,7 +84,12 @@ export function DpiCheck({ dpi, onResult }: { dpi: number } & TestProps) {
   let axes = "";
   if (mx !== null && my !== null) {
     const d = ((my - mx) / mx) * 100;
-    axes = Math.abs(d) < FINE ? "Both axes agree." : `Up and down reads ${pct(d)} ${d > 0 ? "higher" : "lower"} than across.`;
+    axes =
+      Math.abs(d) < FINE
+        ? t("Both axes agree.")
+        : d > 0
+          ? t("Up and down reads {{percent}}% higher than across.", { percent: pct(d) })
+          : t("Up and down reads {{percent}}% lower than across.", { percent: pct(d) });
   }
 
   // Fast runs against slow ones, each against its own axis's average.
@@ -95,7 +102,12 @@ export function DpiCheck({ dpi, onResult }: { dpi: number } & TestProps) {
     const fast = mean(timed.filter((r) => r.speed >= mid).map(dev))!;
     const slow = mean(timed.filter((r) => r.speed < mid).map(dev))!;
     const d = fast - slow;
-    speed = Math.abs(d) < FINE ? "Fast and slow runs agree." : `Faster runs read ${pct(d)} ${d > 0 ? "higher" : "lower"} than slow ones.`;
+    speed =
+      Math.abs(d) < FINE
+        ? t("Fast and slow runs agree.")
+        : d > 0
+          ? t("Faster runs read {{percent}}% higher than slow ones.", { percent: pct(d) })
+          : t("Faster runs read {{percent}}% lower than slow ones.", { percent: pct(d) });
   }
 
   // The setting that lands closest to the DPI you meant, in the mouse's own steps.
@@ -116,18 +128,32 @@ export function DpiCheck({ dpi, onResult }: { dpi: number } & TestProps) {
   };
 
   let verdict: string;
-  if (corrected) verdict = `Set to ${fmt(corrected.to)} DPI. Measure again to confirm it reads near ${fmt(corrected.from)}.`;
-  else if (off === null) verdict = `Your setting: ${fmt(dpi)} DPI.`;
-  else if (Math.abs(off) < FINE) verdict = `Accurate, within ${pct(off)} of the set ${fmt(dpi)} DPI.`;
-  else
-    verdict = `${pct(off)} ${off > 0 ? "above" : "below"} the set ${fmt(dpi)} DPI${Math.abs(off) >= FIX ? ", enough to notice when matching sensitivity across mice" : ""}.`;
+  if (corrected) verdict = t("Set to {{dpi}} DPI. Measure again to confirm it reads near {{target}}.", { dpi: fmt(corrected.to), target: fmt(corrected.from) });
+  else if (off === null) verdict = t("Your setting: {{dpi}} DPI.", { dpi: fmt(dpi) });
+  else if (Math.abs(off) < FINE) verdict = t("Accurate, within {{percent}}% of the set {{dpi}} DPI.", { percent: pct(off), dpi: fmt(dpi) });
+  else {
+    const v = { percent: pct(off), dpi: fmt(dpi) };
+    verdict =
+      Math.abs(off) >= FIX
+        ? off > 0
+          ? t("{{percent}}% above the set {{dpi}} DPI, enough to notice when matching sensitivity across mice.", v)
+          : t("{{percent}}% below the set {{dpi}} DPI, enough to notice when matching sensitivity across mice.", v)
+        : off > 0
+          ? t("{{percent}}% above the set {{dpi}} DPI.", v)
+          : t("{{percent}}% below the set {{dpi}} DPI.", v);
+  }
 
   const result: TestResult | null =
     all === null || off === null
       ? null
       : {
-          value: `${fmt(all)} DPI`,
-          detail: Math.abs(off) < FINE ? `Within ${pct(off)} of the set ${fmt(dpi)}` : `${pct(off)} ${off > 0 ? "above" : "below"} the set ${fmt(dpi)}`,
+          value: t("{{dpi}} DPI", { dpi: fmt(all) }),
+          detail:
+            Math.abs(off) < FINE
+              ? t("Within {{percent}}% of the set {{dpi}}", { percent: pct(off), dpi: fmt(dpi) })
+              : off > 0
+                ? t("{{percent}}% above the set {{dpi}}", { percent: pct(off), dpi: fmt(dpi) })
+                : t("{{percent}}% below the set {{dpi}}", { percent: pct(off), dpi: fmt(dpi) }),
           tone: Math.abs(off) < FINE ? "good" : Math.abs(off) >= FIX ? "warn" : "neutral",
         };
   useReport(onResult, result);
@@ -135,34 +161,33 @@ export function DpiCheck({ dpi, onResult }: { dpi: number } & TestProps) {
   const body = (
     <div className={s.body}>
       <div className={s.steps}>
-        <Choice label="Distance" value={cm} options={DISTANCES.map((d) => ({ value: d, label: `${d} cm` }))} onChange={setCm} />
+        <Choice label={t("Distance")} value={cm} options={DISTANCES.map((d) => ({ value: d, label: t("{{cm}} cm", { cm: d }) }))} onChange={setCm} />
         <Caption1>
-          Line the mouse up with the ruler's zero. Hold the left button, slide straight to the {cm} cm mark and release. Repeat a few times
-          across and up and down, at varied speeds.
+          {t("Line the mouse up with the ruler's zero. Hold the left button, slide straight to the {{cm}} cm mark and release. Repeat a few times across and up and down, at varied speeds.", { cm })}
         </Caption1>
         <Caption1 className={s.muted}>
-          Every millimetre off is {(10 / cm).toFixed(1).replace(".0", "")}% on {cm} cm, so take a few runs.
+          {t("Every millimetre off is {{percent}}% on {{cm}} cm, so take a few runs.", { percent: num(10 / cm, { maximumFractionDigits: 1 }), cm })}
         </Caption1>
       </div>
       <div className={s.result} aria-live="polite">
-        <Caption1Strong>{runs.length ? `Average of ${runs.length} ${runs.length === 1 ? "run" : "runs"}` : "No runs yet"}</Caption1Strong>
-        <Title2 className={s.value}>{all === null ? "—" : `${fmt(all)} DPI`}</Title2>
+        <Caption1Strong>{runs.length ? t("Average of {{count}} runs", { count: runs.length, defaultValue_one: "Average of {{count}} run" }) : t("No runs yet")}</Caption1Strong>
+        <Title2 className={s.value}>{all === null ? "—" : t("{{dpi}} DPI", { dpi: fmt(all) })}</Title2>
         <div className={s.axes}>
-          <Caption1 className={s.muted}>Across</Caption1>
-          <Caption1>{mx === null ? "—" : `${fmt(mx)} DPI · ${x.length} ${x.length === 1 ? "run" : "runs"}`}</Caption1>
-          <Caption1 className={s.muted}>Up and down</Caption1>
-          <Caption1>{my === null ? "—" : `${fmt(my)} DPI · ${y.length} ${y.length === 1 ? "run" : "runs"}`}</Caption1>
+          <Caption1 className={s.muted}>{t("Across")}</Caption1>
+          <Caption1>{mx === null ? "—" : `${t("{{dpi}} DPI", { dpi: fmt(mx) })} · ${t("{{count}} runs", { count: x.length, defaultValue_one: "{{count}} run" })}`}</Caption1>
+          <Caption1 className={s.muted}>{t("Up and down")}</Caption1>
+          <Caption1>{my === null ? "—" : `${t("{{dpi}} DPI", { dpi: fmt(my) })} · ${t("{{count}} runs", { count: y.length, defaultValue_one: "{{count}} run" })}`}</Caption1>
         </div>
         <Body1 className={s.note}>{verdict}</Body1>
         <Caption1 className={s.note}>{[axes, speed].filter(Boolean).join(" ")}</Caption1>
         <div className={s.actions}>
           {fix && !corrected && (
             <Button onClick={apply} disabled={!device?.online}>
-              Use {fmt(fix.to)} DPI (about {fmt(fix.real)} real)
+              {t("Use {{dpi}} DPI (about {{real}} real)", { dpi: fmt(fix.to), real: fmt(fix.real) })}
             </Button>
           )}
           <Link as="button" disabled={!runs.length} onClick={() => setRuns([])}>
-            Clear runs
+            {t("Clear runs")}
           </Link>
         </div>
       </div>

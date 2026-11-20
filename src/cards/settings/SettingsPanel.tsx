@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Body1, Button, Caption1, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Switch } from "@fluentui/react-components";
+import { Body1, Button, Caption1, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Dropdown, Link, Option, Switch } from "@fluentui/react-components";
 import {
   Alert20Regular,
   ArrowRotateClockwise20Regular,
@@ -8,6 +8,7 @@ import {
   DataUsage20Regular,
   Delete20Regular,
   Info20Regular,
+  LocalLanguage20Regular,
   PlugConnected20Regular,
   Power20Regular,
   Wifi120Regular,
@@ -17,9 +18,11 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { api, message, on, type KnownMouse, type Prefs } from "@/api";
 import { Group, SettingCard } from "@/components";
 import { UndoNote } from "@/kit";
-import { linkName } from "@/links";
+import { Trans } from "react-i18next";
+import { LANGUAGES, languageFor, num, t, windowsLanguage } from "@/i18n";
+import { linkLabel } from "@/links";
 import { familyOf, makerOf, supportOf } from "@/models";
-import { reportUrl } from "@/report";
+import { reportUrl, translationUrl } from "@/report";
 import { SHARING_READY } from "@/sharing";
 import { forgetMouse, restoreMouse, run, savePrefs, setInspecting, toast, useStore } from "@/store";
 import { BackupsPanel } from "../backups/BackupsPanel";
@@ -88,8 +91,8 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
   const noLongRange = !device?.connected || device.longRange === null || wired;
   const facts = device?.connected
     ? [
-        `Firmware ${device.firmware ?? "unknown until it wakes"}`,
-        linkName(device),
+        device.firmware != null ? t("Firmware {{version}}", { version: device.firmware }) : t("Firmware unknown until it wakes"),
+        linkLabel(device),
         familyOf(device.key) === "compx" ? `CID ${device.cid} · MID ${device.mid}` : null,
       ]
         .filter(Boolean)
@@ -99,12 +102,12 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
     <>
       <AppCard />
 
-      <Group title="App">
-        <SettingCard icon={<Power20Regular />} title="Start with Windows" description="Starts in the tray, so alerts and per-app profiles keep working.">
+      <Group title={t("App")}>
+        <SettingCard icon={<Power20Regular />} title={t("Start with Windows")} description={t("Starts in the tray, so alerts and per-app profiles keep working.")}>
           <Switch
             checked={!!autostart}
             disabled={autostart === null}
-            aria-label="Start with Windows"
+            aria-label={t("Start with Windows")}
             onChange={async (_, d) => {
               try {
                 await (d.checked ? enable() : disable());
@@ -117,39 +120,40 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         </SettingCard>
         <SettingCard
           icon={<Alert20Regular />}
-          title="DPI and profile pop-up"
+          title={t("DPI and profile pop-up")}
           // While the HUD is on, the backend keeps this pop-up out of games in every Show mode, even
           // where the HUD wouldn't show the change itself (while held, or with that tab off).
-          description={prefs.hud && prefs.hud.show !== "off" ? "Shows the new value on screen, except in games with the HUD on." : "Shows the new value near the bottom of the screen."}
+          description={prefs.hud && prefs.hud.show !== "off" ? t("Shows the new value on screen, except in games with the HUD on.") : t("Shows the new value near the bottom of the screen.")}
         >
-          <Switch checked={prefs.osd} onChange={(_, d) => set({ osd: d.checked })} aria-label="DPI and profile pop-up" />
+          <Switch checked={prefs.osd} onChange={(_, d) => set({ osd: d.checked })} aria-label={t("DPI and profile pop-up")} />
         </SettingCard>
+        <LanguageCard prefs={prefs} set={set} />
       </Group>
 
-      <Group title="Mouse">
+      <Group title={t("Mouse")}>
         {/* A model hrtz hasn't been tried on, or doesn't know: its owner's check is what makes it supported. */}
         {device && (support === "untested" || support === "unknown") && <ParticipateCard device={device} support={support} />}
         {removed && (
           <div className="tw px-1 py-1 text-xs">
-            <UndoNote onUndo={() => undoRemove(removed)}>Removed {removed.model}.</UndoNote>
+            <UndoNote onUndo={() => undoRemove(removed)}>{t("Removed {{model}}.", { model: removed.model })}</UndoNote>
           </div>
         )}
         {can("longRange") && (
           <SettingCard
             icon={<Wifi120Regular />}
-            title="Long-range mode"
+            title={t("Long-range mode")}
             description={
               wired
-                ? "Wireless only. Unplug the cable to change it."
+                ? t("Wireless only. Unplug the cable to change it.")
                 : noLongRange
-                  ? "Available when the mouse is awake and wireless."
-                  : "A stronger signal with less interference. Uses more battery."
+                  ? t("Available when the mouse is awake and wireless.")
+                  : t("A stronger signal with less interference. Uses more battery.")
             }
           >
             <Switch
               checked={!!device?.longRange}
               disabled={!device?.online || noLongRange || busy}
-              aria-label="Long-range mode"
+              aria-label={t("Long-range mode")}
               onChange={(_, d) => run(() => api.setLongRange(d.checked))}
             />
           </SettingCard>
@@ -157,43 +161,43 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         {can("pairing") && (
           <SettingCard
             icon={<PlugConnected20Regular />}
-            title="Pair a mouse"
+            title={t("Pair a mouse")}
             description={
               wired
-                ? "Wireless only. Unplug the cable first."
+                ? t("Wireless only. Unplug the cable first.")
                 : !device?.connected
-                  ? "Plug in the receiver first."
+                  ? t("Plug in the receiver first.")
                   : pairing !== null
-                    ? `Hold the left, right and middle buttons together until the light flashes yellow. ${pairing} s left.`
+                    ? t("Hold the left, right and middle buttons together until the light flashes yellow. {{n}} s left.", { n: num(pairing) })
                     : paired === true
-                      ? "Paired. The mouse will connect shortly."
+                      ? t("Paired. The mouse will connect shortly.")
                       : paired === false
-                        ? "No mouse found in 30 seconds. Turn the mouse on and try again."
-                        : "For a new receiver or a mouse that won't connect. Searches for 30 seconds."
+                        ? t("No mouse found in 30 seconds. Turn the mouse on and try again.")
+                        : t("For a new receiver or a mouse that won't connect. Searches for 30 seconds.")
             }
           >
             <Button disabled={wired || !device?.connected || busy} onClick={() => void pair()}>
-              {pairing !== null ? "Pairing…" : "Pair"}
+              {pairing !== null ? t("Pairing…") : t("Pair")}
             </Button>
           </SettingCard>
         )}
-        <SettingCard icon={<Info20Regular />} title={device?.model ?? "No mouse connected"} description={facts ?? "Plug in the receiver to see its details."} />
+        <SettingCard icon={<Info20Regular />} title={device?.model ?? t("No mouse connected")} description={facts ?? t("Plug in the receiver to see its details.")} />
         {can("factoryReset") && (
           <SettingCard
             icon={<ArrowRotateClockwise20Regular />}
-            title="Restore factory settings"
+            title={t("Restore factory settings")}
             description={
               !resetting
                 ? family === "hidpp"
-                  ? "Resets every profile's DPI, polling rate and buttons to factory defaults."
-                  : "Resets DPI, polling, buttons and macros to factory defaults."
+                  ? t("Resets every profile's DPI, polling rate and buttons to factory defaults.")
+                  : t("Resets DPI, polling, buttons and macros to factory defaults.")
                 : progress
-                  ? `Saving a backup first · ${Math.round((progress[0] / progress[1]) * 100)}%`
-                  : "Restoring factory settings…"
+                  ? t("Saving a backup first · {{percent}}%", { percent: num(Math.round((progress[0] / progress[1]) * 100)) })
+                  : t("Restoring factory settings…")
             }
           >
             <Button disabled={!device?.online || busy} onClick={() => setConfirmReset(true)}>
-              Restore
+              {t("Restore")}
             </Button>
           </SettingCard>
         )}
@@ -201,11 +205,11 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
         {device?.key && !device.connected && (
           <SettingCard
             icon={<Delete20Regular />}
-            title="Remove this mouse"
-            description="Takes it off the list with its profile names, app rules and battery history. Backups and the settings on the mouse stay."
+            title={t("Remove this mouse")}
+            description={t("Takes it off the list with its profile names, app rules and battery history. Backups and the settings on the mouse stay.")}
           >
             <Button disabled={busy} onClick={() => void remove(device.key!)}>
-              Remove
+              {t("Remove")}
             </Button>
           </SettingCard>
         )}
@@ -214,57 +218,100 @@ export function SettingsPanel({ prefs }: { prefs: Prefs }) {
       {can("backups") && <BackupsPanel />}
 
       {SHARING_READY && (
-        <Group title="Privacy">
+        <Group title={t("Privacy")}>
           <SettingCard
             icon={<DataUsage20Regular />}
-            title="Help improve hrtz"
-            description="Shares anonymous lift and battery data, never your movement or apps. Coming in a later version."
+            title={t("Help improve hrtz")}
+            description={t("Shares anonymous lift and battery data, never your movement or apps. Coming in a later version.")}
           >
-            <Switch checked={prefs.shareData} onChange={(_, d) => set({ shareData: d.checked })} aria-label="Help improve hrtz" />
+            <Switch checked={prefs.shareData} onChange={(_, d) => set({ shareData: d.checked })} aria-label={t("Help improve hrtz")} />
           </SettingCard>
         </Group>
       )}
 
-      <Group title="Help">
-        <SettingCard icon={<Bug20Regular />} title="Report a problem" description="Opens a GitHub issue with your hrtz version, mouse and Windows filled in.">
-          <Button onClick={report}>Report</Button>
+      <Group title={t("Help")}>
+        <SettingCard icon={<Bug20Regular />} title={t("Report a problem")} description={t("Opens a GitHub issue with your hrtz version, mouse and Windows filled in.")}>
+          <Button onClick={report}>{t("Report")}</Button>
         </SettingCard>
-        <SettingCard icon={<SearchInfo20Regular />} title="Inspect a mouse" description="Mouse not supported yet? Save a report and request support.">
-          <Button onClick={() => setInspecting(true)}>Inspect</Button>
+        <SettingCard icon={<SearchInfo20Regular />} title={t("Inspect a mouse")} description={t("Mouse not supported yet? Save a report and request support.")}>
+          <Button onClick={() => setInspecting(true)}>{t("Inspect")}</Button>
         </SettingCard>
       </Group>
 
       <Caption1 style={{ ...muted, padding: "8px 2px 0" }}>
-        hrtz isn't affiliated with {maker ? `${maker} or any other mouse maker` : "any mouse maker"}. Mouse images and model names belong to their makers and are shown only to identify your mouse.
+        {maker ? t("hrtz isn't affiliated with {{maker}} or any other mouse maker.", { maker }) : t("hrtz isn't affiliated with any mouse maker.")}{" "}
+        {t("Mouse images and model names belong to their makers and are shown only to identify your mouse.")}
       </Caption1>
 
       {/* Factory reset is device-wide, so it's the one thing that asks first. */}
       <Dialog open={confirmReset} onOpenChange={(_, d) => setConfirmReset(d.open)}>
         <DialogSurface>
           <DialogBody>
-            <DialogTitle>Restore factory settings?</DialogTitle>
+            <DialogTitle>{t("Restore factory settings?")}</DialogTitle>
             <DialogContent>
               <Body1>
-                {family === "hidpp" ? "Every profile on the mouse returns to its defaults, including its buttons." : "Everything on the mouse returns to its defaults, including buttons and macros."} A backup is saved first, so you can restore this setup from Backups below.
+                {family === "hidpp" ? t("Every profile on the mouse returns to its defaults, including its buttons.") : t("Everything on the mouse returns to its defaults, including buttons and macros.")}{" "}
+                {t("A backup is saved first, so you can restore this setup from Backups below.")}
               </Body1>
             </DialogContent>
             <DialogActions>
-              <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
+              <Button onClick={() => setConfirmReset(false)}>{t("Cancel")}</Button>
               <Button
                 appearance="primary"
                 onClick={async () => {
                   setConfirmReset(false);
                   setResetting(true);
-                  await run(() => api.factoryReset(), "Factory settings restored");
+                  await run(() => api.factoryReset(), t("Factory settings restored"));
                   setResetting(false);
                 }}
               >
-                Restore factory settings
+                {t("Restore factory settings")}
               </Button>
             </DialogActions>
           </DialogBody>
         </DialogSurface>
       </Dialog>
     </>
+  );
+}
+
+/** The language hrtz shows its text in: Windows' unless one is picked. Each is named in itself.
+ *  Under a translation, a note that it hasn't been reviewed, with a link to the form that fixes a
+ *  line (English, the code's own, needs none). */
+function LanguageCard({ prefs, set }: { prefs: Prefs; set: (patch: Partial<Prefs>) => void }) {
+  const picked = LANGUAGES.find((l) => l.code === prefs.language);
+  const windows = LANGUAGES.find((l) => l.code === windowsLanguage())!;
+  const shown = LANGUAGES.find((l) => l.code === languageFor(prefs.language))!;
+  const same = t("Same as Windows ({{name}})", { name: windows.name });
+  const fix = () => void translationUrl(shown.name).then(openUrl).catch((e) => toast(message(e), "error"));
+  const note = shown.code !== "en" && (
+    <div className="tw pl-9">
+      <Caption1 style={{ color: "var(--colorNeutralForeground3)" }}>
+        {/* On one line, so the link is the Trans's child 1: "…wrong, <1>open an issue on GitHub</1>." */}
+        <Trans>This translation hasn't been reviewed yet. If something reads wrong, <Link inline onClick={fix}>open an issue on GitHub</Link>.</Trans>
+      </Caption1>
+    </div>
+  );
+  return (
+    <SettingCard stacked={!!note} below={note} icon={<LocalLanguage20Regular />} title={t("Language")} description={t("The language hrtz shows its text in.")}>
+      <Dropdown
+        aria-label={t("Language")}
+        style={{ minWidth: 200 }}
+        // As wide as its longest option, so "与 Windows 相同（English）" stays on one line.
+        listbox={{ style: { minWidth: "max-content" } }}
+        value={picked?.name ?? same}
+        selectedOptions={[picked?.code ?? "windows"]}
+        onOptionSelect={(_, d) => d.optionValue && set({ language: d.optionValue === "windows" ? null : d.optionValue })}
+      >
+        <Option value="windows" text={same}>
+          {same}
+        </Option>
+        {LANGUAGES.map((l) => (
+          <Option key={l.code} value={l.code} text={l.name}>
+            {l.name}
+          </Option>
+        ))}
+      </Dropdown>
+    </SettingCard>
   );
 }

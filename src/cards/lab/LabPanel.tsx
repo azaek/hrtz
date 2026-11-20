@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Body1, Caption1 } from "@fluentui/react-components";
+import { t } from "@/i18n";
 import { CardNote, Pane, PaneFooter, PaneHeader } from "@/kit";
 import { useStore } from "@/store";
 import { useClickWeek, weekResult } from "./clicks";
-import { ClickSwitch, OPEN_KEY, PadSwitch, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
+import { ClickSwitch, OPEN_KEY, PadSwitch, shownResult, TestBody, testsFor, usePadStatus, useResults, whenText, type TestId } from "./tests";
 import { WindowsCheck } from "./WindowsCheck";
 import { NewBadge } from "@/kit";
 import { useSeen } from "@/news";
@@ -31,8 +32,8 @@ export function LabPanel() {
   const tests = testsFor(caps);
   const [want, setSel] = useState(() => localStorage.getItem(OPEN_KEY) as TestId | null);
   // The one opened last, while this mouse can run it.
-  const t = tests.find((x) => x.id === want) ?? tests[0];
-  const sel = t.id;
+  const test = tests.find((x) => x.id === want) ?? tests[0];
+  const sel = test.id;
   const { kept, keep } = useResults();
   const pad = usePadStatus();
   const week = useClickWeek();
@@ -50,10 +51,10 @@ export function LabPanel() {
       <div className="tw @container/lab">
         <div className="grid items-start gap-2 @min-[700px]/lab:grid-cols-[264px_minmax(0,1fr)]">
           <Pane sticky>
-            <PaneHeader title="Tests" description="Each test runs while it's open." />
-            <div role="list" aria-label="Tests" className="flex flex-col gap-0.5 px-1 pb-1">
+            <PaneHeader title={t("Tests")} description={t("Each test runs while it's open.")} />
+            <div role="list" aria-label={t("Tests")} className="flex flex-col gap-0.5 px-1 pb-1">
               {tests.map((x) => {
-                const r = x.id === "pad" ? pad : x.id === "clicks" ? (clicks ?? kept.clicks?.result) : kept[x.id]?.result;
+                const r = x.id === "pad" ? pad : x.id === "clicks" ? (clicks ?? shownResult(kept.clicks)) : shownResult(kept[x.id]);
                 return (
                   <button
                     key={x.id}
@@ -72,7 +73,7 @@ export function LabPanel() {
                         {x.id === "blind" && <BlindNew />}
                       </span>
                       <Caption1 style={{ ...truncate, ...(r?.tone === "warn" ? warn : muted) }}>
-                        {r ? `${r.value} · ${r.detail}` : x.id === "pad" ? "Not calibrated yet" : "Not run yet"}
+                        {r ? [r.value, r.detail].filter(Boolean).join(" · ") : x.id === "pad" ? t("Not calibrated yet") : t("Not run yet")}
                       </Caption1>
                     </span>
                   </button>
@@ -81,18 +82,18 @@ export function LabPanel() {
             </div>
           </Pane>
 
-          <Pane aria-label={t.title}>
+          <Pane aria-label={test.title}>
             <PaneHeader
               strong
-              lead={<span className="flex text-[20px] text-[color:var(--colorNeutralForeground2)]">{t.icon}</span>}
-              title={t.title}
-              description={t.description}
+              lead={<span className="flex text-[20px] text-[color:var(--colorNeutralForeground2)]">{test.icon}</span>}
+              title={test.title}
+              description={test.description}
               actions={
-                t.id === "pad" ? (
+                test.id === "pad" ? (
                   <div className="pr-2">
                     <PadSwitch calibrated={!!pad} />
                   </div>
-                ) : t.id === "clicks" ? (
+                ) : test.id === "clicks" ? (
                   <div className="pr-2">
                     <ClickSwitch />
                   </div>
@@ -103,7 +104,8 @@ export function LabPanel() {
               <TestBody key={sel} id={sel} onResult={keep(sel)} />
             </div>
             <PaneFooter>
-              <CardNote hint={last ? `${t.hint} Last checked ${whenText(last.at)}.` : t.hint} />
+              {/* A date with its own full stop ("18. Okt.") takes no second one. */}
+              <CardNote hint={last ? `${test.hint} ${t("Last checked {{when}}.", { when: whenText(last.at) })}`.replace(/\.\.$/, ".") : test.hint} />
             </PaneFooter>
           </Pane>
         </div>

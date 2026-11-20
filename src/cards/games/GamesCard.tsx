@@ -3,6 +3,7 @@ import { Body1, Dropdown, Option } from "@fluentui/react-components";
 import { TargetArrow20Regular } from "@fluentui/react-icons";
 import { api, currentDpi, type GameSensitivity } from "@/api";
 import { SettingCard } from "@/components";
+import { num, t } from "@/i18n";
 import { CardList, CardListRow, NewBadge } from "@/kit";
 import { useSeen } from "@/news";
 import { useStore } from "@/store";
@@ -19,9 +20,9 @@ const MAIN_KEY = "hrtz.mainGame";
 export const cm360 = (g: GameSensitivity, dpi: number) => 914.4 / (g.yaw * g.sens * dpi);
 /** The sensitivity that gives game `g` a full turn of `cm`, at `dpi`. */
 export const sensFor = (g: GameSensitivity, cm: number, dpi: number) => 914.4 / (g.yaw * cm * dpi);
-/** A sensitivity as you'd type it: three decimals at most. */
+/** A sensitivity as you'd type it: three decimals at most, with a dot, as games take it. */
 const sensText = (s: number) => String(Number(s.toFixed(3)));
-const cmText = (cm: number) => `${cm >= 100 ? Math.round(cm) : cm.toFixed(1)} cm`;
+const cmText = (cm: number) => t("{{cm}} cm", { cm: cm >= 100 ? num(Math.round(cm)) : num(cm, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) });
 
 /** Each game's sensitivity as its settings file has it now, read again every 30 s while shown. */
 export function useGames(): (GameSensitivity & { exe: string })[] {
@@ -64,10 +65,10 @@ export function GamesCard() {
       icon={<TargetArrow20Regular />}
       title={
         <span className="flex items-center gap-2">
-          Sensitivity in your games {news.isNew && <NewBadge ref={news.ref} />}
+          {t("Sensitivity in your games")} {news.isNew && <NewBadge ref={news.ref} />}
         </span>
       }
-      description={`How far the mouse travels for a full turn in each game, at ${dpi.toLocaleString("en-US")} DPI.`}
+      description={t("How far the mouse travels for a full turn in each game, at {{dpi}} DPI.", { dpi: num(dpi) })}
       below={
         <div className="tw pl-9">
           <CardList>
@@ -79,10 +80,10 @@ export function GamesCard() {
                 <CardListRow key={g.game}>
                   <Body1 className="min-w-0 flex-1 truncate">{g.game}</Body1>
                   <span className="text-sm tabular-nums text-muted-foreground">
-                    {sensText(g.sens)} · {cmText(cm)} a turn
+                    {sensText(g.sens)} · {t("{{distance}} a turn", { distance: cmText(cm) })}
                   </span>
                   <span className="w-44 text-right text-sm tabular-nums">
-                    {g === main ? <span className="text-muted-foreground">Matched to this</span> : off <= SAME ? "Feels the same" : `Set ${sensText(to)} to match`}
+                    {g === main ? <span className="text-muted-foreground">{t("Matched to this")}</span> : off <= SAME ? t("Feels the same") : t("Set {{sens}} to match", { sens: sensText(to) })}
                   </span>
                 </CardListRow>
               );
@@ -92,9 +93,9 @@ export function GamesCard() {
       }
     >
       {games.length > 1 && (
-        <Dropdown aria-label="Match to" value={`Match to ${main.game}`} selectedOptions={[main.game]} onOptionSelect={(_, d) => d.optionValue && pick(d.optionValue)} style={{ minWidth: 180 }}>
+        <Dropdown aria-label={t("Match to")} value={t("Match to {{game}}", { game: main.game })} selectedOptions={[main.game]} onOptionSelect={(_, d) => d.optionValue && pick(d.optionValue)} style={{ minWidth: 180 }}>
           {games.map((g) => (
-            <Option key={g.game} value={g.game} text={`Match to ${g.game}`}>
+            <Option key={g.game} value={g.game} text={t("Match to {{game}}", { game: g.game })}>
               {g.game}
             </Option>
           ))}

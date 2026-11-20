@@ -6,6 +6,9 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 
 ## Unreleased
 
+### New
+- hrtz in six more languages: German, Spanish, Portuguese (Brazil), Russian, Ukrainian and Simplified Chinese. It follows Windows' display language, or pick one under Settings → Language. These are first versions, not yet read by native speakers; if something reads wrong, the link under Language opens an issue. Thanks to @elist-exe for the request.
+
 ### Improved
 - A better battery level view, with charging, battery saver and the time awake and asleep at a glance.
 
@@ -21,6 +24,7 @@ Notes for the next version go under `## Unreleased`. Releasing it gives that hea
 ## 0.5.10 — 2026-11-19
 
 ### New
+- hrtz now comes in Deutsch, Español, Português (Brasil), Русский, Українська and 简体中文, as well as English. It follows Windows' display language, or pick one in Settings under Language. The tray menu, notifications and the DPI pop-up follow it too. Thanks to @elist-exe for asking.
 - Logitech's G304 and G305, on their LIGHTSPEED receiver: their DPI stages, polling rate from 125 to 1,000 Hz, all six buttons, the onboard profile and the battery, with backups, restores and factory settings. Tested on a real G304, by @whyshhnuv in #26
 - Logitech's PRO X SUPERLIGHT 2c, on its LIGHTSPEED receiver or its cable: DPI stages, polling rate, profiles and battery, as on the PRO X SUPERLIGHT 2. Not tested yet: its Not tested badge runs the check. Thanks to @bwyao for the report.
 

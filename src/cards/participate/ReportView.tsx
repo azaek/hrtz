@@ -3,11 +3,12 @@ import { Body1, Button, Caption1, Field, Input, Link } from "@fluentui/react-com
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, message } from "@/api";
+import { t } from "@/i18n";
 import { StepCard } from "@/kit";
 import { SUPPORT_TEXT, supportOf } from "@/models";
 import { toast, useStore } from "@/store";
 import { MouseHead, Results, VerdictIcon } from "./parts";
-import { asks, buildReport, calledOf, canTry, isTest, issueOf, linesOf, partLabel, reportName, verdictOf, type Part, type Tried } from "./report";
+import { asks, buildReport, calledOf, canTry, isTest, issueOf, linesOf, partLabel, reportName, SCREEN, verdictOf, type Part, type Tried } from "./report";
 import { Trial } from "./Trial";
 
 const muted = { color: "var(--colorNeutralForeground3)" };
@@ -15,14 +16,13 @@ const muted = { color: "var(--colorNeutralForeground3)" };
 /** The mouse's other way of connecting, to check too: asked while only one is in the report. */
 function otherOf(parts: Part[]): { title: string; detail: string; action: string } | null {
   if (parts.length !== 1) return null;
-  const both = "Both go in this one report.";
   switch (parts[0].wired) {
     case true:
-      return { title: "Has a receiver too?", detail: `Check the mouse through it as well. ${both}`, action: "Check on the receiver too" };
+      return { title: t("Has a receiver too?"), detail: t("Check the mouse through it as well. Both go in this one report."), action: t("Check on the receiver too") };
     case false:
-      return { title: "Has a cable too?", detail: `Check the mouse on it as well. ${both}`, action: "Check on the cable too" };
+      return { title: t("Has a cable too?"), detail: t("Check the mouse on it as well. Both go in this one report."), action: t("Check on the cable too") };
     default:
-      return { title: "Does it connect another way too?", detail: `Through a receiver, or on a cable: check it there as well. ${both}`, action: "Check another connection" };
+      return { title: t("Does it connect another way too?"), detail: t("Through a receiver, or on a cable: check it there as well. Both go in this one report."), action: t("Check another connection") };
   }
 }
 
@@ -63,7 +63,7 @@ export function ReportView(props: {
   }, [parts, typed]);
 
   const save = async () => {
-    const path = await saveDialog({ defaultPath: reportName(called || first.name), filters: [{ name: "Mouse report", extensions: ["json"] }] }).catch(() => null);
+    const path = await saveDialog({ defaultPath: reportName(called || first.name), filters: [{ name: t("Mouse report"), extensions: ["json"] }] }).catch(() => null);
     if (!path) return;
     try {
       await api.saveReport(path, JSON.stringify(await buildReport(parts, called), null, 2));
@@ -90,16 +90,16 @@ export function ReportView(props: {
         artKey={first.key}
         variant={first.variant}
         name={first.name}
-        caption={`${[...new Set(parts.map((p) => p.ids))].join(" · ")} · ${support ? SUPPORT_TEXT[support] : "Not supported yet"}`}
+        caption={`${[...new Set(parts.map((p) => p.ids))].join(" · ")} · ${support ? t(SUPPORT_TEXT[support]) : t("Not supported yet")}`}
       />
 
       {parts.map((p) => {
-        const verdict = verdictOf(p);
+        const verdict = verdictOf(p, SCREEN);
         const asked = asks(p);
         return (
           <div key={p.id} className="w-full text-left">
             <StepCard
-              label={parts.length > 1 && p.name !== first.name ? `${p.name} · ${partLabel(p)}` : partLabel(p)}
+              label={parts.length > 1 && p.name !== first.name ? `${p.name} · ${partLabel(p, SCREEN)}` : partLabel(p, SCREEN)}
               title={
                 <span className="flex items-center gap-2">
                   <VerdictIcon tone={verdict.tone} />
@@ -108,15 +108,15 @@ export function ReportView(props: {
               }
               detail={verdict.detail}
             >
-              <Results lines={linesOf(p)} />
+              <Results lines={linesOf(p, SCREEN)} />
               <div className="flex min-h-8 items-center justify-end gap-4">
                 {asked && (
                   <Link as="button" onClick={() => props.onAsk(p)}>
-                    {p.confirmed ? "Change your answers" : "Answer its questions"}
+                    {p.confirmed ? t("Change your answers") : t("Answer its questions")}
                   </Link>
                 )}
                 <Link as="button" onClick={() => props.onAgain(p)}>
-                  Check again
+                  {t("Check again")}
                 </Link>
               </div>
             </StepCard>
@@ -125,7 +125,7 @@ export function ReportView(props: {
       })}
 
       {trying.map((p) => (
-        <Trial key={p.id} part={p} onTried={(t) => props.onTried(p, t)} />
+        <Trial key={p.id} part={p} onTried={(tried) => props.onTried(p, tried)} />
       ))}
 
       {other ? (
@@ -140,30 +140,30 @@ export function ReportView(props: {
         </div>
       ) : (
         <Link as="button" onClick={props.onAnother}>
-          Check another connection
+          {t("Check another connection")}
         </Link>
       )}
 
       {!test && (
-        <Field style={{ width: "100%", textAlign: "left" }} label="What's the mouse called?" hint="Its brand and model, as on the box. A receiver's own name rarely says.">
+        <Field style={{ width: "100%", textAlign: "left" }} label={t("What's the mouse called?")} hint={t("Its brand and model, as on the box. A receiver's own name rarely says.")}>
           <Input value={typed} maxLength={80} placeholder={offered ?? "ATK U2 Plus"} onChange={(_, d) => props.onTyped(d.value)} />
         </Field>
       )}
 
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button appearance="primary" onClick={() => void send()}>
-          {test ? "Open GitHub issue" : "Request support on GitHub"}
+          {test ? t("Open GitHub issue") : t("Request support on GitHub")}
         </Button>
-        {saved ? <Button onClick={() => void revealItemInDir(saved.path).catch((e) => toast(message(e), "error"))}>Show in folder</Button> : <Button onClick={() => void save()}>Save as a file…</Button>}
+        {saved ? <Button onClick={() => void revealItemInDir(saved.path).catch((e) => toast(message(e), "error"))}>{t("Show in folder")}</Button> : <Button onClick={() => void save()}>{t("Save as a file…")}</Button>}
       </div>
       <Caption1 style={muted}>
         {sent && !sent.whole
           ? saved
-            ? `Not all of the report fit in the issue. Drag ${saved.name} into it too.`
-            : "Not all of the report fit in the issue. Save it as a file and drag that into the issue too."
+            ? t("Not all of the report fit in the issue. Drag {{file}} into it too.", { file: saved.name })
+            : t("Not all of the report fit in the issue. Save it as a file and drag that into the issue too.")
           : saved
-            ? `Saved as ${saved.name}, to send any other way.`
-            : "The issue opens with the report in it: all that's left is to submit it. Nothing in it identifies you or this PC."}
+            ? t("Saved as {{file}}, to send any other way.", { file: saved.name })
+            : t("The issue opens with the report in it: all that's left is to submit it. Nothing in it identifies you or this PC.")}
       </Caption1>
     </div>
   );

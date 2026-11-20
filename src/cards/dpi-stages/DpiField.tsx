@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { clamp, fmtDpi, nextFree, parseDpi, stepAt, stepNear, toStep, type DpiRange } from "@/dpi";
+import { num, t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { fieldLook } from "@/kit";
 
@@ -50,23 +51,23 @@ export function DpiField(props: {
   const commit = () => {
     const raw = parseDpi(text);
     if (raw === null) {
-      props.onNote(text.trim() ? { text: "Type a number, like 1600 or 1.6k.", warn: true } : null);
+      props.onNote(text.trim() ? { text: t("Type a number, like 1600 or 1.6k."), warn: true } : null);
       setText(String(props.value));
       return;
     }
     const v = toStep(r, raw);
     if (v !== props.value && props.taken.has(v)) {
-      props.onNote({ text: `Another stage already uses ${fmtDpi(v)}.`, warn: true });
+      props.onNote({ text: t("Another stage already uses {{dpi}}.", { dpi: fmtDpi(v) }), warn: true });
       setText(String(props.value));
       return;
     }
     props.onNote(
       raw > r.max
-        ? { text: `This mouse goes up to ${fmtDpi(r.max)}.` }
+        ? { text: t("This mouse goes up to {{dpi}}.", { dpi: fmtDpi(r.max) }) }
         : raw < r.min
-          ? { text: `The minimum is ${r.min}.` }
+          ? { text: t("The minimum is {{dpi}}.", { dpi: num(r.min) }) }
           : v !== raw
-            ? { text: `Rounded to ${fmtDpi(v)}, in steps of ${stepAt(r, v)}.` }
+            ? { text: t("Rounded to {{dpi}}, in steps of {{step}}.", { dpi: fmtDpi(v), step: num(stepAt(r, v)) }) }
             : null,
     );
     setText(String(v));
@@ -97,7 +98,7 @@ export function DpiField(props: {
         aria-valuemin={r.min}
         aria-valuemax={r.max}
         aria-valuenow={props.value}
-        aria-valuetext={`${fmtDpi(props.value)} DPI`}
+        aria-valuetext={t("{{dpi}} DPI", { dpi: fmtDpi(props.value) })}
         className={cn("font-medium tabular-nums")}
         value={focused ? text : fmtDpi(props.value)}
         onChange={(e) => setText(e.target.value)}

@@ -1,0 +1,40 @@
+name: Fix a translation
+description: A line in hrtz that reads wrong in your language.
+title: "Translation: "
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping. The translations were machine-drafted and haven't all been reviewed, so a fix from someone who speaks the language helps a lot. **Settings → Language** in the app opens this form with the language filled in.
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      placeholder: Русский
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where in hrtz
+      description: The page and card, or the tray menu, a notification or the pop-up.
+      placeholder: Settings → Language
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: What it says now
+      description: Paste the line, or attach a screenshot.
+    validations:
+      required: true
+  - type: textarea
+    id: better
+    attributes:
+      label: What it should say
+  - type: input
+    id: version
+    attributes:
+      label: hrtz version
+      placeholder: "0.6.0"

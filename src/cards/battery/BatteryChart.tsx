@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Caption1, makeStyles, tokens } from "@fluentui/react-components";
 import type { BatteryEntry, BatterySummary } from "@/api";
+import { dateLocale, num, t } from "@/i18n";
 import { hzText } from "@/rates";
 import { BatteryFooter } from "./BatteryFooter";
 import { awakeIn, CHART_HEIGHT, drawChart, hoursPerBar, RIGHT, slotsOf, tints, type Mark, type Slot } from "./drawChart";
@@ -33,17 +34,20 @@ function describe(slot: Slot, days: number): [string, string] {
   // A day's bar is its date; a shorter one, its hours.
   const when =
     hoursPerBar(days) >= 24
-      ? new Date(slot.start * 1000).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })
-      : `${new Date(slot.start * 1000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} – ${new Date(slot.end * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
-  if (slot.level == null) return [when, "No readings"];
+      ? new Date(slot.start * 1000).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" })
+      : t("{{from}} – {{to}}", {
+          from: new Date(slot.start * 1000).toLocaleString(dateLocale(), { weekday: "short", hour: "numeric", minute: "2-digit" }),
+          to: new Date(slot.end * 1000).toLocaleTimeString(dateLocale(), { hour: "numeric", minute: "2-digit" }),
+        });
+  if (slot.level == null) return [when, t("No readings")];
   const awake = awakeIn(slot);
   // The rate it spent longest at.
   const hz = [...slot.awake].sort((a, b) => b[1] - a[1])[0]?.[0];
   const state = [
-    `${slot.level}%`,
-    slot.charging && "Charging",
-    slot.saver && "Battery saver",
-    awake > 0 ? `Awake ${duration(awake / 3600)}${hz ? ` at ${hzText(hz)}` : ""}` : "Asleep",
+    t("{{percent}}%", { percent: num(slot.level) }),
+    slot.charging && t("Charging"),
+    slot.saver && t("Battery saver"),
+    awake > 0 ? (hz ? t("Awake {{time}} at {{rate}}", { time: duration(awake / 3600), rate: hzText(hz) }) : t("Awake {{time}}", { time: duration(awake / 3600) })) : t("Asleep"),
   ];
   return [when, state.filter(Boolean).join(" · ")];
 }
@@ -105,7 +109,7 @@ export function BatteryChart({ rows, days, now, summary, hz, low, saverAt }: { r
   if (!drawn) {
     return (
       <>
-        <Caption1 className={s.muted}>No history yet. The level appears here as you use the mouse.</Caption1>
+        <Caption1 className={s.muted}>{t("No history yet. The level appears here as you use the mouse.")}</Caption1>
         <BatteryFooter totals={null} summary={summary} hz={hz} />
       </>
     );
@@ -139,25 +143,25 @@ export function BatteryChart({ rows, days, now, summary, hz, low, saverAt }: { r
           {charged && (
             <span className={s.key}>
               <span className={s.dot} style={{ background: tint.charging }} aria-hidden />
-              <Caption1>Charging</Caption1>
+              <Caption1>{t("Charging")}</Caption1>
             </span>
           )}
           {saved && (
             <span className={s.key}>
               <span className={s.dot} style={{ background: tint.saver }} aria-hidden />
-              <Caption1>Battery saver</Caption1>
+              <Caption1>{t("Battery saver")}</Caption1>
             </span>
           )}
           {low != null && (
             <span className={s.key}>
               <span className={s.dash} style={{ borderTopColor: tokens.colorNeutralForeground3 }} aria-hidden />
-              <Caption1>Low battery alert</Caption1>
+              <Caption1>{t("Low battery alert")}</Caption1>
             </span>
           )}
           {saverAt != null && (
             <span className={s.key}>
               <span className={s.dash} style={{ borderTopColor: tint.saver }} aria-hidden />
-              <Caption1>Battery saver starts</Caption1>
+              <Caption1>{t("Battery saver starts")}</Caption1>
             </span>
           )}
         </div>
@@ -168,7 +172,11 @@ export function BatteryChart({ rows, days, now, summary, hz, low, saverAt }: { r
           className={s.canvas}
           tabIndex={0}
           role="slider"
-          aria-label={`Battery level over the period shown, lowest ${lowest}%${charged ? ", with charging" : ""}`}
+          aria-label={
+            charged
+              ? t("Battery level over the period shown, lowest {{percent}}%, with charging", { percent: num(lowest) })
+              : t("Battery level over the period shown, lowest {{percent}}%", { percent: num(lowest) })
+          }
           aria-valuemin={0}
           aria-valuemax={last}
           aria-valuenow={hover ?? last}

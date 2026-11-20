@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type HudPrefs, type InstalledGame, type Prefs } from "@/api";
 import type { PickedApp } from "@/cards/profiles/AppPicker";
+import { t } from "@/i18n";
 import { savePrefs, useStore } from "@/store";
 
 /** How long Undo stays offered after a removal. */
@@ -65,12 +66,12 @@ export function useHiddenGames(prefs: Prefs, hud: HudPrefs) {
     if (!hud.hiddenGames.includes(exe)) save({ hiddenGames: [...hud.hiddenGames, exe] });
   };
   const remove = (id: string) => {
-    offerUndo({ text: `Removed ${info(id).name}`, list: "hidden", prev: hud });
+    offerUndo({ text: t("Removed {{name}}", { name: info(id).name }), list: "hidden", prev: hud });
     save({ hiddenGames: hud.hiddenGames.filter((x) => x !== id) });
   };
   const unblock = (exe: string) => {
     const b = hud.blocked.find((x) => x.exe === exe);
-    offerUndo({ text: `Removed ${b?.name || info(exe).name}`, list: "blocked", prev: hud });
+    offerUndo({ text: t("Removed {{name}}", { name: b?.name || info(exe).name }), list: "blocked", prev: hud });
     save({ blocked: hud.blocked.filter((x) => x.exe !== exe) });
   };
   // Only the list the removal came off goes back, so a change made since to anything else stays.

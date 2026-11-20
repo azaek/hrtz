@@ -3,6 +3,7 @@ import { Button } from "@fluentui/react-components";
 import { Cursor20Regular, Flash20Regular, Warning20Regular } from "@fluentui/react-icons";
 import { api, message, type PointerSettings } from "@/api";
 import { Group, SettingCard } from "@/components";
+import { num, t } from "@/i18n";
 import { toast } from "@/store";
 
 /** A pointer speed the user chose to keep; the card comes back if it changes. */
@@ -14,12 +15,13 @@ const SPEED_SCALE = [0, 1 / 32, 1 / 16, 1 / 8, 2 / 8, 3 / 8, 4 / 8, 5 / 8, 6 / 8
 /** Where a speed sits on the Settings slider (1 to 11); the slider writes the even values. */
 const sliderStep = (speed: number) => (speed <= 2 ? speed : Math.round(speed / 2) + 1);
 
+/** How far each count moves the pointer at `speed`, in a sentence. */
 function perCount(speed: number) {
   const k = SPEED_SCALE[speed] ?? 1;
-  if (k === 1) return "one pixel";
-  if (k === 0.5) return "half a pixel";
-  if (k < 1) return `${Math.round(k * 100)}% of a pixel`;
-  return `${k.toString().replace(/\.?0+$/, "")} pixels`;
+  if (k === 1) return t("Each count moves the pointer one pixel.");
+  if (k === 0.5) return t("Each count moves the pointer half a pixel.");
+  if (k < 1) return t("Each count moves the pointer {{percent}}% of a pixel.", { percent: Math.round(k * 100) });
+  return t("Each count moves the pointer {{pixels}} pixels.", { count: k, pixels: num(k) });
 }
 
 /**
@@ -57,10 +59,10 @@ export function WindowsCheck() {
       <SettingCard
         key="acceleration"
         icon={<Flash20Regular />}
-        title="Windows pointer acceleration is on"
-        description="Moves the pointer further when you move faster. Games using raw input ignore it."
+        title={t("Windows pointer acceleration is on")}
+        description={t("Moves the pointer further when you move faster. Games using raw input ignore it.")}
       >
-        <Button onClick={() => fix(true, false)}>Turn off</Button>
+        <Button onClick={() => fix(true, false)}>{t("Turn off")}</Button>
       </SettingCard>,
     );
   }
@@ -70,13 +72,13 @@ export function WindowsCheck() {
       <SettingCard
         key="speed"
         icon={<Cursor20Regular />}
-        title={`Windows pointer speed is ${step} of 11`}
-        description={`Each count moves the pointer ${perCount(p.speed)}. 6 of 11 is one-to-one.`}
+        title={t("Windows pointer speed is {{step}} of 11", { step })}
+        description={`${perCount(p.speed)} ${t("6 of 11 is one-to-one.")}`}
       >
         <Button appearance="subtle" onClick={keep}>
-          Keep {step} of 11
+          {t("Keep {{step}} of 11", { step })}
         </Button>
-        <Button onClick={() => fix(false, true)}>Set to 6 of 11</Button>
+        <Button onClick={() => fix(false, true)}>{t("Set to 6 of 11")}</Button>
       </SettingCard>,
     );
   }
@@ -85,8 +87,8 @@ export function WindowsCheck() {
       <SettingCard
         key="rawaccel"
         icon={<Warning20Regular />}
-        title="Raw Accel is installed"
-        description="It changes what every app receives, so tests measure its output."
+        title={t("Raw Accel is installed")}
+        description={t("It changes what every app receives, so tests measure its output.")}
       />,
     );
   }

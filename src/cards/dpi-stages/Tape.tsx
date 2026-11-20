@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { COMMON_DPI, clamp, fmtDpi, nextFree, shortDpi, type DpiRange } from "@/dpi";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 // The inline tape: a ruler that slides under a fixed needle. Values as tuned in the DPI card lab
@@ -92,7 +93,7 @@ export function Tape(props: {
       aria-valuemin={r.min}
       aria-valuemax={r.max}
       aria-valuenow={props.value}
-      aria-valuetext={`${fmtDpi(props.value)} DPI`}
+      aria-valuetext={t("{{dpi}} DPI", { dpi: fmtDpi(props.value) })}
       className={cn("relative cursor-ew-resize touch-none rounded-md outline-none select-none focus-visible:ring-2 focus-visible:ring-ring", props.className)}
       style={{ height: HEIGHT }}
       onFocus={(e) => e.currentTarget.matches(":focus-visible") && props.onActive?.(true)}

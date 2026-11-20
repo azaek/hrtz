@@ -4,6 +4,7 @@ import { Add16Regular, FolderOpen16Regular, Search16Regular } from "@fluentui/re
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { api, type AppRule, type InstalledGame, type PadGame, type RunningApp } from "@/api";
 import { AppIcon } from "@/components";
+import { t } from "@/i18n";
 import { FLYOUT_PADDING } from "@/kit";
 import { toast } from "@/store";
 
@@ -83,11 +84,11 @@ export function AppPicker(props: {
   };
   const browse = async () => {
     setOpen(false);
-    const path = await openDialog({ title: "Pick an app", multiple: false, directory: false, filters: [{ name: "Apps", extensions: ["exe"] }] });
+    const path = await openDialog({ title: t("Pick an app"), multiple: false, directory: false, filters: [{ name: t("Apps"), extensions: ["exe"] }] });
     if (typeof path !== "string") return;
     const app = await api.appInfo(path).catch(() => null);
-    if (!app) return toast("That isn't an app. Choose an .exe file.", "error");
-    if (taken.has(app.exe.toLowerCase())) return toast(props.takenNote?.(app.name) ?? `${app.name} already has a rule.`, "info");
+    if (!app) return toast(t("That isn't an app. Choose an .exe file."), "error");
+    if (taken.has(app.exe.toLowerCase())) return toast(props.takenNote?.(app.name) ?? t("{{name}} already has a rule.", { name: app.name }), "info");
     props.onPick(app);
   };
 
@@ -116,8 +117,8 @@ export function AppPicker(props: {
           <Input
             autoFocus
             contentBefore={<Search16Regular />}
-            placeholder="Search apps and games, or type an exe name"
-            aria-label="App"
+            placeholder={t("Search apps and games, or type an exe name")}
+            aria-label={t("App")}
             value={q}
             onChange={(_, d) => setQ(d.value)}
             onKeyDown={(e) => {
@@ -127,22 +128,22 @@ export function AppPicker(props: {
             }}
           />
           <div className="flex max-h-72 min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-            {yours.length > 0 && heading("Your games")}
+            {yours.length > 0 && heading(t("Your games"))}
             {yours.map(row)}
-            {openNow.length > 0 && heading("Open now")}
+            {openNow.length > 0 && heading(t("Open now"))}
             {openNow.map(row)}
             {offerTyped && (
               <button className="st-row" style={{ height: 40, gap: 12, flexShrink: 0 }} onClick={() => pick({ exe: typed })}>
                 <Add16Regular />
-                <span style={truncate}>Add {typed}</span>
+                <span style={truncate}>{t("Add {{exe}}", { exe: typed })}</span>
               </button>
             )}
-            {running && !first && !typed && <Caption1 style={{ ...muted, padding: 8 }}>No apps found. Browse for the .exe or type its name.</Caption1>}
+            {running && !first && !typed && <Caption1 style={{ ...muted, padding: 8 }}>{t("No apps found. Browse for the .exe or type its name.")}</Caption1>}
           </div>
           <div className="shrink-0 border-t pt-1">
             <button className="st-row w-full" style={{ height: 40, gap: 12 }} onClick={browse}>
               <FolderOpen16Regular />
-              <span>Browse for an app…</span>
+              <span>{t("Browse for an app…")}</span>
             </button>
           </div>
         </div>

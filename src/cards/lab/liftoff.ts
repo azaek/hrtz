@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Lod, MeterSample, Settings } from "@/api";
 import { api, currentDpi, lodName } from "@/api";
+import { num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
 import { cmOf, mm, mmOf } from "./tracking";
@@ -41,7 +42,11 @@ export const stallsPerMinute = (r: LodResult) => (r.slideMs > 0 ? (r.stalls / r.
 export const leakPerLift = (r: LodResult, dpi: number) => (r.returns ? mmOf(r.leak, dpi) / r.returns : 0);
 /** The sensor kept track on the slides. */
 const held = (r: LodResult) => stallsPerMinute(r) < STALLS_BAD;
-const one = (n: number) => (n >= 10 ? String(Math.round(n)) : n.toFixed(1).replace(/\.0$/, ""));
+/** `n` to a tenth below 10 and whole from there, as `one` shows it: the number a plural goes by. */
+const tenths = (n: number) => (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10);
+const one = (n: number) => num(tenths(n));
+/** Items in a sentence: "1 mm and 2 mm". */
+const and = (items: string[]) => (items.length ? items.reduce((first, second) => t("{{first}} and {{second}}", { first, second })) : "");
 
 export type Verdict = {
   lod: Lod;
@@ -59,16 +64,23 @@ export function recommend(tried: LodResult[], dpi: number): Verdict | null {
   if (!tried.length) return null;
   const pick = tried.find(held) ?? tried.reduce((a, b) => (stallsPerMinute(b) < stallsPerMinute(a) ? b : a));
   const name = lodName(pick.lod);
-  const moved = `lifting moved the cursor ${mm(leakPerLift(pick, dpi))} each time`;
-  const lost = (r: LodResult) => `${lodName(r.lod)} lost track ${one(stallsPerMinute(r))} times a minute on slow slides`;
+  const distance = mm(leakPerLift(pick, dpi));
+  const lost = (r: LodResult) => t("{{lod}} lost track {{n}} times a minute on slow slides", { lod: lodName(r.lod), count: tenths(stallsPerMinute(r)), n: one(stallsPerMinute(r)) });
   if (!held(pick)) {
     const others = tried.filter((r) => r !== pick).map((r) => ` ${lost(r)}.`);
+    const stalls = stallsPerMinute(pick);
+    const best = t("The sensor lost track at every setting on this surface. {{lod}} did best, at {{n}} times a minute on slow slides, and lifting moved the cursor {{distance}} each time.", {
+      lod: name,
+      count: tenths(stalls),
+      n: one(stalls),
+      distance,
+    });
     return {
       lod: pick.lod,
       held: false,
-      title: `${name} lost track least`,
-      why: `The sensor lost track at every setting on this surface. ${name} did best, at ${one(stallsPerMinute(pick))} times a minute on slow slides, and ${moved}.${others.join("")}`,
-      note: "Lost track at every setting",
+      title: t("{{lod}} lost track least", { lod: name }),
+      why: `${best}${others.join("")}`,
+      note: t("Lost track at every setting"),
     };
   }
   const below = tried.slice(0, tried.indexOf(pick));
@@ -76,17 +88,21 @@ export function recommend(tried: LodResult[], dpi: number): Verdict | null {
     return {
       lod: pick.lod,
       held: true,
-      title: `${name} suits your pad`,
-      why: `The sensor tracked every slide, and ${moved}. As the lowest setting, it moves the cursor least when you lift.`,
-      note: "The lowest held",
+      title: t("{{lod}} suits your pad", { lod: name }),
+      why: t("The sensor tracked every slide, and lifting moved the cursor {{distance}} each time. As the lowest setting, it moves the cursor least when you lift.", { distance }),
+      note: t("The lowest held"),
     };
   }
   return {
     lod: pick.lod,
     held: true,
-    title: `${name} suits your pad`,
-    why: `${below.map(lost).join(", and ")}. At ${name} the sensor tracked every slide, and ${moved}.`,
-    note: `${below.map((r) => lodName(r.lod)).join(" and ")} lost track`,
+    title: t("{{lod}} suits your pad", { lod: name }),
+    why: t("{{lost}}. At {{lod}} the sensor tracked every slide, and lifting moved the cursor {{distance}} each time.", {
+      lost: below.map(lost).reduce((first, second) => t("{{first}}, and {{second}}", { first, second })),
+      lod: name,
+      distance,
+    }),
+    note: t("{{lods}} lost track", { lods: and(below.map((r) => lodName(r.lod))), count: below.length }),
   };
 }
 

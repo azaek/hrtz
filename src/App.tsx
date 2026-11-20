@@ -13,6 +13,7 @@ import {
   Warning16Filled,
   WeatherMoon16Filled,
 } from "@fluentui/react-icons";
+import { t } from "./i18n";
 import { init, startFlow, useStore } from "./store";
 import { Inspector } from "./Inspector";
 import { HeaderActionsSlot, NavRow, Notice, StatusPill, ToastBridge } from "./components";
@@ -43,16 +44,17 @@ const NEEDS: Partial<Record<PageId, (caps: Capabilities) => boolean>> = {
   profiles: (c) => !!c.profiles,
 };
 
-const PAGES: { id: PageId; label: string; icon: ReactElement }[] = [
-  { id: "sensor", label: "Sensor", icon: <TopSpeed20Regular /> },
-  { id: "buttons", label: "Buttons", icon: <CursorClick20Regular /> },
-  { id: "profiles", label: "Profiles", icon: <Stack20Regular /> },
-  { id: "battery", label: "Battery", icon: <Battery820Regular /> },
-  { id: "week", label: "Your week", icon: <CalendarLtr20Regular /> },
-  { id: "hud", label: "HUD & Tray", icon: <Games20Regular /> },
+/** The sidebar's pages, labelled in the language shown. */
+const pageList = (): { id: PageId; label: string; icon: ReactElement }[] => [
+  { id: "sensor", label: t("Sensor"), icon: <TopSpeed20Regular /> },
+  { id: "buttons", label: t("Buttons"), icon: <CursorClick20Regular /> },
+  { id: "profiles", label: t("Profiles"), icon: <Stack20Regular /> },
+  { id: "battery", label: t("Battery"), icon: <Battery820Regular /> },
+  { id: "week", label: t("Your week"), icon: <CalendarLtr20Regular /> },
+  { id: "hud", label: t("HUD & Tray"), icon: <Games20Regular /> },
   // Tools that work but are still taking shape.
-  { id: "lab", label: "Lab", icon: <Beaker20Regular /> },
-  { id: "settings", label: "Settings", icon: <Settings20Regular /> },
+  { id: "lab", label: t("Lab"), icon: <Beaker20Regular /> },
+  { id: "settings", label: t("Settings"), icon: <Settings20Regular /> },
 ];
 
 const useStyles = makeStyles({
@@ -179,33 +181,33 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
   if (!ready) {
     body = (
       <div className={s.center}>
-        <Spinner label="Looking for your mouse" />
+        <Spinner label={t("Looking for your mouse")} />
       </div>
     );
   } else if (needsDevice && !device) {
     body = (
       <Empty
-        title="No mouse connected"
+        title={t("No mouse connected")}
         action={
           <Button appearance="primary" onClick={() => startFlow("add")}>
-            Connect a mouse
+            {t("Connect a mouse")}
           </Button>
         }
       >
-        Plug in its receiver or cable to set it up.
+        {t("Plug in its receiver or cable to set it up.")}
       </Empty>
     );
   } else if (away && !device?.settings) {
-    body = <Empty title="Not connected">Plug in its receiver or cable to see its settings.</Empty>;
+    body = <Empty title={t("Not connected")}>{t("Plug in its receiver or cable to see its settings.")}</Empty>;
   } else if (needsDevice && !device?.settings) {
     // Awake shows as soon as the receiver reports it; the settings take about a second more.
     body = device?.online ? (
       <div className={s.center}>
-        <Spinner label="Reading the mouse's settings" />
+        <Spinner label={t("Reading the mouse's settings")} />
       </div>
     ) : (
-      <Empty title="Move your mouse">
-        The receiver is connected, but the mouse is asleep.
+      <Empty title={t("Move your mouse")}>
+        {t("The receiver is connected, but the mouse is asleep.")}
       </Empty>
     );
   } else {
@@ -214,19 +216,19 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
       <>
         <header className={s.header}>
           <Title2 as="h1" className={s.title}>
-            {PAGES.find((p) => p.id === page)?.label}
+            {pageList().find((p) => p.id === page)?.label}
           </Title2>
           <div className={s.headerSide}>
             <div role="status">
-              {away && <StatusPill tone="asleep" icon={<PlugDisconnected16Regular />} title="Not connected" detail="Plug it in to make changes" hint="Showing its last settings." />}
+              {away && <StatusPill tone="asleep" icon={<PlugDisconnected16Regular />} title={t("Not connected")} detail={t("Plug it in to make changes")} hint={t("Showing its last settings.")} />}
               {asleep && (
                 <StatusPill
                   tone="asleep"
                   icon={<WeatherMoon16Filled />}
                   breathing
-                  title="Mouse is asleep"
-                  detail="Move it to make changes"
-                  hint="Showing its last reported settings."
+                  title={t("Mouse is asleep")}
+                  detail={t("Move it to make changes")}
+                  hint={t("Showing its last reported settings.")}
                 />
               )}
             </div>
@@ -268,7 +270,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
     <div className={s.frame}>
     <TitleBar />
     <div className={s.shell}>
-      <nav className={s.pane} aria-label="Sections">
+      <nav className={s.pane} aria-label={t("Sections")}>
         <Switcher />
         <div
           className={s.nav}
@@ -282,7 +284,7 @@ export default function App({ pages, start = "sensor" }: { pages?: Partial<Recor
             e.preventDefault();
           }}
         >
-          {PAGES.filter((p) => offered(p.id)).map((p) => (
+          {pageList().filter((p) => offered(p.id)).map((p) => (
             <NavRow
               key={p.id}
               icon={p.icon}
@@ -313,24 +315,24 @@ function MakerAppNotice({ device, running }: { device: DeviceState | null; runni
   const app = running.includes(family);
   if (family === "compx" && app && isZaopin(device))
     return (
-      <Notice tone="warning" icon={<Warning16Filled />} title="Zaopin's app is running">
-        Quit it from its tray icon. Both apps use the same channel and overwrite each other's changes.
+      <Notice tone="warning" icon={<Warning16Filled />} title={t("Zaopin's app is running")}>
+        {t("Quit it from its tray icon. Both apps use the same channel and overwrite each other's changes.")}
       </Notice>
     );
   if (family === "hidpp" && device.hostMode)
     return app ? (
-      <Notice tone="warning" icon={<Warning16Filled />} title="G HUB is controlling this mouse">
-        Changes here apply after you quit G HUB, or turn on On-board memory mode in G HUB.
+      <Notice tone="warning" icon={<Warning16Filled />} title={t("G HUB is controlling this mouse")}>
+        {t("Changes here apply after you quit G HUB, or turn on On-board memory mode in G HUB.")}
       </Notice>
     ) : (
-      <Notice tone="warning" icon={<Warning16Filled />} title="Another app is controlling this mouse">
-        Changes here apply after it lets go of the mouse.
+      <Notice tone="warning" icon={<Warning16Filled />} title={t("Another app is controlling this mouse")}>
+        {t("Changes here apply after it lets go of the mouse.")}
       </Notice>
     );
   if (family === "hidpp" && app)
     return (
-      <Notice tone="warning" icon={<Warning16Filled />} title="G HUB is running">
-        Quit it from its tray icon. Both apps change the profiles saved on the mouse, and the last change wins.
+      <Notice tone="warning" icon={<Warning16Filled />} title={t("G HUB is running")}>
+        {t("Quit it from its tray icon. Both apps change the profiles saved on the mouse, and the last change wins.")}
       </Notice>
     );
   return null;

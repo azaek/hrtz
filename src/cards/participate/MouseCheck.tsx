@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Body1, Button, Link, Spinner } from "@fluentui/react-components";
 import type { DeviceState, Inspected } from "@/api";
+import { num, t } from "@/i18n";
 import { StepCard } from "@/kit";
 import type { Support } from "@/models";
 import { MouseHead } from "./parts";
@@ -19,34 +20,40 @@ const soft = { color: "var(--colorNeutralForeground2)" };
 type Kind = Support | "reads" | "asleep" | "windows";
 
 /** What the check does, said before it starts. */
-const ABOUT: Record<Exclude<Kind, "asleep">, string> = {
-  tested: "This model is tested. If something looks wrong, check it and send the report.",
-  untested:
+const byKind = (): Record<Exclude<Kind, "asleep">, string> => ({
+  tested: t("This model is tested. If something looks wrong, check it and send the report."),
+  untested: t(
     "A 2-minute check of what works on this model. It reads the mouse, measures its polling rate, asks you to press each button, then changes each setting hrtz offers on it, one at a time, and puts each back.",
-  unknown:
+  ),
+  unknown: t(
     "hrtz runs this mouse but doesn't know the model yet. The check reads its settings and memory, measures its polling rate and asks you to press each button. It changes nothing.",
-  reads:
+  ),
+  reads: t(
     "hrtz doesn't run this mouse yet, but can read it. The check reads which mouse it is and what its memory holds, the way its own app does, then measures its polling rate. It changes nothing. Close the mouse's own app first.",
-  windows: "hrtz can't read this mouse yet, so its report holds what it tells Windows: its IDs and how it connects. Nothing is sent to it.",
-};
+  ),
+  windows: t("hrtz can't read this mouse yet, so its report holds what it tells Windows: its IDs and how it connects. Nothing is sent to it."),
+});
 
 /** The same, for a model hrtz knows, by what it offers on it: where hrtz sets no buttons yet (an
  *  ATK), only the DPI button is asked for, where the mouse says when it's pressed. */
 function about(kind: Exclude<Kind, "asleep">, device: DeviceState | null): string {
   const caps = device?.capabilities;
-  if (kind !== "untested" || !caps || caps.buttons?.length) return ABOUT[kind];
-  const buttons = caps.dpiButton && caps.dpi ? ", asks you to press its DPI button" : "";
-  return `A 2-minute check of what works on this model. It reads the mouse, measures its polling rate${buttons}, then changes each setting hrtz offers on it, one at a time, and puts each back.`;
+  if (kind !== "untested" || !caps || caps.buttons?.length) return byKind()[kind];
+  return caps.dpiButton && caps.dpi
+    ? t(
+        "A 2-minute check of what works on this model. It reads the mouse, measures its polling rate, asks you to press its DPI button, then changes each setting hrtz offers on it, one at a time, and puts each back.",
+      )
+    : t("A 2-minute check of what works on this model. It reads the mouse, measures its polling rate, then changes each setting hrtz offers on it, one at a time, and puts each back.");
 }
 
 /** What each stage asks of you, while the full screen is up. */
-const DOING: Record<string, string> = {
-  reading: "Reading the mouse",
-  moving: "Move the mouse in quick circles",
-  buttons: "Press each button when asked",
-  writing: "Checking each setting",
-  rate: "Move the mouse in quick circles again",
-};
+const doing = (): Record<string, string> => ({
+  reading: t("Reading the mouse"),
+  moving: t("Move the mouse in quick circles"),
+  buttons: t("Press each button when asked"),
+  writing: t("Checking each setting"),
+  rate: t("Move the mouse in quick circles again"),
+});
 
 /** How long a mouse is waited for before the card says what else to look at. */
 const SLOW_MS = 20_000;
@@ -130,20 +137,20 @@ export function MouseCheck({ mouse, support, device, onDone }: { mouse: Inspecte
     if (r.stage !== "done" || !read) return;
     if ((read.memorySize ?? 0) < (read.memoryWanted ?? 1)) return onDone(readPart(mouse, read, null));
     void m
-      .measure(COUNT_MS, { title: "Move the mouse in quick circles", detail: "Measures how often it reports, the way a game reads it." })
+      .measure(COUNT_MS, { title: t("Move the mouse in quick circles"), detail: t("Measures how often it reports, the way a game reads it.") })
       .then((measured) => here.current && onDone(readPart(mouse, read, measured)));
   }, [r.stage]);
 
   const wait = (detail: string, actions: ReactNode) => (
     <div className="w-full text-left">
       <StepCard
-        label="Waiting for the mouse"
-        title="Move your mouse to wake it"
+        label={t("Waiting for the mouse")}
+        title={t("Move your mouse to wake it")}
         detail={detail}
         status={
           <span className="flex items-center gap-2" style={soft}>
             <Spinner size="extra-tiny" />
-            {slow ? "Still nothing. Check that it's switched on, and paired with this receiver." : "Waiting for it to answer"}
+            {slow ? t("Still nothing. Check that it's switched on, and paired with this receiver.") : t("Waiting for it to answer")}
           </span>
         }
         actions={actions}
@@ -157,11 +164,11 @@ export function MouseCheck({ mouse, support, device, onDone }: { mouse: Inspecte
       {kind !== "asleep" && (
         <Body1 style={soft}>
           {running
-            ? "Running full screen. Press Esc to stop; what it changed goes back."
+            ? t("Running full screen. Press Esc to stop; what it changed goes back.")
             : m.on
-              ? "Running full screen. Press Esc to skip it."
+              ? t("Running full screen. Press Esc to skip it.")
               : p.stopped
-                ? "Stopped. Your settings are as they were."
+                ? t("Stopped. Your settings are as they were.")
                 : (r.error ?? about(kind, device))}
         </Body1>
       )}
@@ -169,12 +176,12 @@ export function MouseCheck({ mouse, support, device, onDone }: { mouse: Inspecte
       {running ? (
         <div className="w-full text-left">
           <StepCard
-            label="Checking"
-            title={DOING[p.stage]}
-            status={<span style={soft}>Follow the full screen.</span>}
+            label={t("Checking")}
+            title={doing()[p.stage]}
+            status={<span style={soft}>{t("Follow the full screen.")}</span>}
             actions={
               <Link as="button" onClick={p.stop}>
-                Stop
+                {t("Stop")}
               </Link>
             }
           />
@@ -182,12 +189,12 @@ export function MouseCheck({ mouse, support, device, onDone }: { mouse: Inspecte
       ) : m.on ? (
         <div className="w-full text-left">
           <StepCard
-            label="Measuring"
-            title={DOING.moving}
-            status={<span style={soft}>Follow the full screen.</span>}
+            label={t("Measuring")}
+            title={doing().moving}
+            status={<span style={soft}>{t("Follow the full screen.")}</span>}
             actions={
               <Link as="button" onClick={m.stop}>
-                Skip
+                {t("Skip")}
               </Link>
             }
           />
@@ -195,46 +202,46 @@ export function MouseCheck({ mouse, support, device, onDone }: { mouse: Inspecte
       ) : reading ? (
         <div className="w-full text-left">
           <StepCard
-            label="Reading"
-            title="Reading the mouse"
-            detail="Which mouse it is, and what its memory holds. Keep it awake until it's done."
+            label={t("Reading")}
+            title={t("Reading the mouse")}
+            detail={t("Which mouse it is, and what its memory holds. Keep it awake until it's done.")}
             progress={r.progress}
-            status={<span style={soft}>{Math.round(r.progress * 100)}%</span>}
+            status={<span style={soft}>{t("{{percent}}%", { percent: num(Math.round(r.progress * 100)) })}</span>}
           />
         </div>
       ) : waking ? (
         wait(
-          "Its check starts once it answers.",
+          t("Its check starts once it answers."),
           <Link as="button" onClick={() => setWaking(null)}>
-            Stop
+            {t("Stop")}
           </Link>,
         )
       ) : r.stage === "waking" ? (
         wait(
-          "Its receiver answered, but the mouse is asleep. It's read once it wakes.",
+          t("Its receiver answered, but the mouse is asleep. It's read once it wakes."),
           <>
             <Link as="button" onClick={() => onDone(windowsPart(mouse, true, r.asleep))}>
-              Use what's known instead
+              {t("Use what's known instead")}
             </Link>
             <Link as="button" onClick={r.stop}>
-              Stop
+              {t("Stop")}
             </Link>
           </>,
         )
       ) : kind === "asleep" ? (
         wait(
-          "hrtz found its receiver, but the mouse hasn't answered yet. Its check shows here once it does.",
+          t("hrtz found its receiver, but the mouse hasn't answered yet. Its check shows here once it does."),
           <Link as="button" onClick={() => onDone(windowsPart(mouse, true))}>
-            Use what Windows knows instead
+            {t("Use what Windows knows instead")}
           </Link>,
         )
       ) : kind === "windows" ? (
         <Button appearance="primary" onClick={() => onDone(windowsPart(mouse))}>
-          Continue
+          {t("Continue")}
         </Button>
       ) : (
         <Button appearance="primary" onClick={start}>
-          Start the check
+          {t("Start the check")}
         </Button>
       )}
     </div>

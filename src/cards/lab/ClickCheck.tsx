@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { Button, Caption1, Caption1Strong, Link, makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
 import type { MeterSample } from "@/api";
+import { msg, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import { commit, useStore } from "@/store";
 import { useClickWeek, weekText } from "./clicks";
 import { useReport, type TestProps, type TestResult } from "./result";
 
-const NAMES = ["Left", "Right", "Middle", "Back", "Forward"];
+const NAMES = [msg("Left"), msg("Right"), msg("Middle"), msg("Back"), msg("Forward")];
 /** A release followed by a press sooner than this is the switch bouncing, not a finger. */
 const DOUBLE_MS = 30;
 
@@ -92,34 +93,40 @@ export function ClickCheck({ onResult }: TestProps) {
   const weekWorst = Math.max(0, ...weekBad.map((b) => b.worstMs));
   const w = week && weekText(week);
   const weekLine = !counting
-    ? "Background counting is off."
+    ? t("Background counting is off.")
     : !w || !w.presses
-      ? "This week: nothing counted yet."
-      : `This week: ${w.text}${weekBad.length ? `, up to ${Math.round(weekWorst)} ms apart` : ""}.`;
+      ? t("This week: nothing counted yet.")
+      : weekBad.length
+        ? t("This week: {{week}}, up to {{ms}} ms apart.", { week: w.text, ms: Math.round(weekWorst) })
+        : t("This week: {{week}}.", { week: w.text });
   const suggest = Math.ceil(Math.max(worst, weekWorst)) + 2;
   const current = settings?.debounceMs ?? 0;
 
   let verdict: string;
-  if (!presses) verdict = "Click each button a few times in the box.";
-  else if (!bad.length) verdict = `No double clicks in ${presses} ${presses === 1 ? "press" : "presses"}.`;
+  if (!presses) verdict = t("Click each button a few times in the box.");
+  else if (!bad.length) verdict = t("No double clicks in {{count}} presses.", { count: presses, defaultValue_one: "No double clicks in {{count}} press." });
   else {
-    const who = bad.map((b) => `${b.name} ${b.doubles}×`).join(", ");
+    const v = { buttons: bad.map((b) => `${t(b.name, { context: "button" })} ${b.doubles}×`).join(", "), ms: Math.round(worst), debounce: current, suggest };
     verdict =
       maxDebounce === null
-        ? `Double clicks: ${who}, up to ${Math.round(worst)} ms apart. This mouse has no debounce setting to filter them.`
+        ? t("Double clicks: {{buttons}}, up to {{ms}} ms apart. This mouse has no debounce setting to filter them.", v)
         : suggest > maxDebounce
-        ? `Double clicks: ${who}, up to ${Math.round(worst)} ms apart. Too far apart for debounce to filter, so the switch is likely worn.`
+        ? t("Double clicks: {{buttons}}, up to {{ms}} ms apart. Too far apart for debounce to filter, so the switch is likely worn.", v)
         : suggest <= current
-          ? `Double clicks: ${who}, up to ${Math.round(worst)} ms apart, even with debounce at ${current} ms.`
-          : `Double clicks: ${who}, up to ${Math.round(worst)} ms apart. Click debounce at ${suggest} ms should filter them.`;
+          ? t("Double clicks: {{buttons}}, up to {{ms}} ms apart, even with debounce at {{debounce}} ms.", v)
+          : t("Double clicks: {{buttons}}, up to {{ms}} ms apart. Click debounce at {{suggest}} ms should filter them.", v);
   }
   const canFix = !!settings && online && maxDebounce !== null && bad.length + weekBad.length > 0 && suggest > current && suggest <= maxDebounce;
   const doubles = bad.reduce((a, b) => a + b.doubles, 0);
   const result: TestResult | null = !presses
     ? null
     : !bad.length
-      ? { value: "No doubles", detail: `In ${presses} ${presses === 1 ? "press" : "presses"}`, tone: "good" }
-      : { value: `${doubles} ${doubles === 1 ? "double" : "doubles"}`, detail: `${bad.map((b) => `${b.name} ${b.doubles}×`).join(", ")}, up to ${Math.round(worst)} ms apart`, tone: "warn" };
+      ? { value: t("No doubles"), detail: t("In {{count}} presses", { count: presses, defaultValue_one: "In {{count}} press" }), tone: "good" }
+      : {
+          value: t("{{count}} doubles", { count: doubles, defaultValue_one: "{{count}} double" }),
+          detail: t("{{buttons}}, up to {{ms}} ms apart", { buttons: bad.map((b) => `${t(b.name, { context: "button" })} ${b.doubles}×`).join(", "), ms: Math.round(worst) }),
+          tone: "warn",
+        };
   useReport(onResult, result);
 
   const body = (
@@ -130,13 +137,13 @@ export function ClickCheck({ onResult }: TestProps) {
         onMouseDown={(e) => e.preventDefault()}
         aria-hidden
       >
-        <Caption1>Click here</Caption1>
+        <Caption1>{t("Click here")}</Caption1>
       </div>
       <div className={s.side}>
         <div className={s.table}>
-          <Caption1 className={s.head}>Button</Caption1>
-          <Caption1 className={mergeClasses(s.head, s.num)}>Presses</Caption1>
-          <Caption1 className={mergeClasses(s.head, s.num)}>Doubles</Caption1>
+          <Caption1 className={s.head}>{t("Button")}</Caption1>
+          <Caption1 className={mergeClasses(s.head, s.num)}>{t("Presses")}</Caption1>
+          <Caption1 className={mergeClasses(s.head, s.num)}>{t("Doubles")}</Caption1>
           {view.map((v, i) => (
             <Row key={i} name={NAMES[i]} stat={v} />
           ))}
@@ -148,7 +155,7 @@ export function ClickCheck({ onResult }: TestProps) {
         <div className={s.actions}>
           {canFix && (
             <Button onClick={() => settings && commit({ ...settings, debounceMs: suggest })}>
-              Set debounce to {suggest} ms
+              {t("Set debounce to {{ms}} ms", { ms: suggest })}
             </Button>
           )}
           <Link
@@ -159,7 +166,7 @@ export function ClickCheck({ onResult }: TestProps) {
               setView(fresh());
             }}
           >
-            Clear
+            {t("Clear")}
           </Link>
         </div>
       </div>
@@ -172,7 +179,7 @@ function Row({ name, stat }: { name: string; stat: Stat }) {
   const s = useStyles();
   return (
     <>
-      <Caption1>{name}</Caption1>
+      <Caption1>{t(name, { context: "button" })}</Caption1>
       <Caption1 className={s.num}>{stat.presses}</Caption1>
       {stat.doubles ? (
         <Caption1Strong className={mergeClasses(s.num, s.flagged)}>{stat.doubles}</Caption1Strong>

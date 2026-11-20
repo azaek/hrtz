@@ -3,6 +3,7 @@ import { Body1, Button, Caption1 } from "@fluentui/react-components";
 import { getVersion } from "@tauri-apps/api/app";
 import { Emblem } from "@/brand";
 import { LATEST } from "@/changelog";
+import { t } from "@/i18n";
 import { OPEN_WHATS_NEW, whatsNewUnseen } from "@/WhatsNew";
 
 /**
@@ -23,16 +24,16 @@ export function AppCard() {
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
         <Body1 style={{ fontWeight: 600, fontSize: 16 }}>hrtz</Body1>
-        <Caption1 style={{ color: "var(--colorNeutralForeground3)", fontVariantNumeric: "tabular-nums" }}>Version {version} · Settings and tray companion for gaming mice</Caption1>
+        <Caption1 style={{ color: "var(--colorNeutralForeground3)", fontVariantNumeric: "tabular-nums" }}>{t("Version {{version}}", { version })} · {t("Settings and tray companion for gaming mice")}</Caption1>
       </div>
       <Button
-        aria-label={unseen ? `What's new in ${LATEST}, not opened yet` : "What's new"}
+        aria-label={unseen ? t("What's new in {{version}}, not opened yet", { version: LATEST }) : t("What's new")}
         onClick={() => {
           setUnseen(false);
           window.dispatchEvent(new Event(OPEN_WHATS_NEW));
         }}
       >
-        What's new
+        {t("What's new")}
         {/* A soft marker for notes not read yet: the accent dot, no outline. */}
         {unseen && <span aria-hidden className="ml-2 size-1.5 rounded-full bg-[var(--accent)]" />}
       </Button>

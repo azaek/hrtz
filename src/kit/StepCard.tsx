@@ -48,12 +48,14 @@ export function StepCard(props: {
       </div>
       {props.progress != null && <ProgressLine value={props.progress} />}
       {(props.status || props.actions) && (
-        <div className="flex min-h-8 items-center justify-between gap-3">
-          {/* A div in a caption's type, so a control can sit there too (the blind test's choice). */}
-          <div className="tabular-nums" style={{ fontSize: "var(--fontSizeBase200)", lineHeight: "var(--lineHeightBase200)" }}>
+        <div className="flex min-h-8 flex-wrap items-center justify-between gap-3">
+          {/* A div in a caption's type, so a control can sit there too (the blind test's choice).
+              It takes the room left and wraps its text; a control that can't fit beside the
+              actions (a longer language) sends them to the next line instead. */}
+          <div className="min-w-min flex-1 basis-0 tabular-nums" style={{ fontSize: "var(--fontSizeBase200)", lineHeight: "var(--lineHeightBase200)" }}>
             {props.status}
           </div>
-          <div className="flex items-center gap-3">{props.actions}</div>
+          <div className="ml-auto flex items-center gap-3">{props.actions}</div>
         </div>
       )}
       {props.children}

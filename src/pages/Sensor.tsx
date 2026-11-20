@@ -25,10 +25,11 @@ import { isZaopin } from "../models";
 import { SignalRgbCard, useSetBySignalRgb } from "../cards/signalrgb/SignalRgbCard";
 import { hzText } from "../rates";
 import { NumberStepper } from "../kit";
+import { num, t } from "../i18n";
 
 /** Names for a light that offers three steps of brightness or speed (an ATK's), lowest first. */
-const THREE_BRIGHTNESS = ["Low", "Medium", "High"];
-const THREE_SPEEDS = ["Slow", "Medium", "Fast"];
+const threeBrightness = () => [t("Low"), t("Medium"), t("High")];
+const threeSpeeds = () => [t("Slow"), t("Medium"), t("Fast")];
 
 /** Each card shows only if the mouse has that setting; a group with none is left out. */
 export function SensorPage() {
@@ -48,24 +49,24 @@ export function SensorPage() {
     <SettingCard
       stacked
       icon={<TopSpeed20Regular />}
-      title="Polling rate"
+      title={t("Polling rate")}
       description={
         <>
           {top !== undefined && s.pollingHz > top
-            ? `Set to ${hzText(s.pollingHz)} for the receiver. Wired, it runs at up to ${hzText(top)}.`
+            ? t("Set to {{rate}} for the receiver. Wired, it runs at up to {{top}}.", { rate: hzText(s.pollingHz), top: hzText(top) })
             : caps.wired && top !== undefined
-              ? `How often the mouse reports to your PC. Up to ${hzText(top)} when wired.`
-              : "How often the mouse reports to your PC."}
+              ? t("How often the mouse reports to your PC. Up to {{rate}} when wired.", { rate: hzText(top) })
+              : t("How often the mouse reports to your PC.")}
         </>
       }
       below={
         <div style={{ marginTop: 12 }}>
           <Choice
-            label="Polling rate"
+            label={t("Polling rate")}
             value={s.pollingHz}
             options={caps.polling.rates.map((hz) => ({
               value: hz,
-              label: hz >= 1000 ? `${hz / 1000}K Hz` : `${hz} Hz`,
+              label: hz >= 1000 ? t("{{khz}}K Hz", { khz: num(hz / 1000) }) : hzText(hz),
             }))}
             onChange={(pollingHz) => update({ pollingHz })}
           />
@@ -74,10 +75,10 @@ export function SensorPage() {
     />
   );
   const liftOff = caps.lod && s.lod && (
-    <SettingCard icon={<Ruler20Regular />} title="Lift-off distance" description="How high the mouse can lift before the sensor stops tracking.">
+    <SettingCard icon={<Ruler20Regular />} title={t("Lift-off distance")} description={t("How high the mouse can lift before the sensor stops tracking.")}>
       {caps.lod.length > 3 ? (
         // A sensor with a scale of them (a PAW3950 Ultra's eleven): too many to lay side by side.
-        <Dropdown aria-label="Lift-off distance" value={lodName(s.lod)} selectedOptions={[s.lod]} onOptionSelect={(_, d) => d.optionValue && update({ lod: d.optionValue as Lod })} style={{ minWidth: 120 }}>
+        <Dropdown aria-label={t("Lift-off distance")} value={lodName(s.lod)} selectedOptions={[s.lod]} onOptionSelect={(_, d) => d.optionValue && update({ lod: d.optionValue as Lod })} style={{ minWidth: 120 }}>
           {caps.lod.map((lod) => (
             <Option key={lod} value={lod}>
               {lodName(lod)}
@@ -85,7 +86,7 @@ export function SensorPage() {
           ))}
         </Dropdown>
       ) : (
-        <Choice label="Lift-off distance" value={s.lod} options={caps.lod.map((value) => ({ value, label: lodName(value) }))} onChange={(lod) => update({ lod })} />
+        <Choice label={t("Lift-off distance")} value={s.lod} options={caps.lod.map((value) => ({ value, label: lodName(value) }))} onChange={(lod) => update({ lod })} />
       )}
     </SettingCard>
   );
@@ -96,23 +97,23 @@ export function SensorPage() {
   const sensorMode = mode && s.sensorMode && (
     <SettingCard
       icon={<Rocket20Regular />}
-      title="Sensor mode"
+      title={t("Sensor mode")}
       description={
         mode.cordedWhenWired && caps.wired
-          ? "Always Corded while wired."
+          ? t("Always Corded while wired.")
           : lockedCorded && mode.cordedFromHz !== undefined
-            ? `Always Corded at ${hzText(mode.cordedFromHz)} and above.`
+            ? t("Always Corded at {{rate}} and above.", { rate: hzText(mode.cordedFromHz) })
             : modes.length > 2
-              ? "Higher modes track faster and use more battery."
-              : "Low power saves battery. High performance tracks faster and uses more."
+              ? t("Higher modes track faster and use more battery.")
+              : t("Low power saves battery. High performance tracks faster and uses more.")
       }
     >
       {lockedCorded ? (
-        <Body1>Corded</Body1>
+        <Body1>{t("Corded")}</Body1>
       ) : modes.length > 2 ? (
         // Three names are too wide to lay side by side.
         <Dropdown
-          aria-label="Sensor mode"
+          aria-label={t("Sensor mode")}
           value={sensorModeName(s.sensorMode, byChoice)}
           selectedOptions={[s.sensorMode]}
           onOptionSelect={(_, d) => d.optionValue && update({ sensorMode: d.optionValue as SensorMode })}
@@ -126,7 +127,7 @@ export function SensorPage() {
         </Dropdown>
       ) : (
         <Choice
-          label="Sensor mode"
+          label={t("Sensor mode")}
           value={!byChoice && s.sensorMode === "corded" ? "hp" : s.sensorMode}
           options={modes.map((value) => ({ value, label: sensorModeName(value, byChoice) }))}
           onChange={(sensorMode) => update({ sensorMode })}
@@ -136,14 +137,14 @@ export function SensorPage() {
   );
   const angle = s.sensorAngle;
   const sensorAngle = caps.sensorAngleDeg !== undefined && angle && (
-    <SettingCard icon={<ArrowRotateClockwise20Regular />} title="Sensor angle" description="Turns the sensor's direction to match how you hold the mouse.">
+    <SettingCard icon={<ArrowRotateClockwise20Regular />} title={t("Sensor angle")} description={t("Turns the sensor's direction to match how you hold the mouse.")}>
       {/* The Lab measures the angle a grip needs. */}
       <Link as="button" onClick={() => openTest("angle")}>
-        Find yours
+        {t("Find yours")}
       </Link>
       {angle.on && (
         <NumberStepper
-          label="Sensor angle"
+          label={t("Sensor angle")}
           unit="°"
           min={-caps.sensorAngleDeg}
           max={caps.sensorAngleDeg}
@@ -151,48 +152,48 @@ export function SensorPage() {
           onChange={(degrees) => update({ sensorAngle: { on: true, degrees } })}
         />
       )}
-      <Switch checked={angle.on} onChange={(_, d) => update({ sensorAngle: { ...angle, on: d.checked } })} aria-label="Sensor angle" />
+      <Switch checked={angle.on} onChange={(_, d) => update({ sensorAngle: { ...angle, on: d.checked } })} aria-label={t("Sensor angle")} />
     </SettingCard>
   );
   const motionSync = caps.motionSync && s.motionSync !== undefined && (
-    <SettingCard icon={<ArrowSync20Regular />} title="Motion sync" description="Aligns sensor reads with USB reports. Smoother, with slightly more latency.">
-      <Switch checked={s.motionSync} onChange={(_, d) => update({ motionSync: d.checked })} aria-label="Motion sync" />
+    <SettingCard icon={<ArrowSync20Regular />} title={t("Motion sync")} description={t("Aligns sensor reads with USB reports. Smoother, with slightly more latency.")}>
+      <Switch checked={s.motionSync} onChange={(_, d) => update({ motionSync: d.checked })} aria-label={t("Motion sync")} />
     </SettingCard>
   );
   const angleSnapping = caps.angleSnapping && s.angleSnapping !== undefined && (
-    <SettingCard icon={<Line20Regular />} title="Angle snapping" description="Straightens near-horizontal and near-vertical movement. Usually off for gaming.">
-      <Switch checked={s.angleSnapping} onChange={(_, d) => update({ angleSnapping: d.checked })} aria-label="Angle snapping" />
+    <SettingCard icon={<Line20Regular />} title={t("Angle snapping")} description={t("Straightens near-horizontal and near-vertical movement. Usually off for gaming.")}>
+      <Switch checked={s.angleSnapping} onChange={(_, d) => update({ angleSnapping: d.checked })} aria-label={t("Angle snapping")} />
     </SettingCard>
   );
   const ripple = caps.rippleControl && s.rippleControl !== undefined && (
-    <SettingCard icon={<Pulse20Regular />} title="Ripple control" description="Reduces jitter at high DPI, with slightly less responsiveness.">
-      <Switch checked={s.rippleControl} onChange={(_, d) => update({ rippleControl: d.checked })} aria-label="Ripple control" />
+    <SettingCard icon={<Pulse20Regular />} title={t("Ripple control")} description={t("Reduces jitter at high DPI, with slightly less responsiveness.")}>
+      <Switch checked={s.rippleControl} onChange={(_, d) => update({ rippleControl: d.checked })} aria-label={t("Ripple control")} />
     </SettingCard>
   );
   const debounce = caps.debounceMs && s.debounceMs !== undefined && (
     <SettingCard
       icon={<Timer20Regular />}
-      title="Click debounce"
-      description={s.debounceMs < 4 ? "Below 4 ms, some switches register one press as two." : "Ignores switch bounce for this long after each press."}
+      title={t("Click debounce")}
+      description={s.debounceMs < 4 ? t("Below 4 ms, some switches register one press as two.") : t("Ignores switch bounce for this long after each press.")}
     >
       {caps.debounceChoicesMs ? (
         <Dropdown
-          aria-label="Click debounce"
-          value={`${s.debounceMs} ms`}
+          aria-label={t("Click debounce")}
+          value={t("{{ms}} ms", { ms: num(s.debounceMs) })}
           selectedOptions={[String(s.debounceMs)]}
           onOptionSelect={(_, d) => update({ debounceMs: Number(d.optionValue) })}
           style={{ minWidth: 120 }}
         >
           {caps.debounceChoicesMs.map((ms) => (
             <Option key={ms} value={String(ms)}>
-              {`${ms} ms`}
+              {t("{{ms}} ms", { ms: num(ms) })}
             </Option>
           ))}
         </Dropdown>
       ) : (
         <NumberStepper
-          label="Click debounce"
-          unit="ms"
+          label={t("Click debounce")}
+          unit={t("ms")}
           min={caps.debounceMs.min}
           max={caps.debounceMs.max}
           value={s.debounceMs}
@@ -202,10 +203,10 @@ export function SensorPage() {
     </SettingCard>
   );
   const peak = caps.peakTimeoutsS && s.peakTimeoutEnabled !== undefined && s.peakTimeoutS !== undefined && (
-    <SettingCard icon={<Flash20Regular />} title="Peak performance timeout" description="How long the sensor stays at full power after you stop moving.">
+    <SettingCard icon={<Flash20Regular />} title={t("Peak performance timeout")} description={t("How long the sensor stays at full power after you stop moving.")}>
       {s.peakTimeoutEnabled && (
         <Dropdown
-          aria-label="Peak performance timeout"
+          aria-label={t("Peak performance timeout")}
           value={formatDuration(s.peakTimeoutS)}
           selectedOptions={[String(s.peakTimeoutS)]}
           onOptionSelect={(_, d) => update({ peakTimeoutS: Number(d.optionValue) })}
@@ -218,7 +219,7 @@ export function SensorPage() {
           ))}
         </Dropdown>
       )}
-      <Switch checked={s.peakTimeoutEnabled} onChange={(_, d) => update({ peakTimeoutEnabled: d.checked })} aria-label="Peak performance timeout" />
+      <Switch checked={s.peakTimeoutEnabled} onChange={(_, d) => update({ peakTimeoutEnabled: d.checked })} aria-label={t("Peak performance timeout")} />
     </SettingCard>
   );
   const dpi = caps.dpi && s.stages && <DpiStagesCard s={s} caps={caps} coloursLocked={bySignalRgb} />;
@@ -226,19 +227,19 @@ export function SensorPage() {
   const lightEffect = light && (
     <SettingCard
       icon={<Lightbulb20Regular />}
-      title="DPI light"
+      title={t("DPI light")}
       description={
-        bySignalRgb ? "Set by SignalRGB." : light.effect === "off" ? "Off, so the stage colours don't show." : "Shows the colour of the DPI stage in use."
+        bySignalRgb ? t("Set by SignalRGB.") : light.effect === "off" ? t("Off, so the stage colours don't show.") : t("Shows the colour of the DPI stage in use.")
       }
     >
       <Choice
-        label="DPI light"
+        label={t("DPI light")}
         value={light.effect}
         disabled={bySignalRgb}
         options={[
-          { value: "off" as const, label: "Off" },
-          { value: "steady" as const, label: "Steady" },
-          { value: "breathing" as const, label: "Breathing" },
+          { value: "off" as const, label: t("Off") },
+          { value: "steady" as const, label: t("Steady") },
+          { value: "breathing" as const, label: t("Breathing") },
         ]}
         onChange={(effect) => update({ dpiLight: { ...light, effect } })}
       />
@@ -247,32 +248,32 @@ export function SensorPage() {
   const steps = caps.dpi?.brightnessSteps;
   const speeds = caps.dpi?.speeds;
   const brightness = light?.effect === "steady" && (
-    <SettingCard icon={<BrightnessHigh20Regular />} title="Brightness" description="How bright the DPI light is.">
+    <SettingCard icon={<BrightnessHigh20Regular />} title={t("Brightness")} description={t("How bright the DPI light is.")}>
       {steps ? (
         <Choice
-          label="Brightness"
+          label={t("Brightness")}
           value={light.brightness}
-          options={steps.map((value, i) => ({ value, label: (steps.length === 3 ? THREE_BRIGHTNESS[i] : undefined) ?? String(value) }))}
+          options={steps.map((value, i) => ({ value, label: (steps.length === 3 ? threeBrightness()[i] : undefined) ?? String(value) }))}
           onChange={(brightness) => update({ dpiLight: { ...light, brightness } })}
         />
       ) : (
-        <NumberStepper label="Brightness" min={1} max={10} value={light.brightness} onChange={(brightness) => update({ dpiLight: { ...light, brightness } })} />
+        <NumberStepper label={t("Brightness")} min={1} max={10} value={light.brightness} onChange={(brightness) => update({ dpiLight: { ...light, brightness } })} />
       )}
     </SettingCard>
   );
   const speed = light?.effect === "breathing" && (
-    <SettingCard icon={<HeartPulse20Regular />} title="Breathing speed" description="How fast the DPI light breathes.">
+    <SettingCard icon={<HeartPulse20Regular />} title={t("Breathing speed")} description={t("How fast the DPI light breathes.")}>
       {speeds ? (
         <Choice
-          label="Breathing speed"
+          label={t("Breathing speed")}
           value={light.speed}
           disabled={bySignalRgb}
-          options={speeds.map((value, i) => ({ value, label: (speeds.length === 3 ? THREE_SPEEDS[i] : undefined) ?? String(value) }))}
+          options={speeds.map((value, i) => ({ value, label: (speeds.length === 3 ? threeSpeeds()[i] : undefined) ?? String(value) }))}
           onChange={(speed) => update({ dpiLight: { ...light, speed } })}
         />
       ) : (
         <NumberStepper
-          label="Breathing speed"
+          label={t("Breathing speed")}
           min={1}
           max={5}
           value={light.speed}
@@ -291,7 +292,7 @@ export function SensorPage() {
       {/* The features lab's pick (DECISIONS.md, "Three things to try"). */}
       <NewThings />
       {tracking && (
-        <Group title="Tracking">
+        <Group title={t("Tracking")}>
           {dpi}
           <div id="games-card">{games}</div>
           {polling}
@@ -304,7 +305,7 @@ export function SensorPage() {
         </Group>
       )}
       {lightEffect && (
-        <Group title="Light">
+        <Group title={t("Light")}>
           {lightEffect}
           {brightness}
           {speed}
@@ -312,7 +313,7 @@ export function SensorPage() {
         </Group>
       )}
       {clicks && (
-        <Group title="Clicks and power">
+        <Group title={t("Clicks and power")}>
           {debounce}
           {peak}
         </Group>

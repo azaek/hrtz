@@ -1,4 +1,5 @@
 import type { BatteryEntry } from "@/api";
+import { dateLocale, num, t } from "@/i18n";
 
 /** A longer gap between log rows means the app wasn't running (matches `battery_log.rs`). */
 const GAP = 45 * 60;
@@ -128,7 +129,7 @@ export function drawChart(g: CanvasRenderingContext2D, { width, slots, days, hov
   g.textAlign = "left";
   g.lineWidth = 1;
   g.fillStyle = look.muted;
-  for (const level of [0, 50, 100]) g.fillText(`${level}%`, plotW + 6, y(level));
+  for (const level of [0, 50, 100]) g.fillText(t("{{percent}}%", { percent: num(level) }), plotW + 6, y(level));
 
   // The baseline: solid under what the log saw, dotted where the app wasn't running.
   for (let i = 0; i < slots.length; ) {
@@ -184,7 +185,7 @@ export function drawChart(g: CanvasRenderingContext2D, { width, slots, days, hov
     g.globalAlpha = 1;
     if ([0, 50, 100].every((l) => Math.abs(y(l) - my) >= 11)) {
       g.fillStyle = m.color;
-      g.fillText(`${m.level}%`, plotW + 6, my);
+      g.fillText(t("{{percent}}%", { percent: num(m.level) }), plotW + 6, my);
     }
   }
   g.setLineDash([]);
@@ -200,11 +201,11 @@ export function drawChart(g: CanvasRenderingContext2D, { width, slots, days, hov
     const hour = d.getHours();
     let text: string | null = null;
     if (days <= 1) {
-      if (hour % 6 === 0) text = d.toLocaleTimeString(undefined, { hour: "numeric" });
+      if (hour % 6 === 0) text = d.toLocaleTimeString(dateLocale(), { hour: "numeric" });
     } else if (hour === 0) {
       midnight++;
-      if (days <= 7) text = d.toLocaleDateString(undefined, { weekday: "short" });
-      else if ((midnights - midnight) % 7 === 0) text = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      if (days <= 7) text = d.toLocaleDateString(dateLocale(), { weekday: "short" });
+      else if ((midnights - midnight) % 7 === 0) text = d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
     }
     if (text && barX(i) + g.measureText(text).width <= width) g.fillText(text, barX(i), base + 6);
   });

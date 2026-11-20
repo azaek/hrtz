@@ -1,4 +1,5 @@
 import { Input } from "@fluentui/react-components";
+import { t } from "@/i18n";
 
 /**
  * A profile's name as a field, opened by Rename: the name starts selected, Enter or leaving the
@@ -19,6 +20,7 @@ export function NameField({
   onDone: () => void;
 }) {
   const save = (v: string) => {
+    // hrtz's stand-in name, kept in English: the backend and a Logitech's driver know it by that.
     const name = v.trim() || `Profile ${index + 1}`;
     if (name !== value) onSave(name);
     onDone();
@@ -28,7 +30,7 @@ export function NameField({
       autoFocus
       defaultValue={value}
       maxLength={maxLength}
-      aria-label={`Name for profile ${index + 1}`}
+      aria-label={t("Name for profile {{n}}", { n: index + 1 })}
       style={{ width: "100%", maxWidth: 280 }}
       onFocus={(e) => e.currentTarget.select()}
       onBlur={(e) => save(e.currentTarget.value)}

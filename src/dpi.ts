@@ -1,5 +1,7 @@
 // DPI values for one mouse: its range and step, typed input, and where a new stage goes.
 
+import { num } from "./i18n";
+
 /** A mouse's DPI range and step, from its capabilities; `above`, a coarser step above a DPI. */
 export type DpiRange = { min: number; max: number; step: number; above?: { from: number; step: number } };
 export const dpiRange = (dpi: DpiRange): DpiRange => ({ min: dpi.min, max: dpi.max, step: dpi.step, above: dpi.above });
@@ -13,9 +15,9 @@ export const stepNear = (r: DpiRange, v: number, dir: number) => stepAt(r, dir >
 export const COMMON_DPI = [400, 800, 1600, 3200, 6400];
 
 export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-export const fmtDpi = (dpi: number) => dpi.toLocaleString("en-US");
+export const fmtDpi = (dpi: number) => num(dpi);
 /** 1600 → "1.6K", 30000 → "30K", 800 → "800". */
-export const shortDpi = (dpi: number) => (dpi >= 1000 ? `${+(dpi / 1000).toFixed(dpi % 1000 ? 1 : 0)}K` : `${dpi}`);
+export const shortDpi = (dpi: number) => (dpi >= 1000 ? `${num(+(dpi / 1000).toFixed(dpi % 1000 ? 1 : 0))}K` : num(dpi));
 export const toStep = (r: DpiRange, v: number) => {
   const s = stepAt(r, clamp(v, r.min, r.max));
   return clamp(Math.round(v / s) * s, r.min, r.max);

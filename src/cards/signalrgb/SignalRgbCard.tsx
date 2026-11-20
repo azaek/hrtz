@@ -4,6 +4,7 @@ import { Color20Regular } from "@fluentui/react-icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, message } from "@/api";
 import { SettingCard } from "@/components";
+import { t } from "@/i18n";
 import { NewBadge } from "@/kit";
 import { useSeen } from "@/news";
 import { savePrefs, toast, useStore } from "@/store";
@@ -30,28 +31,28 @@ export function SignalRgbCard({ mouseKey }: { mouseKey: string | null | undefine
   const install = () =>
     void api
       .installSignalRgbAddon()
-      .then(() => toast("Added to SignalRGB. Restart SignalRGB to load it."))
+      .then(() => toast(t("Added to SignalRGB. Restart SignalRGB to load it.")))
       .catch((e) => toast(message(e), "error"));
 
   let description: string;
   let action: ReactNode = null;
   if (!on || !link) {
-    description = "Lets SignalRGB set the DPI light with the rest of your lighting.";
+    description = t("Lets SignalRGB set the DPI light with the rest of your lighting.");
   } else if (link.error) {
     description = link.error;
   } else if (!link.installed) {
-    description = "SignalRGB isn't installed on this PC.";
-    action = <Link onClick={() => void openUrl("https://signalrgb.com").catch((e) => toast(message(e), "error"))}>Get SignalRGB</Link>;
+    description = t("SignalRGB isn't installed on this PC.");
+    action = <Link onClick={() => void openUrl("https://signalrgb.com").catch((e) => toast(message(e), "error"))}>{t("Get SignalRGB")}</Link>;
   } else if (link.addon !== "current") {
     description =
-      link.addon === "missing" ? "Add hrtz to SignalRGB, then restart SignalRGB." : "hrtz's add-on in SignalRGB is out of date. Update it, then restart SignalRGB.";
-    action = <Button onClick={install}>{link.addon === "missing" ? "Add to SignalRGB" : "Update add-on"}</Button>;
+      link.addon === "missing" ? t("Add hrtz to SignalRGB, then restart SignalRGB.") : t("hrtz's add-on in SignalRGB is out of date. Update it, then restart SignalRGB.");
+    action = <Button onClick={install}>{link.addon === "missing" ? t("Add to SignalRGB") : t("Update add-on")}</Button>;
   } else if (driving) {
-    description = "SignalRGB is setting the light. Animated effects keep the last solid colour.";
+    description = t("SignalRGB is setting the light. Animated effects keep the last solid colour.");
   } else if (link.connected) {
-    description = "Connected to SignalRGB.";
+    description = t("Connected to SignalRGB.");
   } else {
-    description = "Waiting for SignalRGB. If it's open, restart it to load hrtz's add-on.";
+    description = t("Waiting for SignalRGB. If it's open, restart it to load hrtz's add-on.");
   }
 
   return (
@@ -66,7 +67,7 @@ export function SignalRgbCard({ mouseKey }: { mouseKey: string | null | undefine
       description={description}
     >
       {action}
-      <Switch checked={on} onChange={(_, d) => void savePrefs({ ...prefs, signalrgb: d.checked })} aria-label="Let SignalRGB set the DPI light" />
+      <Switch checked={on} onChange={(_, d) => void savePrefs({ ...prefs, signalrgb: d.checked })} aria-label={t("Let SignalRGB set the DPI light")} />
     </SettingCard>
   );
 }

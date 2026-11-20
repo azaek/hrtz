@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api, type MeterSample, type SensorAngle, type Stroke } from "@/api";
+import { num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import type { TestResult } from "./result";
 import { cmOf } from "./tracking";
@@ -62,7 +63,7 @@ export const turnFor = (tilt: number) => Math.round(-tilt) + 0;
 export const inEffect = (a: SensorAngle | undefined) => (a?.on ? a.degrees : 0);
 
 /** "4°", "-4°". */
-export const angleText = (degrees: number) => `${degrees}°`;
+export const angleText = (degrees: number) => `${num(degrees)}°`;
 
 export type Measured = {
   swipes: Swipe[];
@@ -145,7 +146,7 @@ export function verdict(m: Measured, max: number | undefined, now: number) {
 
 /** The Lab list's line. */
 export function angleSummary(v: NonNullable<ReturnType<typeof verdict>>, applied: number): TestResult {
-  if (v.level) return { value: "Level", detail: applied ? `with the sensor angle at ${angleText(applied)}` : "no sensor angle needed", tone: "good" };
-  if (v.set === null) return { value: `${angleText(Math.abs(v.turn))} tilt`, detail: "this mouse has no sensor angle", tone: "neutral" };
-  return v.isSet ? { value: angleText(v.set), detail: "set on the mouse", tone: "good" } : { value: angleText(v.set), detail: "levels your swipes", tone: "neutral" };
+  if (v.level) return { value: t("Level"), detail: applied ? t("with the sensor angle at {{angle}}", { angle: angleText(applied) }) : t("no sensor angle needed"), tone: "good" };
+  if (v.set === null) return { value: t("{{angle}} tilt", { angle: angleText(Math.abs(v.turn)) }), detail: t("this mouse has no sensor angle"), tone: "neutral" };
+  return v.isSet ? { value: angleText(v.set), detail: t("set on the mouse"), tone: "good" } : { value: angleText(v.set), detail: t("levels your swipes"), tone: "neutral" };
 }

@@ -12,6 +12,7 @@ import {
   TopSpeed20Regular,
 } from "@fluentui/react-icons";
 import { type Capabilities, api, currentDpi, type PadCalibration } from "@/api";
+import i18n, { dateLocale, t } from "@/i18n";
 import { goTo, savePrefs, useStore } from "@/store";
 import { AngleCheck } from "./AngleCheck";
 import { BlindTest } from "./BlindTest";
@@ -44,82 +45,83 @@ export type Test = {
   needs?: (caps: Capabilities) => boolean;
 };
 
-export const TESTS: Test[] = [
+/** Every test, its words in the language shown. */
+export const allTests = (): Test[] => [
   {
     id: "blind",
-    name: "Blind test",
-    title: "Can you feel it?",
+    name: t("Blind test"),
+    title: t("Can you feel it?"),
     icon: <EyeOff20Regular />,
-    description: "A blind test: hrtz switches a setting without telling you which, and you guess.",
-    hint: "Runs full screen, and puts your settings back at the end.",
+    description: t("A blind test: hrtz switches a setting without telling you which, and you guess."),
+    hint: t("Runs full screen, and puts your settings back at the end."),
     // Two rates to compare, or motion sync.
     needs: (c) => (c.polling?.rates.length ?? 0) >= 2 || c.motionSync,
   },
   {
     id: "connection",
-    name: "Connection",
-    title: "Connection",
+    name: t("Connection"),
+    title: t("Connection"),
     icon: <DataLine20Regular />,
-    description: "Checks that every report reaches your PC and finds the best polling rate for it.",
-    hint: "Runs full screen. May change the polling rate, then restores yours.",
+    description: t("Checks that every report reaches your PC and finds the best polling rate for it."),
+    hint: t("Runs full screen. May change the polling rate, then restores yours."),
   },
   {
     id: "dpi",
-    name: "DPI accuracy",
-    title: "DPI accuracy",
+    name: t("DPI accuracy"),
+    title: t("DPI accuracy"),
     icon: <Ruler20Regular />,
-    description: "Measures the DPI your sensor really delivers. You'll need a ruler.",
-    hint: "Runs are counted while this test is open.",
+    description: t("Measures the DPI your sensor really delivers. You'll need a ruler."),
+    hint: t("Runs are counted while this test is open."),
   },
   {
     id: "tracking",
-    name: "Tracking",
-    title: "Tracking on your pad",
+    name: t("Tracking"),
+    title: t("Tracking on your pad"),
     icon: <TopSpeed20Regular />,
-    description: "Checks that the sensor holds still and keeps count at speed on your pad.",
-    hint: "Runs full screen and moves through each part automatically.",
+    description: t("Checks that the sensor holds still and keeps count at speed on your pad."),
+    hint: t("Runs full screen and moves through each part automatically."),
   },
   {
     id: "liftoff",
-    name: "Lift-off",
-    title: "Lift-off on your pad",
+    name: t("Lift-off"),
+    title: t("Lift-off on your pad"),
     icon: <ArrowStepOver20Regular />,
-    description: "Finds the lowest lift-off distance that tracks reliably on your pad.",
-    hint: "Runs full screen. Changes lift-off, then restores yours.",
+    description: t("Finds the lowest lift-off distance that tracks reliably on your pad."),
+    hint: t("Runs full screen. Changes lift-off, then restores yours."),
     // It steps through the mouse's own settings.
     needs: (c) => !!c.lod?.length,
   },
   {
     id: "angle",
-    name: "Sensor angle",
-    title: "Sensor angle for your grip",
+    name: t("Sensor angle"),
+    title: t("Sensor angle for your grip"),
     icon: <ArrowRotateClockwise20Regular />,
-    description: "Measures how far your grip tilts your swipes, and the sensor angle that levels them.",
-    hint: "Runs full screen. Changes nothing on the mouse until you set it.",
+    description: t("Measures how far your grip tilts your swipes, and the sensor angle that levels them."),
+    hint: t("Runs full screen. Changes nothing on the mouse until you set it."),
   },
   {
     id: "clicks",
-    name: "Double clicks",
-    title: "Double clicks",
+    name: t("Double clicks"),
+    title: t("Double clicks"),
     icon: <CursorClick20Regular />,
-    description: "Catches clicks that register twice.",
-    hint: "Use single clicks only.",
+    description: t("Catches clicks that register twice."),
+    hint: t("Use single clicks only."),
   },
   {
     id: "wheel",
-    name: "Scroll wheel",
-    title: "Scroll wheel",
+    name: t("Scroll wheel"),
+    title: t("Scroll wheel"),
     icon: <ArrowBidirectionalUpDown20Regular />,
-    description: "Catches notches that scroll the wrong way or twice, signs of a dirty encoder.",
-    hint: "Notches are counted while this test is open.",
+    description: t("Catches notches that scroll the wrong way or twice, signs of a dirty encoder."),
+    hint: t("Notches are counted while this test is open."),
   },
   {
     id: "pad",
-    name: "Mousepad",
-    title: "Mousepad use",
+    name: t("Mousepad"),
+    title: t("Mousepad use"),
     icon: <Map20Regular />,
-    description: "Maps where your mouse travels on the pad while you play.",
-    hint: "With the switch on, it records in the background while you play.",
+    description: t("Maps where your mouse travels on the pad while you play."),
+    hint: t("With the switch on, it records in the background while you play."),
   },
 ];
 
@@ -133,9 +135,11 @@ export function openTest(id: TestId) {
 }
 
 /** The tests this mouse can run (all of them with no mouse, waiting for one). */
-export const testsFor = (caps: Capabilities | null | undefined) => TESTS.filter((t) => !caps || !t.needs || t.needs(caps));
+export const testsFor = (caps: Capabilities | null | undefined) => allTests().filter((x) => !caps || !x.needs || x.needs(caps));
 
-export type Kept = { result: TestResult; at: number };
+/** A result is kept in the words it was shown in, so it notes the language: one kept before
+ *  translations (no `lang`) is English. */
+export type Kept = { result: TestResult; at: number; lang?: string };
 const KEY = "hrtz.testResults";
 const read = (): Partial<Record<TestId, Kept>> => {
   try {
@@ -151,20 +155,27 @@ export function useResults() {
   const [kept, setKept] = useState(read);
   const keep = (id: TestId) => (r: TestResult | null) => {
     if (!r) return;
-    const next = { ...read(), [id]: { result: r, at: Date.now() } };
+    const next = { ...read(), [id]: { result: r, at: Date.now(), lang: i18n.language } };
     localStorage.setItem(KEY, JSON.stringify(next));
     setKept(next);
   };
   return { kept, keep };
 }
 
+/** A kept result to show in the list: as kept, or, kept in another language, when it ran ("Last
+ *  run today") until the test is opened again and reports it afresh. */
+export function shownResult(k: Kept | undefined): TestResult | undefined {
+  if (!k || (k.lang ?? "en") === i18n.language) return k?.result;
+  return { value: t("Last run {{when}}", { when: whenText(k.at) }), detail: "", tone: "neutral" };
+}
+
 /** "today", "yesterday", "14 Oct". */
 export function whenText(at: number) {
   const day = (t: number) => new Date(new Date(t).toDateString()).getTime();
   const days = Math.round((day(Date.now()) - day(at)) / 86_400_000);
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  return new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  if (days === 0) return t("today");
+  if (days === 1) return t("yesterday");
+  return new Intl.DateTimeFormat(dateLocale(), { day: "numeric", month: "short" }).format(new Date(at));
 }
 
 /** The mousepad as it stands (the area it maps, and whether it's recording), read every 2 s. It
@@ -188,7 +199,7 @@ export function ClickSwitch() {
     <Switch
       checked={prefs?.clickHistory ?? true}
       disabled={!prefs}
-      label="Count in the background"
+      label={t("Count in the background")}
       labelPosition="before"
       onChange={(_, d) => prefs && savePrefs({ ...prefs, clickHistory: d.checked })}
     />
@@ -202,7 +213,7 @@ export function PadSwitch({ calibrated }: { calibrated: boolean }) {
     <Switch
       checked={!!prefs?.padTracking}
       disabled={!prefs || !calibrated}
-      aria-label="Record while you play"
+      aria-label={t("Record while you play")}
       onChange={(_, d) => prefs && savePrefs({ ...prefs, padTracking: d.checked })}
     />
   );

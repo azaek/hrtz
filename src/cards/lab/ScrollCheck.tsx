@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Caption1, Link, makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
 import type { MeterSample } from "@/api";
+import { t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import { useReport, type TestProps, type TestResult } from "./result";
 
@@ -102,44 +103,51 @@ export function ScrollCheck({ onResult }: TestProps) {
   const doubled = all.filter((t) => t.flag === "double").length;
 
   let verdict: string;
-  if (all.length < 10) verdict = "Scroll down 20 notches at your usual pace, then up 20.";
+  if (all.length < 10) verdict = t("Scroll down 20 notches at your usual pace, then up 20.");
   else if (reversed) {
-    verdict = `${reversed} of ${all.length} notches went the wrong way. The wheel's encoder is misreading, usually from dirt or grease. Cleaning it often fixes this.`;
-    if (doubled) verdict += ` ${doubled} more registered twice.`;
+    verdict = t("{{count}} of {{total}} notches went the wrong way. The wheel's encoder is misreading, usually from dirt or grease. Cleaning it often fixes this.", { count: reversed, total: all.length });
+    if (doubled) verdict += ` ${t("{{count}} more registered twice.", { count: doubled })}`;
   } else if (doubled) {
-    verdict = `${doubled} of ${all.length} notches registered twice, a few milliseconds apart. The encoder is bouncing. Cleaning it often helps.`;
-  } else verdict = `All ${all.length} notches registered once, in the right direction.`;
+    verdict = t("{{count}} of {{total}} notches registered twice, a few milliseconds apart. The encoder is bouncing. Cleaning it often helps.", { count: doubled, total: all.length });
+  } else verdict = t("All {{count}} notches registered once, in the right direction.", { count: all.length });
 
   const misread = reversed + doubled;
   const result: TestResult | null =
     all.length < 10
       ? null
       : misread
-        ? { value: `${misread} ${misread === 1 ? "misread" : "misreads"}`, detail: [reversed && `${reversed} the wrong way`, doubled && `${doubled} twice`].filter(Boolean).join(", ") + ` in ${all.length} notches`, tone: "warn" }
-        : { value: "No misreads", detail: `In ${all.length} notches`, tone: "good" };
+        ? {
+            value: t("{{count}} misreads", { count: misread, defaultValue_one: "{{count}} misread" }),
+            detail: t("{{misreads}} in {{count}} notches", {
+              misreads: [reversed && t("{{count}} the wrong way", { count: reversed }), doubled && t("{{count}} twice", { count: doubled })].filter(Boolean).join(", "),
+              count: all.length,
+            }),
+            tone: "warn",
+          }
+        : { value: t("No misreads"), detail: t("In {{count}} notches", { count: all.length }), tone: "good" };
   useReport(onResult, result);
 
   const body = (
     <div className={s.body}>
       <div ref={target} className={s.target} aria-hidden>
-        <Caption1>Scroll here</Caption1>
+        <Caption1>{t("Scroll here")}</Caption1>
       </div>
       <div className={s.side}>
         <div className={s.counts}>
           <span className={s.count}>
-            <Caption1 className={s.muted}>Down</Caption1>
+            <Caption1 className={s.muted}>{t("Down", { context: "direction" })}</Caption1>
             <Caption1>{down}</Caption1>
           </span>
           <span className={s.count}>
-            <Caption1 className={s.muted}>Up</Caption1>
+            <Caption1 className={s.muted}>{t("Up", { context: "direction" })}</Caption1>
             <Caption1>{up}</Caption1>
           </span>
           <span className={s.count}>
-            <Caption1 className={s.muted}>Wrong way</Caption1>
+            <Caption1 className={s.muted}>{t("Wrong way")}</Caption1>
             <Caption1 className={reversed ? s.flagged : undefined}>{reversed}</Caption1>
           </span>
           <span className={s.count}>
-            <Caption1 className={s.muted}>Twice</Caption1>
+            <Caption1 className={s.muted}>{t("Twice")}</Caption1>
             <Caption1 className={doubled ? s.flagged : undefined}>{doubled}</Caption1>
           </span>
         </div>
@@ -156,7 +164,7 @@ export function ScrollCheck({ onResult }: TestProps) {
         </Caption1>
         <div className={s.actions}>
           <Link as="button" disabled={!all.length} onClick={clear}>
-            Clear
+            {t("Clear")}
           </Link>
         </div>
       </div>

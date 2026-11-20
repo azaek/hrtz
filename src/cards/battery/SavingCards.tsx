@@ -2,12 +2,13 @@ import { Dropdown, Option, Switch } from "@fluentui/react-components";
 import { BatterySaver20Regular, BatteryWarning20Regular, WeatherMoon20Regular } from "@fluentui/react-icons";
 import { topRate, type MousePrefs, type Prefs } from "@/api";
 import { Choice, SettingCard } from "@/components";
+import { num, t } from "@/i18n";
 import { NumberStepper } from "@/kit";
 import { hzText } from "@/rates";
 import { commit, saveMousePrefs, savePrefs, useMouse, useStore } from "@/store";
 
 /** "10 s", "1 min". */
-const shortTime = (s: number) => (s < 60 ? `${s} s` : `${s / 60} min`);
+const shortTime = (s: number) => (s < 60 ? t("{{n}} s", { n: num(s) }) : t("{{n}} min", { n: num(s / 60) }));
 
 /** Battery saver, how soon the mouse sleeps, and the low battery alert, as settings cards. */
 export function SavingCards({ prefs }: { prefs: Prefs }) {
@@ -28,12 +29,12 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
   const showSaver = !!saver && !!caps?.polling && caps.battery && !(!caps.wired && (top ?? 0) <= 1000 && !lowered);
   // One line: the level and rate are in the controls beside it.
   const saverText = caps?.wired
-    ? "Not needed while wired."
+    ? t("Not needed while wired.")
     : lowered
-      ? `Lowered from ${hzText(lowered)} until charged.`
+      ? t("Lowered from {{rate}} until charged.", { rate: hzText(lowered) })
       : saver?.batterySaver
-        ? "Lowers the polling rate on low battery, until charged."
-        : "Lowers the polling rate when the battery is low.";
+        ? t("Lowers the polling rate on low battery, until charged.")
+        : t("Lowers the polling rate when the battery is low.");
   const s = device?.settings;
   // The sleep timer: a Z1 PRO MAX's (0xBB, measured 2026-10-17) and the R1 line's (ATK's 0xAD); others offer none.
   const sleepTimes = caps?.sleepTimesS ?? [];
@@ -43,12 +44,12 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
   return (
     <>
       {showSaver && (
-        <SettingCard icon={<BatterySaver20Regular />} title="Battery saver" description={saverText}>
+        <SettingCard icon={<BatterySaver20Regular />} title={t("Battery saver")} description={saverText}>
           {saver?.batterySaver && !caps?.wired && (
             <div className="tw flex items-center gap-2">
-              <NumberStepper label="Battery level to start saving at" unit="%" min={5} max={50} step={5} value={saver.batterySaverBelow} onChange={(v) => setSaver({ batterySaverBelow: v })} />
+              <NumberStepper label={t("Battery level to start saving at")} unit="%" min={5} max={50} step={5} value={saver.batterySaverBelow} onChange={(v) => setSaver({ batterySaverBelow: v })} />
               <Dropdown
-                aria-label="Polling rate while saving"
+                aria-label={t("Polling rate while saving")}
                 style={{ minWidth: 128 }}
                 value={hzText(saver.batterySaverHz)}
                 selectedOptions={[String(saver.batterySaverHz)]}
@@ -62,45 +63,45 @@ export function SavingCards({ prefs }: { prefs: Prefs }) {
               </Dropdown>
             </div>
           )}
-          <Switch checked={!!saver?.batterySaver} disabled={caps?.wired} onChange={(_, d) => setSaver({ batterySaver: d.checked })} aria-label="Battery saver" />
+          <Switch checked={!!saver?.batterySaver} disabled={caps?.wired} onChange={(_, d) => setSaver({ batterySaver: d.checked })} aria-label={t("Battery saver")} />
         </SettingCard>
       )}
       {s && sleepS !== undefined && sleepTimes.length > 0 && !caps?.wired && (
         <SettingCard
           icon={<WeatherMoon20Regular />}
-          title="Sleep after"
-          description={device?.online ? "Idle time before the mouse sleeps. Longer uses more battery." : "Wake the mouse to change this."}
+          title={t("Sleep after")}
+          description={device?.online ? t("Idle time before the mouse sleeps. Longer uses more battery.") : t("Wake the mouse to change this.")}
         >
           {sleepChoices.length > 5 ? (
             // An R1 has eight, too many for one row.
             <Dropdown
-              aria-label="Sleep after"
+              aria-label={t("Sleep after")}
               style={{ minWidth: 128 }}
               disabled={!device?.online}
               value={shortTime(sleepS)}
               selectedOptions={[String(sleepS)]}
               onOptionSelect={(_, d) => d.optionValue && void commit({ ...s, sleepS: Number(d.optionValue) })}
             >
-              {sleepChoices.map((t) => (
-                <Option key={t} value={String(t)}>
-                  {shortTime(t)}
+              {sleepChoices.map((v) => (
+                <Option key={v} value={String(v)}>
+                  {shortTime(v)}
                 </Option>
               ))}
             </Dropdown>
           ) : (
             <Choice
-              label="Sleep after"
+              label={t("Sleep after")}
               value={sleepS}
               disabled={!device?.online}
-              options={sleepChoices.map((t) => ({ value: t, label: shortTime(t) }))}
-              onChange={(t) => void commit({ ...s, sleepS: t })}
+              options={sleepChoices.map((v) => ({ value: v, label: shortTime(v) }))}
+              onChange={(v) => void commit({ ...s, sleepS: v })}
             />
           )}
         </SettingCard>
       )}
-      <SettingCard icon={<BatteryWarning20Regular />} title="Low battery alert" description="Notifies you once when the battery drops to this level.">
-        {prefs.batteryAlerts && <NumberStepper label="Low battery level" unit="%" min={5} max={50} step={5} value={prefs.lowBatteryPercent} onChange={(v) => set({ lowBatteryPercent: v })} />}
-        <Switch checked={prefs.batteryAlerts} onChange={(_, d) => set({ batteryAlerts: d.checked })} aria-label="Low battery alert" />
+      <SettingCard icon={<BatteryWarning20Regular />} title={t("Low battery alert")} description={t("Notifies you once when the battery drops to this level.")}>
+        {prefs.batteryAlerts && <NumberStepper label={t("Low battery level")} unit="%" min={5} max={50} step={5} value={prefs.lowBatteryPercent} onChange={(v) => set({ lowBatteryPercent: v })} />}
+        <Switch checked={prefs.batteryAlerts} onChange={(_, d) => set({ batteryAlerts: d.checked })} aria-label={t("Low battery alert")} />
       </SettingCard>
     </>
   );

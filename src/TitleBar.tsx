@@ -3,6 +3,7 @@ import { makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
 import { DocumentSearch16Regular } from "@fluentui/react-icons";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Wordmark } from "./brand";
+import { t } from "./i18n";
 import { setInspecting, useStore } from "./store";
 
 const useStyles = makeStyles({
@@ -80,17 +81,17 @@ export function TitleBar() {
       <Wordmark size={16} className={s.brand} />
       <div className={s.tools}>
         {!inspecting && (
-          <button className={s.tool} title="Check a mouse that isn't supported or tested yet, and send the report" onClick={() => setInspecting(true)}>
+          <button className={s.tool} title={t("Check a mouse that isn't supported or tested yet, and send the report")} onClick={() => setInspecting(true)}>
             <DocumentSearch16Regular />
-            Inspect a mouse
+            {t("Inspect a mouse")}
           </button>
         )}
       </div>
       <div className={s.caption}>
-        <button className={s.button} tabIndex={-1} title="Minimize" aria-label="Minimize" onClick={() => win.minimize()}>
+        <button className={s.button} tabIndex={-1} title={t("Minimize")} aria-label={t("Minimize")} onClick={() => win.minimize()}>
           {""}
         </button>
-        <button className={mergeClasses(s.button, s.close)} tabIndex={-1} title="Close" aria-label="Close" onClick={() => win.close()}>
+        <button className={mergeClasses(s.button, s.close)} tabIndex={-1} title={t("Close")} aria-label={t("Close")} onClick={() => win.close()}>
           {""}
         </button>
       </div>

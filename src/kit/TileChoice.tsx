@@ -23,7 +23,7 @@ export function TileChoice<T extends string>(props: {
           <button
             key={o.value}
             className={cn(
-              "st-tile flex h-16 min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-1 text-[color:var(--colorNeutralForeground1)] touch-manipulation",
+              "st-tile flex min-h-16 min-w-0 cursor-pointer flex-col items-center justify-start gap-1 rounded-md px-1 pt-3 pb-2 text-[color:var(--colorNeutralForeground1)] touch-manipulation",
               "disabled:cursor-default disabled:text-[color:var(--colorNeutralForegroundDisabled)] disabled:[--tile-bg-hover:var(--nav-pressed)]",
             )}
             // Quieter than a button at rest, so the chosen tile's tint stands out.
@@ -36,7 +36,8 @@ export function TileChoice<T extends string>(props: {
             <span aria-hidden className="flex text-[20px]">
               {o.icon}
             </span>
-            <Caption1 className="max-w-full truncate">{o.label}</Caption1>
+            {/* A label too long for one line (a translation) wraps: the icons stay level along the row. */}
+            <Caption1 className="max-w-full text-center">{o.label}</Caption1>
           </button>
         );
       })}

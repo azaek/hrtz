@@ -12,6 +12,7 @@ import {
 } from "@fluentui/react-icons";
 import type { ButtonAction } from "@/api";
 import { actionLabel } from "@/hid";
+import { msg, num, t } from "@/i18n";
 
 /** Flash index of the DPI button, on the underside of every Zaopin model. */
 export const DPI_BUTTON = 5;
@@ -40,6 +41,7 @@ export interface Catalog {
   scroll: Direction[];
   /** Keys in a combination: up to three counting modifiers (a Zaopin), or one besides them. */
   oneKey: boolean;
+  /** Shown with `t()`. */
   maker: string;
 }
 
@@ -49,7 +51,7 @@ export const CATALOGS: Record<"compx" | "atk" | "hidpp", Catalog> = {
     dpi: ["cycle", "up", "down", "hold"],
     scroll: ["up", "down", "left", "right"],
     oneKey: false,
-    maker: "Zaopin's app",
+    maker: msg("Zaopin's app"),
   },
   // ATK's, VXE's and MAD's mice keep their buttons as a Zaopin does, with the same codes. ATK's
   // app sets no hold-for-DPI, so how one would be kept isn't known: it's left out.
@@ -58,7 +60,7 @@ export const CATALOGS: Record<"compx" | "atk" | "hidpp", Catalog> = {
     dpi: ["cycle", "up", "down"],
     scroll: ["up", "down", "left", "right"],
     oneKey: false,
-    maker: "ATK's app",
+    maker: msg("ATK's app"),
   },
   // OpenMouse's records (`hidpp/buttons.rs`): no rapid fire, polling switch or hold-for-DPI, and the
   // wheel tilts but doesn't scroll from a button.
@@ -67,20 +69,20 @@ export const CATALOGS: Record<"compx" | "atk" | "hidpp", Catalog> = {
     dpi: ["cycle", "up", "down", "default"],
     scroll: ["left", "right"],
     oneKey: true,
-    maker: "G HUB",
+    maker: msg("G HUB"),
   },
 };
 
-export const FUNCTIONS: { value: Fn; label: string; icon: ReactElement }[] = [
-  { value: "mouse", label: "Mouse button", icon: <CursorClick20Regular /> },
-  { value: "dpi", label: "DPI", icon: <Gauge20Regular /> },
-  { value: "scroll", label: "Scroll", icon: <ArrowBidirectionalUpDown20Regular /> },
-  { value: "keys", label: "Keys", icon: <Keyboard20Regular /> },
-  { value: "media", label: "Media", icon: <Play20Regular /> },
-  { value: "fire", label: "Rapid fire", icon: <Flash20Regular /> },
-  { value: "pollingSwitch", label: "Polling rate", icon: <ArrowRepeatAll20Regular /> },
-  { value: "profile", label: "Profile", icon: <Stack20Regular /> },
-  { value: "disabled", label: "Disabled", icon: <Prohibited20Regular /> },
+export const functions = (): { value: Fn; label: string; icon: ReactElement }[] => [
+  { value: "mouse", label: t("Mouse button"), icon: <CursorClick20Regular /> },
+  { value: "dpi", label: t("DPI"), icon: <Gauge20Regular /> },
+  { value: "scroll", label: t("Scroll"), icon: <ArrowBidirectionalUpDown20Regular /> },
+  { value: "keys", label: t("Keys"), icon: <Keyboard20Regular /> },
+  { value: "media", label: t("Media"), icon: <Play20Regular /> },
+  { value: "fire", label: t("Rapid fire"), icon: <Flash20Regular /> },
+  { value: "pollingSwitch", label: t("Polling rate"), icon: <ArrowRepeatAll20Regular /> },
+  { value: "profile", label: t("Profile"), icon: <Stack20Regular /> },
+  { value: "disabled", label: t("Disabled"), icon: <Prohibited20Regular /> },
 ];
 
 /** The tile an action belongs to, or null for a macro or vendor function this app can't edit. */
@@ -117,7 +119,7 @@ export const isLeftClick = (a: ButtonAction | undefined) => a?.kind === "mouse" 
 
 /** A short line for what a button does: "Rapid fire, 30 ms", "Hold for 400 DPI", "Ctrl + C". */
 export function shortLabel(a: ButtonAction): string {
-  if (a.kind === "fire") return a.times === 0 ? `Rapid fire, ${a.intervalMs} ms` : `Rapid fire ×${a.times}, ${a.intervalMs} ms`;
-  if (a.kind === "dpiLock") return `Hold for ${a.dpi.toLocaleString()} DPI`;
+  if (a.kind === "fire") return a.times === 0 ? t("Rapid fire, {{ms}} ms", { ms: num(a.intervalMs) }) : t("Rapid fire ×{{times}}, {{ms}} ms", { times: num(a.times), ms: num(a.intervalMs) });
+  if (a.kind === "dpiLock") return t("Hold for {{dpi}} DPI", { dpi: num(a.dpi) });
   return actionLabel(a);
 }

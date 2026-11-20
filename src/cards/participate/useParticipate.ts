@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api, message, type ButtonAction, type CaptureScreen, type DeviceState, type MeterSample, type Settings } from "@/api";
 import { useCapture, useHold } from "@/cards/lab/parts";
-import { actionLabel } from "@/hid";
+import { actionLabel, physicalName } from "@/hid";
+import { english, msg, num, t } from "@/i18n";
 import { useRawInput } from "@/rawInput";
 import { useStore } from "@/store";
-import { changesFor, noted, tryChanges, type WriteCheck } from "./changes";
+import { changesFor, noted, tryChanges, type Said, type WriteCheck } from "./changes";
+import { ENGLISH, SCREEN, type Voice } from "./report";
 
 export type { WriteCheck };
 
@@ -24,7 +26,9 @@ export type Stage = "idle" | "reading" | "moving" | "buttons" | "writing" | "rat
  *  nothing a press would change, and `why` says which. */
 export interface ButtonCheck {
   name: string;
+  /** What it's set to, in English for the report; `shown` says it in the language shown. */
   does: string;
+  shown?: () => string;
   seen: boolean | null;
   why?: string;
 }
@@ -58,7 +62,8 @@ export function differs(before: string, after: string): string[] {
 }
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
-const fmt = (n: number) => n.toLocaleString("en-US");
+/** Seconds counted, to a tenth: "3.2". */
+const tenths = (s: number) => num(s, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** What a button does, and how pressing it shows: a raw button number, "state" (its stage or
  *  profile changes), or nothing to see. */
@@ -262,8 +267,9 @@ export function useParticipate() {
       if (!writes) return;
       if (profiles && r.profile !== null && !r.stopped) {
         const [from, to] = [r.profile, (r.profile + 1) % profiles];
-        doing(plan.length, "Profile");
-        const w: WriteCheck = { what: "Profile", from: `Profile ${from + 1}`, to: `Profile ${to + 1}`, kept: false, restored: false };
+        doing(plan.length, t("Profile"));
+        const say = ({ t }: Voice): Said => ({ what: t("Profile"), from: t("Profile {{profile}}", { profile: from + 1 }), to: t("Profile {{profile}}", { profile: to + 1 }) });
+        const w: WriteCheck = { ...say(ENGLISH), shown: () => say(SCREEN), kept: false, restored: false };
         const now = async () => (await api.states()).find((d) => d.key === r.key)?.profile;
         try {
           await api.setProfile(to);
@@ -303,12 +309,13 @@ export function useParticipate() {
     const dpi: ButtonAction = { kind: "dpi", action: "cycle" };
     const dpiOnly = !physical.length && !!device.capabilities?.dpiButton && !!device.capabilities.dpi && (device.settings?.dpiStageCount ?? 1) > 1 && !simulated;
     const buttons: ButtonCheck[] = dpiOnly
-      ? [{ name: "DPI", does: actionLabel(dpi), seen: false }]
+      ? [{ name: "DPI", does: actionLabel(dpi, english), shown: () => actionLabel(dpi), seen: false }]
       : physical.map(([i, name]) => ({
           name,
-          does: actionLabel(actions[i] ?? { kind: "disabled" }),
+          does: actionLabel(actions[i] ?? { kind: "disabled" }, english),
+          shown: () => actionLabel(actions[i] ?? { kind: "disabled" }),
           seen: seenBy(actions[i]) === null ? null : false,
-          ...(oneStage(actions[i]) && { why: "only one DPI stage is on, so a press changes nothing" }),
+          ...(oneStage(actions[i]) && { why: msg("only one DPI stage is on, so a press changes nothing") }),
         }));
     Object.assign(run.current, {
       key: device.key ?? null,
@@ -321,7 +328,7 @@ export function useParticipate() {
       stutters: 0,
       rate: null,
       queue: dpiOnly
-        ? [{ name: "DPI", does: actionLabel(dpi), by: "state" as const, detail: "The DPI button: it may be under the mouse. Once is enough." }]
+        ? [{ name: "DPI", does: actionLabel(dpi), by: "state" as const, detail: t("The DPI button: it may be under the mouse. Once is enough.") }]
         : physical.flatMap(([i, name]) => {
             const by = seenBy(actions[i]);
             return by === null ? [] : [{ name, does: actionLabel(actions[i]), by }];
@@ -378,43 +385,43 @@ function screenOf(
   const blank = { figure: "", figureLabel: "", progressLabel: "" };
   switch (stage) {
     case "reading":
-      return { ...blank, title: "Reading the mouse", detail: "Its settings and memory, for the report. Keep it still.", progress: read, progressLabel: `${Math.round(read * 100)}%` };
+      return { ...blank, title: t("Reading the mouse"), detail: t("Its settings and memory, for the report. Keep it still."), progress: read, progressLabel: t("{{percent}}%", { percent: num(Math.round(read * 100)) }) };
     case "moving":
       return {
-        title: "Move the mouse in quick circles",
-        detail: "Measures how often it reports, the way a game reads it.",
-        figure: r.rate ? fmt(r.rate) : "–",
-        figureLabel: r.rate ? "reports a second" : "Start moving",
+        title: t("Move the mouse in quick circles"),
+        detail: t("Measures how often it reports, the way a game reads it."),
+        figure: r.rate ? num(r.rate) : "–",
+        figureLabel: r.rate ? t("reports a second") : t("Start moving"),
         progress: r.ms / MOVE_MS,
-        progressLabel: `${(r.ms / 1000).toFixed(1)} of ${MOVE_MS / 1000} s counted`,
+        progressLabel: t("{{counted}} of {{total}} s counted", { counted: tenths(r.ms / 1000), total: num(MOVE_MS / 1000) }),
       };
     case "buttons": {
       const b = r.queue[r.at];
       const left = Math.max(0, BUTTON_MS - (Date.now() - r.since));
       return {
         ...blank,
-        title: b ? `Press ${b.name}` : "",
-        detail: b ? (b.detail ?? `It's set to ${b.does}. Once is enough.`) : "",
+        title: b ? t("Press {{button}}", { button: physicalName(b.name) }) : "",
+        detail: b ? (b.detail ?? t("It's set to {{action}}. Once is enough.", { action: b.does })) : "",
         progress: left / BUTTON_MS,
-        progressLabel: `Button ${r.at + 1} of ${r.queue.length} · moves on in ${Math.ceil(left / 1000)} s`,
+        progressLabel: t("Button {{n}} of {{total}} · moves on in {{seconds}} s", { n: num(r.at + 1), total: num(r.queue.length), seconds: num(Math.ceil(left / 1000)) }),
       };
     }
     case "rate":
       return {
-        title: "Move the mouse in quick circles again",
-        detail: `Its polling rate is set to ${fmt(r.count.to)} Hz for a moment, to count that it changed.`,
-        figure: r.rate ? fmt(r.rate) : "–",
-        figureLabel: r.rate ? "reports a second" : "Start moving",
+        title: t("Move the mouse in quick circles again"),
+        detail: t("Its polling rate is set to {{hz}} Hz for a moment, to count that it changed.", { hz: num(r.count.to) }),
+        figure: r.rate ? num(r.rate) : "–",
+        figureLabel: r.rate ? t("reports a second") : t("Start moving"),
         progress: r.count.ms / RATE_MS,
-        progressLabel: `${(r.count.ms / 1000).toFixed(1)} of ${RATE_MS / 1000} s counted`,
+        progressLabel: t("{{counted}} of {{total}} s counted", { counted: tenths(r.count.ms / 1000), total: num(RATE_MS / 1000) }),
       };
     default:
       return {
         ...blank,
-        title: "Checking each setting",
-        detail: r.doing ? `${r.doing}: changed, checked and put back.` : "hrtz changes each setting, checks the mouse kept it, and puts it back.",
+        title: t("Checking each setting"),
+        detail: r.doing ? t("{{setting}}: changed, checked and put back.", { setting: r.doing }) : t("hrtz changes each setting, checks the mouse kept it, and puts it back."),
         progress: r.of ? r.n / r.of : 0,
-        progressLabel: r.of ? `${Math.min(r.n + 1, r.of)} of ${r.of}` : "",
+        progressLabel: r.of ? t("{{n}} of {{total}}", { n: num(Math.min(r.n + 1, r.of)), total: num(r.of) }) : "",
       };
   }
 }

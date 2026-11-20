@@ -4,6 +4,7 @@ import { Add16Regular, Apps20Regular, ArrowRight16Regular, Delete16Regular, Rena
 import { api, type AppRule, type KnownMouse, type MousePrefs, type Prefs } from "@/api";
 import { AppIcon, Group, SettingCard } from "@/components";
 import { fmtDpi } from "@/dpi";
+import { t } from "@/i18n";
 import { AccentBadge, afterMenu, CardNote, MoreMenu, Pane, PaneFooter, PaneHeader, UndoNote, type MoreMenuItem } from "@/kit";
 import { hzText } from "@/rates";
 import { run, saveMousePrefs, useStore } from "@/store";
@@ -34,17 +35,20 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
   if (device.profile === null) {
     return (
       <Group>
-        <SettingCard icon={<Stack20Regular />} title="Profiles" description="This mouse doesn't report onboard profiles." />
+        <SettingCard icon={<Stack20Regular />} title={t("Profiles")} description={t("This mouse doesn't report onboard profiles.")} />
       </Group>
     );
   }
 
-  // As many as the mouse has (a Zaopin 4, a Superlight 5), named as saved or by number.
+  // As many as the mouse has (a Zaopin 4, a Superlight 5), named as saved or by number. The
+  // stand-in "Profile 2" is kept in English (the backend and a Logitech's driver know it by that)
+  // and shown in the language picked.
   const count = device.capabilities?.profiles ?? m.profileNames.length;
-  const names = Array.from({ length: count }, (_, i) => m.profileNames[i] ?? `Profile ${i + 1}`);
+  const saved = Array.from({ length: count }, (_, i) => m.profileNames[i] ?? `Profile ${i + 1}`);
+  const names = saved.map((n, i) => (n === `Profile ${i + 1}` ? t("Profile {{n}}", { n: i + 1 }) : n));
   const name = names[sel];
   const set = (patch: Partial<MousePrefs>) => saveMousePrefs(mouse.key, { ...m, ...patch });
-  const rename = (v: string) => set({ profileNames: names.map((n, j) => (j === sel ? v : n)) });
+  const rename = (v: string) => set({ profileNames: saved.map((n, j) => (j === sel ? v : n)) });
   const summary = (i: number) => summaryOf(i, device.profile, device.settings, m.profileSnapshots, device.mid, device.capabilities);
   const held = summary(sel);
   const apps = m.rules.filter((x) => x.profile === sel);
@@ -54,9 +58,9 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
   const canUse = device.online && !busy;
 
   const appMenu = (x: AppRule): MoreMenuItem[] => [
-    ...names.flatMap((n, i) => (i === x.profile ? [] : [{ label: `Move to ${n}`, icon: <ArrowRight16Regular />, onClick: () => r.move(x, i) }])),
+    ...names.flatMap((n, i) => (i === x.profile ? [] : [{ label: t("Move to {{profile}}", { profile: n }), icon: <ArrowRight16Regular />, onClick: () => r.move(x, i) }])),
     "divider",
-    { label: "Remove", icon: <Delete16Regular />, onClick: () => r.remove(x) },
+    { label: t("Remove"), icon: <Delete16Regular />, onClick: () => r.remove(x) },
   ];
 
   return (
@@ -64,16 +68,16 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
       <Group>
         <SettingCard
           icon={<Apps20Regular />}
-          title="Switch profiles by app"
+          title={t("Switch profiles by app")}
           description={
             m.rulesEnabled
               ? focusName
-                ? `Switches profile when an app comes into focus. Now in focus: ${focusName}.`
-                : "Switches profile when an app comes into focus."
-              : "Profiles change only when you switch them."
+                ? t("Switches profile when an app comes into focus. Now in focus: {{app}}.", { app: focusName })
+                : t("Switches profile when an app comes into focus.")
+              : t("Profiles change only when you switch them.")
           }
         >
-          <Switch checked={m.rulesEnabled} onChange={(_, d) => set({ rulesEnabled: d.checked })} aria-label="Switch profiles by app" />
+          <Switch checked={m.rulesEnabled} onChange={(_, d) => set({ rulesEnabled: d.checked })} aria-label={t("Switch profiles by app")} />
         </SettingCard>
       </Group>
 
@@ -81,8 +85,8 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
         <div className="grid items-start gap-2 @min-[700px]/profiles:grid-cols-[264px_minmax(0,1fr)]">
           {/* The profiles. */}
           <Pane sticky>
-            <PaneHeader title="Profiles on the mouse" description="Each keeps its own settings." />
-            <div role="list" aria-label="Profiles" className="flex flex-col gap-0.5 px-1 pb-1">
+            <PaneHeader title={t("Profiles on the mouse")} description={t("Each keeps its own settings.")} />
+            <div role="list" aria-label={t("Profiles")} className="flex flex-col gap-0.5 px-1 pb-1">
               {names.map((n, i) => (
                 <button
                   key={i}
@@ -95,7 +99,7 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
                 >
                   <span className="flex min-w-0 flex-1 flex-col">
                     <Body1 style={truncate}>{n}</Body1>
-                    <Caption1 style={{ ...muted, ...truncate }}>{device.profile === i ? `In use · ${summaryText(summary(i))}` : summaryText(summary(i))}</Caption1>
+                    <Caption1 style={{ ...muted, ...truncate }}>{device.profile === i ? `${t("In use")} · ${summaryText(summary(i))}` : summaryText(summary(i))}</Caption1>
                   </span>
                   {device.profile === i && <span aria-hidden className="size-2 shrink-0 rounded-full bg-brand" />}
                 </button>
@@ -108,49 +112,49 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
             <PaneHeader
               strong
               title={renaming ? <NameField value={name} index={sel} maxLength={device.profileNames ? 23 : undefined} onSave={rename} onDone={() => setRenaming(false)} /> : <span style={truncate}>{name}</span>}
-              description={`Profile ${sel + 1} on the mouse`}
+              description={t("Profile {{n}} on the mouse", { n: sel + 1 })}
               actions={
                 <div className="flex shrink-0 items-center gap-1">
                   {device.profile === sel ? (
-                    <AccentBadge>In use</AccentBadge>
+                    <AccentBadge>{t("In use")}</AccentBadge>
                   ) : (
                     <Button appearance="primary" disabled={!canUse} onClick={() => run(() => api.setProfile(sel))}>
-                      Use this profile
+                      {t("Use this profile")}
                     </Button>
                   )}
-                  <MoreMenu label={`${name} actions`} items={[{ label: "Rename", icon: <Rename16Regular />, onClick: () => afterMenu(() => setRenaming(true)) }]} />
+                  <MoreMenu label={t("{{name}} actions", { name })} items={[{ label: t("Rename"), icon: <Rename16Regular />, onClick: () => afterMenu(() => setRenaming(true)) }]} />
                 </div>
               }
             />
 
             <section className="flex flex-col gap-2 px-4 pt-2 pb-4">
-              <Body1 style={{ fontWeight: 600 }}>Settings</Body1>
+              <Body1 style={{ fontWeight: 600 }}>{t("Settings")}</Body1>
               {held ? (
-                <dl className="grid grid-cols-[112px_1fr] gap-y-1.5 text-sm tabular-nums">
+                <dl className="grid grid-cols-[minmax(112px,max-content)_1fr] gap-y-1.5 text-sm tabular-nums [&>dt]:pr-4">
                   <dt className="text-muted-foreground">DPI</dt>
                   <dd>
-                    {fmtDpi(held.dpi)} <span className="text-muted-foreground">({held.stages === 1 ? "one stage" : `${held.stages} stages`})</span>
+                    {fmtDpi(held.dpi)} <span className="text-muted-foreground">({t("{{count}} stages", { count: held.stages, defaultValue_one: "one stage" })})</span>
                   </dd>
-                  <dt className="text-muted-foreground">Polling rate</dt>
+                  <dt className="text-muted-foreground">{t("Polling rate")}</dt>
                   <dd>{hzText(held.hz)}</dd>
                   {/* Only where hrtz reads the buttons: an ATK's aren't yet. */}
                   {!!device.capabilities?.buttons && (
                     <>
-                      <dt className="text-muted-foreground">Buttons</dt>
-                      <dd>{held.buttonsChanged ? `${held.buttonsChanged} changed` : "Unchanged"}</dd>
+                      <dt className="text-muted-foreground">{t("Buttons")}</dt>
+                      <dd>{held.buttonsChanged ? t("{{count}} changed", { count: held.buttonsChanged }) : t("Unchanged")}</dd>
                     </>
                   )}
                 </dl>
               ) : (
-                <Caption1 style={muted}>{UNSEEN}</Caption1>
+                <Caption1 style={muted}>{t(UNSEEN)}</Caption1>
               )}
             </section>
 
             <section className="flex flex-col gap-1 border-t pt-3 pb-3">
               <div className="flex items-center gap-3 px-4 pb-1">
-                <Body1 style={{ fontWeight: 600, flex: 1 }}>Apps that use this profile</Body1>
+                <Body1 style={{ fontWeight: 600, flex: 1 }}>{t("Apps that use this profile")}</Body1>
                 <AppPicker rules={m.rules} games={prefs.padGames} onPick={(a) => r.add(a, sel)}>
-                  <Button icon={<Add16Regular />}>Add app</Button>
+                  <Button icon={<Add16Regular />}>{t("Add app")}</Button>
                 </AppPicker>
               </div>
               <ul className="flex flex-col">
@@ -159,25 +163,25 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
                     <AppIcon src={r.iconOf(x)} className="size-6 shrink-0 object-contain" />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <Body1 style={truncate}>{appName(x)}</Body1>
-                      <Caption1 style={{ ...muted, ...truncate }}>{isFocused(x) ? `In focus now · ${x.exe}` : x.exe}</Caption1>
+                      <Caption1 style={{ ...muted, ...truncate }}>{isFocused(x) ? `${t("In focus now")} · ${x.exe}` : x.exe}</Caption1>
                     </span>
-                    <MoreMenu label={`${appName(x)} actions`} items={appMenu(x)} />
+                    <MoreMenu label={t("{{name}} actions", { name: appName(x) })} items={appMenu(x)} />
                   </li>
                 ))}
-                {!apps.length && <li className="px-4 py-2 text-xs text-muted-foreground">None yet.</li>}
+                {!apps.length && <li className="px-4 py-2 text-xs text-muted-foreground">{t("None yet.")}</li>}
               </ul>
               <div className="flex items-center gap-3 px-4 pt-2">
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <Body1>Use for other apps</Body1>
+                  <Body1>{t("Use for other apps")}</Body1>
                   <Caption1 style={muted}>
                     {m.defaultProfile === null
-                      ? "Apps without a rule keep the current profile."
+                      ? t("Apps without a rule keep the current profile.")
                       : m.defaultProfile === sel
-                        ? "Apps without a rule switch to this profile."
-                        : `${names[m.defaultProfile]} is the default now.`}
+                        ? t("Apps without a rule switch to this profile.")
+                        : t("{{profile}} is the default now.", { profile: names[m.defaultProfile] })}
                   </Caption1>
                 </div>
-                <Switch checked={m.defaultProfile === sel} onChange={(_, d) => set({ defaultProfile: d.checked ? sel : null })} aria-label={`Use ${name} for any other app`} />
+                <Switch checked={m.defaultProfile === sel} onChange={(_, d) => set({ defaultProfile: d.checked ? sel : null })} aria-label={t("Use {{profile}} for any other app", { profile: name })} />
               </div>
             </section>
 
@@ -185,7 +189,7 @@ export function ProfilesPanel({ prefs, mouse }: { prefs: Prefs; mouse: KnownMous
               {r.undo ? (
                 <UndoNote onUndo={r.revert}>{r.undo.text}</UndoNote>
               ) : (
-                <CardNote note={device.online ? null : { text: "Wake the mouse to switch profiles." }} hint="You can also switch profiles from the tray icon." />
+                <CardNote note={device.online ? null : { text: t("Wake the mouse to switch profiles.") }} hint={t("You can also switch profiles from the tray icon.")} />
               )}
             </PaneFooter>
           </Pane>

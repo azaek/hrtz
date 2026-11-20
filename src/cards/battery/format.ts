@@ -1,14 +1,21 @@
+import { dateLocale, num, t } from "@/i18n";
+
 export const DAY = 86_400;
 
 export const unixNow = () => Math.floor(Date.now() / 1000);
 /** 0.4 → "24 min", 7.6 → "8 h". */
-export const hours = (h: number) => (h < 1.5 ? `${Math.round(h * 60)} min` : `${Math.round(h)} h`);
+export const hours = (h: number) => (h < 1.5 ? t("{{n}} min", { n: num(Math.round(h * 60)) }) : t("{{n}} h", { n: num(Math.round(h)) }));
 /** 10.85 → "10 h 51 min", 0.4 → "24 min". */
 export const duration = (h: number) => {
   const m = Math.round(h * 60);
-  return m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`;
+  if (m < 60) return t("{{n}} min", { n: num(m) });
+  return m % 60 ? t("{{h}} h {{m}} min", { h: num(Math.floor(m / 60)), m: num(m % 60) }) : t("{{n}} h", { n: num(m / 60) });
 };
 /** 1.2 → "29 hours", 5.12 → "5.1 days". */
-export const days = (d: number) => (d < 1.5 ? `${Math.round(d * 24)} hours` : `${d < 10 ? d.toFixed(1).replace(/\.0$/, "") : Math.round(d)} days`);
+export const days = (d: number) => {
+  if (d < 1.5) return t("{{count}} hours", { count: Math.round(d * 24) });
+  const n = d < 10 ? Math.round(d * 10) / 10 : Math.round(d);
+  return t("{{n}} days", { count: n, n: num(n, { maximumFractionDigits: 1 }) });
+};
 /** Unix seconds → "15 Sept". */
-export const date = (t: number) => new Date(t * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+export const date = (t: number) => new Date(t * 1000).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
