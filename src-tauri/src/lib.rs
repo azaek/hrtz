@@ -1809,10 +1809,13 @@ fn quit(app: &AppHandle) {
 /// which needs Vite running, and would take the installed copy's place, since both share the name.
 /// An entry that's on is pointed at this copy each time it starts: one written by another copy
 /// (a dev build, an install moved) would start that one at sign-in while the switch here said on.
+/// The portable copy has an entry of its own, `hrtz portable`, so it never turns off or takes over
+/// the installed copy's on a PC that has both.
 #[cfg(not(debug_assertions))]
 fn start_with_windows(app: &tauri::AppHandle) -> tauri::Result<()> {
-    use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
-    app.plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))?;
+    use tauri_plugin_autostart::ManagerExt;
+    let name = if portable::PORTABLE { "hrtz portable" } else { "hrtz" };
+    app.plugin(tauri_plugin_autostart::Builder::new().app_name(name).arg("--minimized").build())?;
     let entry = app.autolaunch();
     if entry.is_enabled().unwrap_or(false)
         && let Err(e) = entry.enable()
@@ -1838,7 +1841,13 @@ pub fn run() {
         }
     }
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        // A second start shows this copy's window, unless it came from Start with Windows: with the
+        // installed and the portable copy both set to start, the one that loses stays in the tray.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.iter().any(|a| a == "--minimized") {
+                show_main(app);
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
