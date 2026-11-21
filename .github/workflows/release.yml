@@ -11,10 +11,12 @@ name: Release
 #      heading takes the version and the day's date, and the version goes into package.json,
 #      Cargo.toml, Cargo.lock and tauri.conf.json), the notes come from that changelog entry, and
 #      tauri-action builds the NSIS installer, signs the updater artifacts and puts them, with
-#      latest.json, in a DRAFT GitHub release. Then the stamped files go to main as
-#      "Release X.Y.Z", so the repo keeps the date and the version.
+#      latest.json, in a DRAFT GitHub release. The portable copy is built next and goes into the
+#      same draft: hrtz-portable.exe, its signature and latest-portable.json. Then the stamped
+#      files go to main as "Release X.Y.Z", so the repo keeps the date and the version.
 # Publishing the draft makes it the latest release, whose latest.json installed copies read
-# (plugins.updater.endpoints in tauri.conf.json). A draft lets a human look before it ships.
+# (plugins.updater.endpoints in tauri.conf.json), and whose latest-portable.json portable copies
+# read (src-tauri/src/portable.rs). A draft lets a human look before it ships.
 #
 # On a pull request to main, and run by hand (Actions, Release, Run workflow), it runs the gate
 # alone, so a PR shows whether it passes before it's merged. A fork's PR runs it with a read-only
@@ -152,6 +154,26 @@ jobs:
           prerelease: false
           # The signed updater artifacts are made only here, so a clone builds without the key.
           args: --config src-tauri/tauri.release.conf.json
+
+      # The portable copy (src-tauri/src/portable.rs): the same app, built to keep its data beside
+      # it and to update itself in place. Its names stay the same each release, so
+      # releases/latest/download/hrtz-portable.exe is always the newest. gh finds the draft by its
+      # tag. The cargo feature changes only hrtz's own crate, so this rebuilds just that.
+      - name: Build the portable copy
+        run: pnpm tauri build --no-bundle --features portable
+
+      - name: Add the portable copy to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          cp src-tauri/target/release/hrtz.exe hrtz-portable.exe
+          pnpm tauri signer sign hrtz-portable.exe
+          node scripts/portable-manifest.mjs "$VERSION" hrtz-portable.exe.sig > latest-portable.json
+          gh release upload "v$VERSION" hrtz-portable.exe hrtz-portable.exe.sig latest-portable.json --clobber
 
       # The stamped files go to main, so the repo keeps the release's date and version. Only after
       # a good build: a failed one leaves main as it was. If main moved after the tag, the commit

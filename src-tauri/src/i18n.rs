@@ -118,13 +118,14 @@ mod tests {
                 continue;
             }
             let code = std::fs::read_to_string(&path).unwrap();
-            for call in ["tr(\"", "tr_with(\""] {
+            for call in ["tr(", "tr_with("] {
                 for (at, _) in code.match_indices(call) {
                     // Not the end of another name ("attr(").
                     if code[..at].ends_with(|c: char| c.is_alphanumeric() || c == '_') {
                         continue;
                     }
-                    let rest = &code[at + call.len()..];
+                    // The key, also when rustfmt has put a long one on the next line.
+                    let Some(rest) = code[at + call.len()..].trim_start().strip_prefix('"') else { continue };
                     let key = &rest[..rest.find('"').unwrap()];
                     if !listed.contains(&format!("msg(\"{key}\")")) {
                         missing.push(format!("{}: {key}", path.display()));

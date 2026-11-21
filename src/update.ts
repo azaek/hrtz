@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { api, on } from "./api";
+import { check } from "@tauri-apps/plugin-updater";
+import { api, on, type UpdateDownloadEvent } from "./api";
 import { t } from "./i18n";
 import { toast } from "./store";
 
@@ -17,11 +17,36 @@ export type UpdateState =
   | { status: "ready"; version: string }
   | { status: "installing"; version: string };
 
-/** One download event from the updater plugin, typed here so a rename there can't break the build. */
-type DownloadEvent =
-  | { event: "Started"; data: { contentLength?: number } }
-  | { event: "Progress"; data: { chunkLength: number } }
-  | { event: "Finished" };
+/** A newer version found, and how to download and install it. */
+type Found = {
+  version: string;
+  download: (onEvent: (e: UpdateDownloadEvent) => void) => Promise<void>;
+  install: () => Promise<void>;
+};
+
+/**
+ * The installed copy updates through Tauri's updater: the signed NSIS installer from `latest.json`,
+ * which exits hrtz, installs and restarts it. The portable copy has its own signed manifest and is
+ * replaced in place by hrtz itself (`portable.rs`), which then restarts into the new version.
+ */
+async function findUpdate(): Promise<Found | null> {
+  if (await api.isPortable()) {
+    const version = await api.portableCheck();
+    return version ? { version, download: api.portableDownload, install: api.portableInstall } : null;
+  }
+  const found = await check();
+  if (!found) return null;
+  return {
+    version: found.version,
+    download: (onEvent) => found.download(onEvent),
+    install: async () => {
+      // On Windows the installer exits hrtz, past Quit's saving.
+      await api.prepareUpdate().catch(() => {});
+      await found.install();
+      await relaunch();
+    },
+  };
+}
 
 /** Checked quietly a little after launch and every 6 hours after; a newer version downloads by itself. */
 const FIRST_MS = 5_000;
@@ -32,14 +57,14 @@ const SAY_MS = 4_000;
 const reasonOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
- * The self-update, as HEAD does it: Tauri's updater reads the signed `latest.json` on the newest
- * GitHub release (in Rust, so the page needs no network access), downloads a newer version in the
- * background, then waits for a click to install it and restart. A check you didn't ask for stays
- * quiet when it fails; one you asked for says so.
+ * The self-update, as HEAD does it: a signed manifest on the newest GitHub release, read in Rust (so
+ * the page needs no network access), a newer version downloaded in the background, then a click to
+ * install it and restart. A check you didn't ask for stays quiet when it fails; one you asked for
+ * says so.
  */
 export function useUpdate() {
   const [state, setState] = useState<UpdateState>({ status: "idle" });
-  const update = useRef<Update | null>(null);
+  const update = useRef<Found | null>(null);
   const busy = useRef(false);
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -50,7 +75,7 @@ export function useUpdate() {
     clearTimeout(settle.current);
     if (asked) setState({ status: "checking" });
     try {
-      const found = await check();
+      const found = await findUpdate();
       if (!found) {
         if (asked) say({ status: "current" });
         return;
@@ -59,7 +84,7 @@ export function useUpdate() {
       let received = 0;
       let total: number | null = null;
       setState({ status: "downloading", version: found.version, received, total });
-      await found.download((e: DownloadEvent) => {
+      await found.download((e) => {
         if (e.event === "Started") total = e.data.contentLength ?? null;
         if (e.event === "Progress") received += e.data.chunkLength;
         setState({ status: "downloading", version: found.version, received, total });
@@ -101,10 +126,7 @@ export function useUpdate() {
     if (!found) return;
     setState({ status: "installing", version: found.version });
     try {
-      // On Windows the installer exits hrtz, past Quit's saving.
-      await api.prepareUpdate().catch(() => {});
       await found.install();
-      await relaunch();
     } catch (e) {
       // A click deserves an answer: say it failed, and keep the download for another try.
       setState({ status: "ready", version: found.version });
