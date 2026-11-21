@@ -1327,6 +1327,13 @@ async function handle(cmd: string, args: Record<string, unknown>): Promise<unkno
     case "update_ready":
     case "prepare_update":
       return null;
+    // `&portable` shows the portable copy (its updates aren't played here).
+    case "is_portable":
+      return new URLSearchParams(location.search).has("portable");
+    case "portable_check":
+    case "portable_download":
+    case "portable_install":
+      return null;
   }
   if (cmd.startsWith("plugin:window|") || cmd.startsWith("plugin:webview|") || cmd.startsWith("plugin:autostart|")) return false;
   console.warn("lab backend: no answer for", cmd, args);

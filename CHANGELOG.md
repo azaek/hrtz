@@ -4,6 +4,11 @@ Newest first. Each version lists what's **New**, **Improved** and **Fixed**. The
 
 Notes for the next version go under `## Unreleased`. Releasing it gives that heading the version and the day's date: `## 0.2.0 — 2026-11-02`.
 
+## Unreleased
+
+### New
+- A portable version, for running hrtz without installing it: download hrtz-portable.exe from the release page, put it in a folder of its own and run it. It keeps its settings in an hrtz-data folder beside it, updates itself like the installed version, and doesn't start with Windows unless you turn that on.
+
 ## 0.6.0 — 2026-11-20
 
 ### New

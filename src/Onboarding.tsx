@@ -165,6 +165,8 @@ export function Onboarding() {
   const first = flow.mode === "first";
   const steps: Step[] = first ? ["welcome", "connect", "found", "prefs"] : ["connect", "found"];
   const [startup, setStartup] = useState(true);
+  // The portable copy starts off: someone who chose not to install hasn't asked for hrtz at sign-in.
+  useEffect(() => void api.isPortable().then((p) => p && setStartup(false)), []);
   const [alerts, setAlerts] = useState(prefs?.batteryAlerts ?? true);
   const [showWorks, setShowWorks] = useState(false);
   const [backups, setBackups] = useState<BackupMeta[] | null>(null);
@@ -191,7 +193,8 @@ export function Onboarding() {
   const finish = async () => {
     if (prefs) {
       // Start with Windows is on unless turned off here (DECISIONS.md), even on a PC that has no
-      // entry yet. A dev build doesn't have it: its entry would point at the dev build.
+      // entry yet; off to begin with on the portable copy. A dev build doesn't have it: its entry
+      // would point at the dev build.
       try {
         if (!import.meta.env.DEV) await (startup ? enable() : disable());
       } catch (e) {

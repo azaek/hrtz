@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Body1, Button, Caption1 } from "@fluentui/react-components";
 import { getVersion } from "@tauri-apps/api/app";
+import { api } from "@/api";
 import { Emblem } from "@/brand";
 import { LATEST } from "@/changelog";
 import { t } from "@/i18n";
@@ -8,13 +9,16 @@ import { OPEN_WHATS_NEW, whatsNewUnseen } from "@/WhatsNew";
 
 /**
  * hrtz itself, at the top of Settings like PowerToys' General page: its mark on the app icon's
- * dark plate, the version, and What's new, with a dot until the latest version's notes are read.
+ * dark plate, the version (and whether this is the portable copy), and What's new, with a dot until
+ * the latest version's notes are read.
  */
 export function AppCard() {
   const [version, setVersion] = useState(LATEST);
+  const [portable, setPortable] = useState(false);
   const [unseen, setUnseen] = useState(whatsNewUnseen);
   useEffect(() => {
     getVersion().then(setVersion, () => {});
+    void api.isPortable().then(setPortable);
   }, []);
   return (
     <div className="tw flex items-center gap-4 rounded-[var(--borderRadiusLarge)] border border-[color:var(--card-stroke)] bg-[var(--card)] px-5 py-4">
@@ -24,7 +28,7 @@ export function AppCard() {
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
         <Body1 style={{ fontWeight: 600, fontSize: 16 }}>hrtz</Body1>
-        <Caption1 style={{ color: "var(--colorNeutralForeground3)", fontVariantNumeric: "tabular-nums" }}>{t("Version {{version}}", { version })} · {t("Settings and tray companion for gaming mice")}</Caption1>
+        <Caption1 style={{ color: "var(--colorNeutralForeground3)", fontVariantNumeric: "tabular-nums" }}>{portable ? t("Version {{version}}, portable", { version }) : t("Version {{version}}", { version })} · {t("Settings and tray companion for gaming mice")}</Caption1>
       </div>
       <Button
         aria-label={unseen ? t("What's new in {{version}}, not opened yet", { version: LATEST }) : t("What's new")}

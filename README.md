@@ -282,6 +282,15 @@ background, and **Restart to update** in the sidebar or the tray menu installs i
 
 Quit Zaopin's own app first, and for a Logitech, G HUB or its On-board memory mode (see Safety).
 
+### Portable
+
+Rather not install? Download [`hrtz-portable.exe`](https://github.com/azaek/hrtz/releases/latest/download/hrtz-portable.exe),
+put it in a folder of its own and run it. It keeps its settings in an `hrtz-data` folder beside it,
+so the folder can move to another PC or a USB stick, and it updates itself in place the same way.
+It doesn't start with Windows unless you turn that on. To remove it, turn off **Start with Windows**
+if it's on, then delete the folder. It needs Microsoft's WebView2, which Windows 11 has; on a PC
+without it, hrtz says so and links to Microsoft's download.
+
 ### Build from source
 
 1. Install [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 20 or later, and
@@ -293,7 +302,8 @@ Quit Zaopin's own app first, and for a Logitech, G HUB or its On-board memory mo
    pnpm tauri dev
    ```
 
-`pnpm tauri build` makes an installer (NSIS) in `src-tauri/target/release/bundle`.
+`pnpm tauri build` makes an installer (NSIS) in `src-tauri/target/release/bundle`, and
+`pnpm tauri build --no-bundle --features portable` the portable copy, `src-tauri/target/release/hrtz.exe`.
 
 ## Develop
 
