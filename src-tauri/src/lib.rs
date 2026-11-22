@@ -10,6 +10,7 @@ pub mod inspect;
 pub mod installed;
 pub mod mice;
 pub mod pad;
+pub mod portable;
 pub mod signalrgb;
 pub mod store;
 pub mod taskbar;
@@ -269,6 +270,79 @@ fn prepare_update() {
         meter::save_pad();
         meter::save_clicks();
     }
+}
+
+/// This is the portable copy (`portable.rs`), which keeps its data beside it and updates itself.
+#[tauri::command]
+fn is_portable() -> bool {
+    portable::PORTABLE
+}
+
+/// The portable copy's update check: its own manifest on the newest release. The newer version,
+/// if there is one.
+#[tauri::command]
+async fn portable_check(app: AppHandle, pending: State<'_, portable::Pending>) -> CmdResult<Option<String>> {
+    use tauri_plugin_updater::UpdaterExt;
+    let url = tauri::Url::parse(&portable::manifest_url()).map_err(|e| e.to_string())?;
+    let updater = app
+        .updater_builder()
+        .endpoints(vec![url])
+        .and_then(|b| b.target(portable::TARGET).build())
+        .map_err(|e| e.to_string())?;
+    let found = updater.check().await.map_err(|e| e.to_string())?;
+    let version = found.as_ref().map(|u| u.version.clone());
+    *pending.update.lock() = found;
+    Ok(version)
+}
+
+/// Downloads the version `portable_check` found, its signature checked against hrtz's key, and
+/// holds it for the restart.
+#[tauri::command]
+async fn portable_download(
+    pending: State<'_, portable::Pending>,
+    on_event: tauri::ipc::Channel<portable::DownloadEvent>,
+) -> CmdResult<()> {
+    use portable::DownloadEvent;
+    let update = pending.update.lock().clone().ok_or("No update to download")?;
+    let mut started = false;
+    let bytes = update
+        .download(
+            |chunk_length, content_length| {
+                if !started {
+                    started = true;
+                    let _ = on_event.send(DownloadEvent::Started { content_length });
+                }
+                let _ = on_event.send(DownloadEvent::Progress { chunk_length });
+            },
+            || {
+                let _ = on_event.send(DownloadEvent::Finished);
+            },
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    *pending.bytes.lock() = Some(bytes);
+    Ok(())
+}
+
+/// Puts the downloaded version in this copy's place and restarts into it, saving what Quit saves.
+#[tauri::command]
+fn portable_install(app: AppHandle, pending: State<'_, portable::Pending>) -> CmdResult<()> {
+    let bytes = pending.bytes.lock().take().ok_or("No update downloaded")?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    if let Err(e) = portable::swap_in(&exe, &bytes) {
+        *pending.bytes.lock() = Some(bytes);
+        return Err(if e.kind() == std::io::ErrorKind::PermissionDenied {
+            i18n::tr(
+                "hrtz can't change the folder it's in. Move it to a folder of your own, or download the new version from GitHub.",
+            )
+        } else {
+            e.to_string()
+        });
+    }
+    let shown = app.get_webview_window("main").is_some_and(|w| w.is_visible().unwrap_or(false));
+    portable::start_new(&exe, !shown).map_err(|e| e.to_string())?;
+    quit(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1735,10 +1809,13 @@ fn quit(app: &AppHandle) {
 /// which needs Vite running, and would take the installed copy's place, since both share the name.
 /// An entry that's on is pointed at this copy each time it starts: one written by another copy
 /// (a dev build, an install moved) would start that one at sign-in while the switch here said on.
+/// The portable copy has an entry of its own, `hrtz portable`, so it never turns off or takes over
+/// the installed copy's on a PC that has both.
 #[cfg(not(debug_assertions))]
 fn start_with_windows(app: &tauri::AppHandle) -> tauri::Result<()> {
-    use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
-    app.plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))?;
+    use tauri_plugin_autostart::ManagerExt;
+    let name = if portable::PORTABLE { "hrtz portable" } else { "hrtz" };
+    app.plugin(tauri_plugin_autostart::Builder::new().app_name(name).arg("--minimized").build())?;
     let entry = app.autolaunch();
     if entry.is_enabled().unwrap_or(false)
         && let Err(e) = entry.enable()
@@ -1749,9 +1826,28 @@ fn start_with_windows(app: &tauri::AppHandle) -> tauri::Result<()> {
 }
 
 pub fn run() {
-    let context = tauri::generate_context!();
+    // The portable copy, restarted into a new version: the old one ends first.
+    portable::wait_for_old();
+    if portable::PORTABLE && !portable::webview_present() {
+        return;
+    }
+    let mut context = tauri::generate_context!();
+    // The portable copy keeps its web view's data in its folder. The main window is told where when
+    // it's made, in setup below, so it isn't made from the config first.
+    let portable_web = portable::webview_dir();
+    if portable_web.is_some() {
+        for window in context.config_mut().app.windows.iter_mut().filter(|w| w.label == "main") {
+            window.create = false;
+        }
+    }
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        // A second start shows this copy's window, unless it came from Start with Windows: with the
+        // installed and the portable copy both set to start, the one that loses stays in the tray.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.iter().any(|a| a == "--minimized") {
+                show_main(app);
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -1759,11 +1855,25 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(move |app| {
+            if let Some(dir) = &portable_web
+                && let Some(main) = app.config().app.windows.iter().find(|w| w.label == "main").cloned()
+            {
+                WebviewWindowBuilder::from_config(app, &main)?.data_directory(dir.clone()).build()?;
+            }
             #[cfg(not(debug_assertions))]
             start_with_windows(app.handle())?;
             let handle = app.handle().clone();
-            let config_dir = app.path().app_config_dir()?;
-            let data_dir = app.path().app_data_dir()?;
+            // The portable copy's settings and data are in `hrtz-data` beside it; the installed
+            // copy's in `%APPDATA%\com.azaek.hrtz` (both of these are that folder on Windows).
+            let (config_dir, data_dir) = match portable::data_dir() {
+                Some(dir) => (dir.to_path_buf(), dir.to_path_buf()),
+                None => (app.path().app_config_dir()?, app.path().app_data_dir()?),
+            };
+            if portable::PORTABLE {
+                portable::remove_old();
+                portable::register_for_notifications(&app.config().identifier);
+            }
+            app.manage(portable::Pending::default());
             let prefs_path = config_dir.join("prefs.json");
             let notify_handle = handle.clone();
             std::fs::create_dir_all(&data_dir)?;
@@ -1877,8 +1987,11 @@ pub fn run() {
                 });
             }
 
-            WebviewWindowBuilder::new(app, "osd", WebviewUrl::App("index.html".into()))
-                .title("hrtz OSD")
+            let mut osd = WebviewWindowBuilder::new(app, "osd", WebviewUrl::App("index.html".into()));
+            if let Some(dir) = &portable_web {
+                osd = osd.data_directory(dir.clone());
+            }
+            osd.title("hrtz OSD")
                 .inner_size(OSD_W, OSD_H)
                 .decorations(false)
                 .transparent(true)
@@ -1949,6 +2062,10 @@ pub fn run() {
             windows_version,
             update_ready,
             prepare_update,
+            is_portable,
+            portable_check,
+            portable_download,
+            portable_install,
             apply_settings,
             inspect_mice,
             inspect_read,

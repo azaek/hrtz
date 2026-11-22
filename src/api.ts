@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { screen, type Speech } from "./i18n";
 
@@ -808,6 +808,15 @@ export const showMouse = (key: string | null) => {
   mouse = key;
 };
 
+/** One download event from an update, as the updater plugin sends them (the portable copy's too). */
+export type UpdateDownloadEvent =
+  | { event: "Started"; data: { contentLength?: number | null } }
+  | { event: "Progress"; data: { chunkLength: number } }
+  | { event: "Finished" };
+
+/** Asked once: it can't change while hrtz runs. */
+let portable: Promise<boolean> | undefined;
+
 export const api = {
   state: () => invoke<DeviceState>("get_state"),
   /** Every connection's state. */
@@ -869,6 +878,18 @@ export const api = {
   updateReady: (version: string) => invoke<void>("update_ready", { version }),
   /** Saves what Quit would, before the updater exits hrtz. */
   prepareUpdate: () => invoke<void>("prepare_update"),
+  /** This is the portable copy, which keeps its data beside it and updates itself in place. */
+  isPortable: () => (portable ??= invoke<boolean>("is_portable").catch(() => false)),
+  /** The portable copy's update check: the newer version, or null. */
+  portableCheck: () => invoke<string | null>("portable_check"),
+  /** Downloads the version `portableCheck` found, with the updater plugin's progress events. */
+  portableDownload: (onEvent: (e: UpdateDownloadEvent) => void) => {
+    const channel = new Channel<UpdateDownloadEvent>();
+    channel.onmessage = onEvent;
+    return invoke<void>("portable_download", { onEvent: channel });
+  },
+  /** Puts the downloaded version in this copy's place and restarts into it. */
+  portableInstall: () => invoke<void>("portable_install"),
   runningApps: () => invoke<RunningApp[]>("running_apps"),
   appIcon: (path: string) => invoke<string | null>("app_icon", { path }),
   /** Games installed through Steam, Epic and Riot. */

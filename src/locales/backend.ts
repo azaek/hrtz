@@ -18,6 +18,9 @@ export const BACKEND_TEXT = [
   // Notifications.
   msg("hrtz {{version}} is ready"),
   msg("Choose Restart to update in the tray menu or the sidebar."),
+  // The portable copy: updating it in place, and a PC without WebView2.
+  msg("hrtz can't change the folder it's in. Move it to a folder of your own, or download the new version from GitHub."),
+  msg("hrtz needs Microsoft Edge WebView2 to show its window, and this PC doesn't have it. Choose OK to open Microsoft's download page, then start hrtz again."),
   msg("Mouse battery at {{level}}%"),
   msg("Charge your {{model}} soon."),
   msg("Battery saver lowered polling to {{rate}}"),

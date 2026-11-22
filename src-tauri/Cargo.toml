@@ -11,6 +11,11 @@ edition = "2024"
 name = "hrtz_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# The portable copy (src/portable.rs): its data beside the exe, updated in place. The release builds
+# it after the installer: `pnpm tauri build --no-bundle --features portable`.
+portable = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
